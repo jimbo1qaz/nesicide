@@ -16,7 +16,10 @@ Makefile.Debug
 Makefile
 Makefile.Release
 */.directory
-deps/
+
+deps/*
+!deps/wine
+
 compiler/lex.asm.c
 compiler/lex.pp.c
 compiler/libpasm.a
