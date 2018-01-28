@@ -1,7 +1,6 @@
 #!/bin/bash
 
 LIBDEPS="../deps/rtmidi/release/librtmidi \
-     ../deps/qscintilla2/Qt4Qt5/libqscintilla2_qt5 \
      ../libs/famitracker/release/libfamitracker"
 
 DEPLOYS="../apps/famitracker/release/famitracker"
@@ -23,7 +22,7 @@ do
    cp -v ${DEPLOY} ./dist/
    for f in ${LIBDEPS}
    do 
-      sudo cp -v ${f}* /usr/lib/x86_64-linux-gnu/
+      cp -v ${f}* ./dist/
    done
    if [ "$DEPLOY" == "../apps/ide/release/nesicide" ]; then
       make -C ../deps/cc65; make -C ../deps/cc65 install prefix=$PWD/dist/cc65
