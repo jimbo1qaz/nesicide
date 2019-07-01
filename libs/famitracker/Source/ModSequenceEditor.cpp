@@ -20,10 +20,13 @@
 
 // This is the modulation editor for FDS
 
+#include <memory>		// // //
 #include "stdafx.h"
-#include "FamiTrackerDoc.h"
 #include "Instrument.h"
+#include "SeqInstrument.h"		// // //
+#include "InstrumentFDS.h"		// // //
 #include "ModSequenceEditor.h"
+#include "DPI.h"		// // //
 
 int SIZE_X = 12;
 
@@ -36,7 +39,7 @@ BEGIN_MESSAGE_MAP(CModSequenceEditor, CWnd)
 END_MESSAGE_MAP()
 
 
-CModSequenceEditor::CModSequenceEditor() : m_pInstrument(NULL)
+CModSequenceEditor::CModSequenceEditor()
 {
 }
 
@@ -47,6 +50,8 @@ CModSequenceEditor::~CModSequenceEditor()
 BOOL CModSequenceEditor::CreateEx(DWORD dwExStyle, LPCTSTR lpszClassName, LPCTSTR lpszWindowName, DWORD dwStyle, const RECT& rect, CWnd* pParentWnd)
 {
 	CRect newRect;
+
+	// SIZE_X = DPI::SX(12);		// // //
 
 	newRect.top = rect.top;
 	newRect.left = rect.left;
@@ -93,7 +98,7 @@ void CModSequenceEditor::OnPaint()
 
 }
 
-void CModSequenceEditor::SetInstrument(CInstrumentFDS *pInst)
+void CModSequenceEditor::SetInstrument(std::shared_ptr<CInstrumentFDS> pInst)
 {
 	m_pInstrument = pInst;
 	Invalidate();

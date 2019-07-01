@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -18,16 +20,21 @@
 ** must bear this legend.
 */
 
+#include <memory>		// // //
 #include <string>
 #include "stdafx.h"
-#include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
+#include "Instrument.h"		// // // inst_type_t
 #include "Sequence.h"
-#include "SequenceEditor.h"
-#include "GraphEditor.h"
+#include "res/resource.h"        // // // CInstrumentEditDlg
+#include "InstrumentEditDlg.h"		// // // GetRefreshRate()
 #include "InstrumentEditPanel.h"
+#include "SequenceEditor.h"
 #include "SizeEditor.h"
+#include "GraphEditor.h"
 #include "SequenceSetting.h"
+#include "SequenceEditorMessage.h"		// // //
+#include "DPI.h"		// // //
+#include "SequenceParser.h"		// // //
 
 // This file contains the sequence editor and sequence size control
 
@@ -35,14 +42,13 @@
 
 IMPLEMENT_DYNAMIC(CSequenceEditor, CWnd)
 
-CSequenceEditor::CSequenceEditor(CFamiTrackerDoc *pDoc) : CWnd(), 
+CSequenceEditor::CSequenceEditor() : CWnd(),		// // //
 	m_pGraphEditor(NULL), 
 	m_pSizeEditor(NULL),
 	m_pSetting(NULL),
 	m_pFont(NULL),
 	m_iMaxVol(15), 
 	m_iMaxDuty(3),
-	m_pDocument(pDoc),
 	m_pParent(NULL),
 	m_pSequence(NULL),
 	m_iSelectedSetting(0),
@@ -64,6 +70,7 @@ BEGIN_MESSAGE_MAP(CSequenceEditor, CWnd)
 	ON_MESSAGE(WM_SIZE_CHANGE, OnSizeChange)
 	ON_MESSAGE(WM_CURSOR_CHANGE, OnCursorChange)
 	ON_MESSAGE(WM_SEQUENCE_CHANGED, OnSequenceChanged)
+	ON_MESSAGE(WM_SETTING_CHANGED, OnSettingChanged)
 END_MESSAGE_MAP()
 
 BOOL CSequenceEditor::CreateEditor(CWnd *pParentWnd, const RECT &rect)
@@ -84,10 +91,10 @@ BOOL CSequenceEditor::CreateEditor(CWnd *pParentWnd, const RECT &rect)
 
 	m_pSizeEditor = new CSizeEditor(this);
 	
-	if (m_pSizeEditor->CreateEx(NULL, NULL, _T(""), WS_CHILD | WS_VISIBLE, CRect(40, GraphRect.bottom + 5, 104, GraphRect.bottom + 22), this, 0) == -1)
+	if (m_pSizeEditor->CreateEx(NULL, NULL, _T(""), WS_CHILD | WS_VISIBLE, CRect(34, GraphRect.bottom + 5, 94, GraphRect.bottom + 22), this, 0) == -1)
 		return -1;
 
-	menuRect = CRect(GraphRect.right - 80, GraphRect.bottom + 3, GraphRect.right - 10, GraphRect.bottom + 22);
+	menuRect = CRect(GraphRect.right - 72, GraphRect.bottom + 5, GraphRect.right - 2, GraphRect.bottom + 24);
 
 	// Sequence settings editor
 	m_pSetting = new CSequenceSetting(this);
@@ -118,10 +125,12 @@ void CSequenceEditor::OnPaint()
 		m_pSizeEditor->SetValue(m_pSequence->GetItemCount());
 
 	dc.SelectObject(m_pFont);
-	dc.TextOut(10, rect.bottom - 19, _T("Size:"));
+	dc.TextOut(7, rect.bottom - 19, _T("Size:"));
 
 	CString LengthStr;
-	LengthStr.Format(_T("%i ms  "), (1000 * m_pSizeEditor->GetValue()) / m_pDocument->GetFrameRate());
+	float Rate;		// // //
+	Rate = static_cast<CInstrumentEditDlg*>(static_cast<CSequenceInstrumentEditPanel*>(m_pParent)->GetParent())->GetRefreshRate();
+	LengthStr.Format(_T("%.0f ms  "), (1000.0f * m_pSizeEditor->GetValue()) / Rate);
 
 	dc.TextOut(120, rect.bottom - 19, LengthStr);
 }
@@ -147,17 +156,13 @@ LRESULT CSequenceEditor::OnCursorChange(WPARAM wParam, LPARAM lParam)
 	GetClientRect(rect);
 
 	CString Text;
-	// Arpeggio
-	if (m_iSelectedSetting == SEQ_ARPEGGIO && m_pSequence->GetSetting() == 1) {
-      Text.Format(_T("{%i, %s}  "), wParam, (LPCTSTR)static_cast<CArpeggioGraphEditor*>(m_pGraphEditor)->GetNoteString(lParam));
-	}
-	else {
-		Text.Format(_T("{%i, %i}  "), wParam, lParam);
-	}
-	
+	if (m_pConversion != nullptr)		// // //
+		Text.Format(_T("{%i, %s}        "), wParam, m_pConversion->ToString(static_cast<char>(lParam)).c_str());
+	else
+		Text.Format(_T("{%i, %i}        "), wParam, lParam);
 	pDC->TextOut(170, rect.bottom - 19, Text);
-	ReleaseDC(pDC);
 
+	ReleaseDC(pDC);
 	return TRUE;
 }
 
@@ -171,19 +176,29 @@ LRESULT CSequenceEditor::OnSequenceChanged(WPARAM wParam, LPARAM lParam)
 	return TRUE;
 }
 
-void CSequenceEditor::ChangedSetting()
+LRESULT CSequenceEditor::OnSettingChanged(WPARAM wParam, LPARAM lParam)		// // //
 {
 	// Called when the setting selector has changed
 	SelectSequence(m_pSequence, m_iSelectedSetting, m_iInstrumentType);
 
 	switch (m_iSelectedSetting) {
-		case SEQ_ARPEGGIO:
-			static_cast<CArpeggioGraphEditor*>(m_pGraphEditor)->ChangeSetting();
-			break;
+	case SEQ_VOLUME:		// // //
+		if (m_iInstrumentType == INST_VRC6) {
+			ASSERT(dynamic_cast<CBarGraphEditor*>(m_pGraphEditor));
+			static_cast<CBarGraphEditor*>(m_pGraphEditor)->SetMaxItems(
+				m_pSequence->GetSetting() == SETTING_VOL_64_STEPS ? 0x3F : 0x0F);
+		}
+		break;
+	case SEQ_ARPEGGIO:
+		ASSERT(dynamic_cast<CArpeggioGraphEditor*>(m_pGraphEditor));
+		static_cast<CArpeggioGraphEditor*>(m_pGraphEditor)->ChangeSetting();
+		break;
 	}
 
 	m_pSetting->RedrawWindow();
 	RedrawWindow();
+
+	return TRUE;
 }
 
 void CSequenceEditor::SetMaxValues(int MaxVol, int MaxDuty)
@@ -192,30 +207,19 @@ void CSequenceEditor::SetMaxValues(int MaxVol, int MaxDuty)
 	m_iMaxDuty = MaxDuty;
 }
 
+void CSequenceEditor::SetConversion(const CSeqConversionBase *pConv)		// // //
+{
+	m_pConversion = pConv;
+}
+
 void CSequenceEditor::SequenceChangedMessage(bool Changed)
 {
-	CString Text;
-
-	// Translate sequence to MML-like string
-	Text = "";
-
-	for (unsigned i = 0; i < m_pSequence->GetItemCount(); ++i) {
-		if (m_pSequence->GetLoopPoint() == i)
-			Text.Append(_T("| "));
-		else if (m_pSequence->GetReleasePoint() == i)
-			Text.Append(_T("/ "));
-		Text.AppendFormat(_T("%i "), m_pSequence->GetItem(i));
-	}
-
-	static_cast<CSequenceInstrumentEditPanel*>(m_pParent)->SetSequenceString(Text, Changed);
+	static_cast<CSequenceInstrumentEditPanel*>(m_pParent)->UpdateSequenceString(Changed);		// // //
 
 	// Set flag in document
-	if (Changed) {
-		CFrameWnd *pMainFrame = dynamic_cast<CFrameWnd*>(theApp.m_pMainWnd);
-		if (pMainFrame) {
+	if (Changed)
+		if (CFrameWnd *pMainFrame = dynamic_cast<CFrameWnd*>(AfxGetMainWnd()))		// // //
 			pMainFrame->GetActiveDocument()->SetModifiedFlag();
-		}
-	}
 }
 
 //const int SEQ_SUNSOFT_NOISE = SEQ_DUTYCYCLE + 1;
@@ -232,7 +236,10 @@ void CSequenceEditor::SelectSequence(CSequence *pSequence, int Type, int Instrum
 	// Create the graph
 	switch (Type) {
 		case SEQ_VOLUME:
-			m_pGraphEditor = new CBarGraphEditor(pSequence, m_iMaxVol);
+			if (m_iInstrumentType == INST_VRC6 && m_iSelectedSetting == SEQ_VOLUME && pSequence->GetSetting() == SETTING_VOL_64_STEPS)
+				m_pGraphEditor = new CBarGraphEditor(pSequence, 0x3F);		// // //
+			else
+				m_pGraphEditor = new CBarGraphEditor(pSequence, m_iMaxVol);
 			break;
 		case SEQ_ARPEGGIO:
 			m_pGraphEditor = new CArpeggioGraphEditor(pSequence);

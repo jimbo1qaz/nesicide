@@ -18,38 +18,38 @@
 ** must bear this legend.
 */
 
+
 #pragma once
 
+#include "stdafx.h"
+#include "FFT/FftBuffer.h"		// // //
+#include <memory>
+#include "VisualizerBase.h"		// // //
 
 // CVisualizerSpectrum, spectrum style visualizer
 
-class Fft;
-
-const int FFT_POINTS = 256;
+const int FFT_POINTS = 1024;
 
 class CVisualizerSpectrum : public CVisualizerBase
 {
 public:
-	CVisualizerSpectrum();
-	virtual ~CVisualizerSpectrum();
+	CVisualizerSpectrum(int Size);		// // //
 
-	void Create(int Width, int Height);
-	void SetSampleRate(int SampleRate);
-	void SetSampleData(short *iSamples, unsigned int iCount);
-	void Draw();
-	void Display(CDC *pDC, bool bPaintMsg);
+	void Create(int Width, int Height) override;
+	void SetSampleRate(int SampleRate) override;
+	void SetSampleData(short *iSamples, unsigned int iCount) override;
+	void Draw() override;
 
 protected:
 	void Transform(short *pSamples, unsigned int Count);
 
 private:
 	static const COLORREF BG_COLOR = 0;
+	const int m_iBarSize;
 
-	COLORREF *m_pBlitBuffer;
-	Fft	*m_pFftObject;
+	FftBuffer<FFT_POINTS> fft_buffer_;		// // //
 
 	int m_iFillPos;
-	short m_pSampleBuffer[FFT_POINTS];
-	float m_fWindow[FFT_POINTS];
-	float m_fFftPoint[FFT_POINTS];
+	std::array<short, FFT_POINTS> m_pSampleBuffer = { };
+	std::array<float, FFT_POINTS> m_fFftPoint = { };
 };

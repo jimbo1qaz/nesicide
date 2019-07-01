@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -19,8 +21,6 @@
 */
 
 #pragma once
-
-#include "Chunk.h"
 
 // NSF file header
 struct stNSFHeader {
@@ -42,9 +42,30 @@ struct stNSFHeader {
 	unsigned char	Reserved[4];
 };
 
+struct stNSFeHeader {		// // //
+	unsigned char	NSFeIdent[4];
+	unsigned int	InfoSize;
+	unsigned char	InfoIdent[4];
+	unsigned short	LoadAddr;
+	unsigned short	InitAddr;
+	unsigned short	PlayAddr;
+	unsigned char	Flags;
+	unsigned char	SoundChip;
+	unsigned char	TotalSongs;
+	unsigned char	StartSong;
+	unsigned short	Speed_NTSC;
+	unsigned int	BankSize;
+	unsigned char	BankIdent[4];
+	unsigned char	BankValues[8];
+};
+
 struct driver_t;
 class CChunk;
 enum chunk_type_t;
+class CDSample;		 // // //
+class CFamiTrackerDoc;		// // //
+class CSequence;		// // //
+class CInstrumentFDS;		// // //
 
 /*
  * Logger class
@@ -67,6 +88,7 @@ public:
 	~CCompiler();
 	
 	void	ExportNSF(LPCTSTR lpszFileName, int MachineType);
+	void	ExportNSFE(LPCTSTR lpszFileName, int MachineType);		// // //
 	void	ExportNES(LPCTSTR lpszFileName, bool EnablePAL);
 	void	ExportBIN(LPCTSTR lpszBIN_File, LPCTSTR lpszDPCM_File);
 	void	ExportPRG(LPCTSTR lpszFileName, bool EnablePAL);
@@ -76,6 +98,7 @@ private:
 	bool	OpenFile(LPCTSTR lpszFileName, CFile &file) const;
 
 	void	CreateHeader(stNSFHeader *pHeader, int MachineType) const;
+	void	CreateNSFeHeader(stNSFeHeader *pHeader, int MachineType);		// // //
 	void	SetDriverSongAddress(char *pDriver, unsigned short Address) const;
 #if 0
 	void	WriteChannelMap();
@@ -107,8 +130,9 @@ private:
 	void	CreateSampleList();
 	void	CreateFrameList(unsigned int Track);
 
-	int		StoreSequence(CSequence *pSeq, CStringA &label);
+	int		StoreSequence(const CSequence *pSeq, CStringA &label);
 	void	StoreSamples();
+	void	StoreGrooves();		// // //
 	void	StoreSongs();
 	void	StorePatterns(unsigned int Track);
 
@@ -133,7 +157,8 @@ private:
 	int		CountData() const;
 
 	// Debugging
-	void	Print(LPCTSTR text, ...) const;
+	template <typename... T>
+	void	Print(LPCTSTR text, T... args) const;		// // //
 	void	ClearLog() const;
 
 public:
@@ -151,27 +176,10 @@ public:
 
 	static const bool LAST_BANK_FIXED;
 
-	// Labels
-	static const char LABEL_SONG_LIST[];
-	static const char LABEL_INSTRUMENT_LIST[];
-	static const char LABEL_SAMPLES_LIST[];
-	static const char LABEL_SAMPLES[];
-	static const char LABEL_WAVETABLE[];
-	static const char LABEL_SAMPLE[];
-	static const char LABEL_WAVES[];
-	static const char LABEL_SEQ_2A03[];
-	static const char LABEL_SEQ_VRC6[];
-	static const char LABEL_SEQ_FDS[];
-	static const char LABEL_SEQ_N163[];
-	static const char LABEL_INSTRUMENT[];
-	static const char LABEL_SONG[];
-	static const char LABEL_SONG_FRAMES[];
-	static const char LABEL_SONG_FRAME[];
-	static const char LABEL_PATTERN[];
-
 	// Flags
 	static const int FLAG_BANKSWITCHED;
 	static const int FLAG_VIBRATO;
+	static const int FLAG_LINEARPITCH;		// // //
 
 protected:
 	static CCompiler *pCompiler;			// Points to an active CCompiler object
@@ -188,7 +196,8 @@ private:
 	std::vector<CChunk*> m_vChunks;
 	std::vector<CChunk*> m_vSequenceChunks;
 	std::vector<CChunk*> m_vInstrumentChunks;
-	std::vector<CChunk*> m_vSongChunks;	
+	std::vector<CChunk*> m_vGrooveChunks;		// // //
+	std::vector<CChunk*> m_vSongChunks;
 	std::vector<CChunk*> m_vFrameChunks;
 	std::vector<CChunk*> m_vPatternChunks;
 	//std::vector<CChunk*> m_vWaveChunks;
@@ -213,6 +222,7 @@ private:
 	bool			m_bSequencesUsed2A03[MAX_SEQUENCES][SEQ_COUNT];
 	bool			m_bSequencesUsedVRC6[MAX_SEQUENCES][SEQ_COUNT];
 	bool			m_bSequencesUsedN163[MAX_SEQUENCES][SEQ_COUNT];
+	bool			m_bSequencesUsedS5B[MAX_SEQUENCES][SEQ_COUNT];		// // //
 
 	int				m_iWaveBanks[MAX_INSTRUMENTS];	// N163 waves
 
@@ -250,6 +260,10 @@ private:
 
 	// FDS
 	unsigned int	m_iWaveTables;
+
+	// // // Full chip export
+	unsigned char	m_iActualChip;
+	int				m_iActualNamcoChannels;
 
 	// Optimization
 	CMap<UINT, UINT, CChunk*, CChunk*> m_PatternMap;

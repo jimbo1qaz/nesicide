@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -27,19 +29,23 @@
 
 #include "stdafx.h"
 #include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
-#include "FamiTrackerView.h"
 #include "Settings.h"
 #include "ColorScheme.h"
 
-#define SETTING_INT(Section, Entry, Default, Variable)	\
-	AddSetting<int>(_T(Section), _T(Entry), Default, Variable)	\
+// // // registry context
 
-#define SETTING_BOOL(Section, Entry, Default, Variable)	\
-	AddSetting<bool>(_T(Section), _T(Entry), Default, Variable)	\
+stOldSettingContext::stOldSettingContext()
+{
+	free((void*)theApp.m_pszProfileName);
+	theApp.m_pszProfileName = _T("FamiTracker");
+}
 
-#define SETTING_STRING(Section, Entry, Default, Variable)	\
-	AddSetting<CString>(_T(Section), _T(Entry), Default, Variable)	\
+stOldSettingContext::~stOldSettingContext()
+{
+	CString s;
+	s.LoadString(AFX_IDS_APP_TITLE);
+	theApp.m_pszProfileName = _tcsdup(s);
+}
 
 // CSettings
 
@@ -53,7 +59,7 @@ CSettings::CSettings() : m_iAddedSettings(0)
 {
 	memset(m_pSettings, 0, sizeof(CSettingBase*) * MAX_SETTINGS);
 	SetupSettings();
-	TRACE1(_T("Settings: Added %i settings\n"), m_iAddedSettings);
+	TRACE(_T("Settings: Added %i settings\n"), m_iAddedSettings);
 }
 
 CSettings::~CSettings()
@@ -79,8 +85,28 @@ void CSettings::SetupSettings()
 	//  4. A variable that contains the setting, loaded on program startup and saved on shutdown
 	//
 
+	const auto SETTING_INT = [&] (LPCTSTR Section, LPCTSTR Entry, int Default, int *Variable) {		// // //
+		return AddSetting<int>(_T(Section), _T(Entry), Default, Variable);
+	};
+	const auto SETTING_BOOL = [&] (LPCTSTR Section, LPCTSTR Entry, bool Default, bool *Variable) {
+		return AddSetting<bool>(_T(Section), _T(Entry), Default, Variable);
+	};
+	const auto SETTING_STRING = [&] (LPCTSTR Section, LPCTSTR Entry, CString Default, CString *Variable) {
+		return AddSetting<CString>(_T(Section), _T(Entry), Default, Variable);
+	};
+
+	stOldSettingContext s;		// // //
+	/*
+		location priorities:
+		1. HKCU/SOFTWARE/0CC-FamiTracker
+		2. HKCU/SOFTWARE/0CC-FamiTracker, original key (using UpdateDefault)
+		3. HKCU/SOFTWARE/FamiTracker
+		4. HKCU/SOFTWARE/FamiTracker, original key (using UpdateDefault)
+		5. Default value
+	*/
+
 	// General
-	SETTING_INT("General", "Edit style", EDIT_STYLE1, &General.iEditStyle);
+	SETTING_INT("General", "Edit style", EDIT_STYLE_FT2, &General.iEditStyle);
 	SETTING_INT("General", "Page step size", 4, &General.iPageStepSize);
 	SETTING_BOOL("General", "Wrap cursor", true, &General.bWrapCursor);
 	SETTING_BOOL("General", "Wrap across frames", true, &General.bWrapFrames);
@@ -91,21 +117,30 @@ void CSettings::SetupSettings()
 	SETTING_BOOL("General", "Frame preview", true, &General.bFramePreview);
 	SETTING_BOOL("General", "No DPCM reset", false, &General.bNoDPCMReset);
 	SETTING_BOOL("General", "No Step moving", false, &General.bNoStepMove);
-	SETTING_BOOL("General", "Pattern colors", true, &General.bPatternColor);
 	SETTING_BOOL("General", "Delete pull up", false, &General.bPullUpDelete);
 	SETTING_BOOL("General", "Backups", false, &General.bBackups);
-	SETTING_STRING("General", "Pattern font", FONT_FACE, &General.strFont);
-	SETTING_INT("General", "Pattern font size", FONT_SIZE, &General.iFontSize);
 	SETTING_BOOL("General", "Single instance", false, &General.bSingleInstance);
 	SETTING_BOOL("General", "Preview full row", false, &General.bPreviewFullRow);
-	SETTING_BOOL("General", "Display flats", false, &General.bDisplayFlats);
 	SETTING_BOOL("General", "Double click selection", false, &General.bDblClickSelect);
+	// // //
+	SETTING_BOOL("General", "Wrap pattern values", false, &General.bWrapPatternValue);
+	SETTING_BOOL("General", "Cut sub-volume", false, &General.bCutVolume);
+	SETTING_BOOL("General", "Use old FDS volume table", false, &General.bFDSOldVolume);
+	SETTING_BOOL("General", "Overflow paste mode", false, &General.bOverflowPaste);
+	SETTING_BOOL("General", "Show skipped rows", false, &General.bShowSkippedRows);
+	SETTING_BOOL("General", "Hexadecimal keypad", false, &General.bHexKeypad);
+	SETTING_BOOL("General", "Multi-frame selection", false, &General.bMultiFrameSel);
+	SETTING_BOOL("General", "Check for new versions", true, &General.bCheckVersion);
+
+	// // // Version / Compatibility info
+	SETTING_INT("Version", "Module error level", MODULE_ERROR_DEFAULT, &Version.iErrorLevel);
 
 	// Keys
 	SETTING_INT("Keys", "Note cut",		0x31, &Keys.iKeyNoteCut);
 	SETTING_INT("Keys", "Note release", 0xDC, &Keys.iKeyNoteRelease);
 	SETTING_INT("Keys", "Clear field",	0xBD, &Keys.iKeyClear);
 	SETTING_INT("Keys", "Repeat",		0x00, &Keys.iKeyRepeat);
+	SETTING_INT("Keys", "Echo buffer",	0x00, &Keys.iKeyEchoBuffer);		// // //
 
 	// Sound
 	SETTING_INT("Sound", "Audio Device", 0, &Sound.iDevice);
@@ -138,6 +173,23 @@ void CSettings::SetupSettings()
 	SETTING_INT("Appearance", "Pattern effect", DEFAULT_COLOR_SCHEME.TEXT_EFFECT, &Appearance.iColPatternEffect);
 	SETTING_INT("Appearance", "Selection", DEFAULT_COLOR_SCHEME.SELECTION, &Appearance.iColSelection);
 	SETTING_INT("Appearance", "Cursor", DEFAULT_COLOR_SCHEME.CURSOR, &Appearance.iColCursor);
+
+	SETTING_INT("Appearance", "Current row (normal mode)", DEFAULT_COLOR_SCHEME.ROW_NORMAL, &Appearance.iColCurrentRowNormal);
+	SETTING_INT("Appearance", "Current row (edit mode)", DEFAULT_COLOR_SCHEME.ROW_EDIT, &Appearance.iColCurrentRowEdit);
+	SETTING_INT("Appearance", "Current row (playing)", DEFAULT_COLOR_SCHEME.ROW_PLAYING, &Appearance.iColCurrentRowPlaying);
+
+	SETTING_STRING("Appearance", "Pattern font", FONT_FACE, &Appearance.strFont)
+		->UpdateDefault("General", "Pattern font");
+	SETTING_INT("Appearance", "Pattern font size", FONT_SIZE, &Appearance.rowHeight)
+		->UpdateDefault("General", "Pattern font size");
+	SETTING_INT("Appearance", "Pattern font size percentage", FONT_RATIO, &Appearance.fontPercent);
+
+	SETTING_STRING("Appearance", "Frame font", FONT_FACE, &Appearance.strFrameFont)
+		->UpdateDefault("General", "Frame font");		// // // 050B
+	SETTING_BOOL("Appearance", "Pattern colors", true, &Appearance.bPatternColor)
+		->UpdateDefault("Appearance", "Pattern colors");
+	SETTING_BOOL("Appearance", "Display flats", false, &Appearance.bDisplayFlats)
+		->UpdateDefault("Appearance", "Display flats");
 	
 	// Window position
 	SETTING_INT("Window position", "Left", 100, &WindowPos.iLeft);
@@ -146,17 +198,25 @@ void CSettings::SetupSettings()
 	SETTING_INT("Window position", "Bottom", 920, &WindowPos.iBottom);
 	SETTING_INT("Window position", "State",	STATE_NORMAL, &WindowPos.iState);
 
+	// Display
+	SETTING_BOOL("Display", "Average BPM", false, &Display.bAverageBPM);		// // // 050B
+	SETTING_BOOL("Display", "Register state", false, &Display.bRegisterState);		// // // 050B
+
 	// Other
 	SETTING_INT("Other", "Sample window state", 0, &SampleWinState);
 	SETTING_INT("Other", "Frame editor position", 0, &FrameEditPos);
+	SETTING_INT("Other", "Control panel position", 0, &ControlPanelPos);		// // // 050B todo
 	SETTING_BOOL("Other", "Follow mode", true, &FollowMode);
+	SETTING_BOOL("Other", "Meter decay rate", false, &MeterDecayRate);		// // // 050B
 
 	// Paths
 	SETTING_STRING("Paths", "FTM path", "", &Paths[PATH_FTM]);
 	SETTING_STRING("Paths", "FTI path", "", &Paths[PATH_FTI]);
-	SETTING_STRING("Paths", "NSF path", "", &Paths[PATH_NSF]);
 	SETTING_STRING("Paths", "DMC path", "", &Paths[PATH_DMC]);
-	SETTING_STRING("Paths", "WAV path", "", &Paths[PATH_WAV]);
+	SETTING_STRING("Paths", "WAV path", "", &Paths[PATH_WAV_IMPORT]);
+	
+	//SETTING_STRING("Paths", "NSF path", "", &Paths[PATH_NSF]);
+	//SETTING_STRING("Paths", "TXT Export path", "", &Paths[PATH_EXPORT]);
 
 	SETTING_STRING("Paths", "Instrument menu", "", &InstrumentMenuPath);
 
@@ -171,15 +231,11 @@ void CSettings::SetupSettings()
 	SETTING_INT("Mixer", "S5B", 0, &ChipLevels.iLevelS5B);
 }
 
-template<class T> void CSettings::AddSetting(LPCTSTR pSection, LPCTSTR pEntry, T tDefault, T* pVariable)
-{
-	AddSetting(new CSettingType<T>(pSection, pEntry, tDefault, pVariable));
-}
-
-void CSettings::AddSetting(CSettingBase *pSetting)
+template<class T>
+CSettingBase *CSettings::AddSetting(LPCTSTR pSection, LPCTSTR pEntry, T tDefault, T *pVariable)
 {
 	ASSERT(m_iAddedSettings < MAX_SETTINGS);
-	m_pSettings[m_iAddedSettings++] = pSetting;
+	return m_pSettings[m_iAddedSettings++] = new CSettingType<T>(pSection, pEntry, tDefault, pVariable);		// // //
 }
 
 // CSettings member functions
@@ -238,34 +294,51 @@ void CSettings::SetPath(CString PathName, unsigned int PathType)
 		Paths[PathType] = PathName.Left(PathName.ReverseFind(_T('\\')));
 }
 
-void CSettings::StoreSetting(CString Section, CString Name, int Value) const
-{
-	theApp.WriteProfileInt(Section, Name, Value);
-}
-
-int CSettings::LoadSetting(CString Section, CString Name, int Default) const
-{
-	return theApp.GetProfileInt(Section, Name, Default);
-}
-
 // Settings types
 
 template<class T>
 void CSettingType<T>::Load()
 {
-	*m_pVariable = theApp.GetProfileInt(m_pSection, m_pEntry, m_tDefaultValue);
+	T Value = m_tDefaultValue;		// // //
+	{
+		stOldSettingContext s;
+		if (m_pSectionSecond)
+			Value = theApp.GetProfileInt(m_pSectionSecond, m_pEntrySecond, Value);
+		Value = theApp.GetProfileInt(m_pSection, m_pEntry, Value);
+	}
+	if (m_pSectionSecond)
+		Value = theApp.GetProfileInt(m_pSectionSecond, m_pEntrySecond, Value);
+	*m_pVariable = theApp.GetProfileInt(m_pSection, m_pEntry, Value);
 }
 
 template<>
 void CSettingType<bool>::Load()
 {
-	*m_pVariable = theApp.GetProfileInt(m_pSection, m_pEntry, m_tDefaultValue ? 1 : 0) == 1;
+	bool Value = m_tDefaultValue;		// // //
+	{
+		stOldSettingContext s;
+		if (m_pSectionSecond)
+			Value = theApp.GetProfileInt(m_pSectionSecond, m_pEntrySecond, Value) != 0;
+		Value = theApp.GetProfileInt(m_pSection, m_pEntry, Value) != 0;
+	}
+	if (m_pSectionSecond)
+		Value = theApp.GetProfileInt(m_pSectionSecond, m_pEntrySecond, Value) != 0;
+	*m_pVariable = theApp.GetProfileInt(m_pSection, m_pEntry, Value) != 0;
 }
 
 template<>
 void CSettingType<CString>::Load()
 {
-	*m_pVariable = theApp.GetProfileString(m_pSection, m_pEntry, m_tDefaultValue);
+	CString Value = m_tDefaultValue;		// // //
+	{
+		stOldSettingContext s;
+		if (m_pSectionSecond)
+			Value = theApp.GetProfileString(m_pSectionSecond, m_pEntrySecond, Value);
+		Value = theApp.GetProfileString(m_pSection, m_pEntry, Value);
+	}
+	if (m_pSectionSecond)
+		Value = theApp.GetProfileString(m_pSectionSecond, m_pEntrySecond, Value);
+	*m_pVariable = theApp.GetProfileString(m_pSection, m_pEntry, Value);
 }
 
 template<class T>
@@ -284,4 +357,10 @@ template<class T>
 void CSettingType<T>::Default()
 {
 	*m_pVariable = m_tDefaultValue;
+}
+
+void CSettingBase::UpdateDefault(LPCTSTR pSection, LPCTSTR pEntry)		// // //
+{
+	m_pSectionSecond = pSection;
+	m_pEntrySecond = pEntry;
 }

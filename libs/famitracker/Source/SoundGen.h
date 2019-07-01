@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,27 +22,18 @@
 
 #pragma once
 
-#include <QThread>
-#include <QTimer>
-
-#include "cqtmfc.h"
-
-#include "Common.h"
-
-#include "FamiTrackerDoc.h"
-
 //
 // This thread will take care of the NES sound generation
 //
 
-#include "WaveFile.h"
+#include <afxmt.h>		// Synchronization objects
+#include <queue>		// // //
 #include "Common.h"
-#include "TrackerChannel.h"
+
+#include <memory>
 
 const int VIBRATO_LENGTH = 256;
 const int TREMOLO_LENGTH = 256;
-
-const int NOTE_COUNT = 96;	// 96 available notes
 
 // Custom messages
 enum { 
@@ -65,7 +58,8 @@ enum play_mode_t {
 	MODE_PLAY_START,		// Play from start of song
 	MODE_PLAY_REPEAT,		// Play and repeat
 	MODE_PLAY_CURSOR,		// Play from cursor
-	MODE_PLAY_FRAME			// Play frame
+	MODE_PLAY_FRAME,		// Play frame
+	MODE_PLAY_MARKER,		// // // 050B (row marker, aka "bookmark")
 };
 
 enum render_end_t { 
@@ -73,23 +67,26 @@ enum render_end_t {
 	SONG_LOOP_LIMIT 
 };
 
-struct stChanNote;
+class stChanNote;		// // //
+struct stRecordSetting;
 
 enum note_prio_t;
 
 class CChannelHandler;
 class CFamiTrackerView;
 class CFamiTrackerDoc;
+class CInstrument;		// // //
+class CSequence;		// // //
 class CAPU;
 class CDSound;
 class CDSoundChannel;
+class CWaveFile;		// // //
 class CVisualizerWnd;
 class CDSample;
 class CTrackerChannel;
-
-#ifdef EXPORT_TEST
-class CExportTest;
-#endif /* EXPORT_TEST */
+class CFTMComponentInterface;		// // //
+class CInstrumentRecorder;		// // //
+class CRegisterState;		// // //
 
 // CSoundGen
 
@@ -100,6 +97,9 @@ protected:
 public:
 	CSoundGen();
 	virtual ~CSoundGen();
+
+private:		// // //
+	CInstrumentRecorder *m_pInstRecorder;
 
 	//
 	// Public functions
@@ -115,11 +115,11 @@ public:
 	// Multiple times initialization
 	void		RegisterChannels(int Chip, CFamiTrackerDoc *pDoc);
 	void		SelectChip(int Chip);
-	void		LoadMachineSettings(int Machine, int Rate, int NamcoChannels);
+	void		LoadMachineSettings();		// // // 050B
 
 	// Sound
 	bool		InitializeSound(HWND hWnd);
-	void		FlushBuffer(int16 *Buffer, uint32 Size);
+	void		FlushBuffer(int16_t *Buffer, uint32_t Size);
 	CDSound		*GetSoundInterface() const { return m_pDSound; };
 
 	void		Interrupt() const;
@@ -130,20 +130,16 @@ public:
 	bool		WaitForStop() const;
 	bool		IsRunning() const;
 
-	int			FindNote(unsigned int Period) const;
-	unsigned int GetPeriod(int Note) const;
-
 	CChannelHandler *GetChannel(int Index) const;
 
 	void		DocumentPropertiesChanged(CFamiTrackerDoc *pDocument);
 
 public:
 	// Vibrato
-	void		 GenerateVibratoTable(int Type);
-	void		 SetupVibratoTable(int Type);
+	void		 GenerateVibratoTable(vibrato_t Type);
+	void		 SetupVibratoTable(vibrato_t Type);
 	int			 ReadVibratoTable(int index) const;
-
-	int			 ReadNamcoPeriodTable(int index) const;
+	int			 ReadPeriodTable(int Index, int Table) const;		// // //
 
 	// Player interface
 	void		 StartPlayer(play_mode_t Mode, int Track);	
@@ -154,7 +150,10 @@ public:
 
 	void		 ResetState();
 	void		 ResetTempo();
+	void		 SetHighlightRows(int Rows);		// // //
 	float		 GetTempo() const;
+	float		 GetAverageBPM() const;		// // //
+	float		 GetCurrentBPM() const;		// // //
 	bool		 IsPlaying() const { return m_bPlaying; };
 
 	// Stats
@@ -165,7 +164,9 @@ public:
 	void		 SetJumpPattern(int Pattern);
 	void		 SetSkipRow(int Row);
 	void		 EvaluateGlobalEffects(stChanNote *NoteData, int EffColumns);
+
 	stDPCMState	 GetDPCMState() const;
+	int			 GetChannelVolume(int Channel) const;		// // //
 
 	// Rendering
 	bool		 RenderToFile(LPTSTR pFile, render_end_t SongEndType, int SongEndParam, int Track);
@@ -175,27 +176,32 @@ public:
 	bool		 IsBackgroundTask() const;
 
 	// Sample previewing
-	void		 PreviewSample(CDSample *pSample, int Offset, int Pitch);
+	void		 PreviewSample(const CDSample *pSample, int Offset, int Pitch);		// // //
 	void		 CancelPreviewSample();
 	bool		 PreviewDone() const;
 
 	void		 WriteAPU(int Address, char Value);
 
 	// Used by channels
+
+	/** Add cycles to model execution time (capped at vblank). */
 	void		AddCycles(int Count);
 
 	// Other
-	uint8		GetReg(int Chip, int Reg) const;
+	uint8_t		GetReg(int Chip, int Reg) const;
+	CRegisterState *GetRegState(unsigned Chip, unsigned Reg) const;		// // //
+	double		GetChannelFrequency(unsigned Chip, int Channel) const;		// // //
+	CString		RecallChannelState(int Channel) const;		// // //
 
 	// FDS & N163 wave preview
 	void		WaveChanged();
 	bool		HasWaveChanged() const;
 	void		ResetWaveChanged();
 
-	void		WriteRegister(uint16 Reg, uint8 Value);
-	void		WriteExternalRegister(uint16 Reg, uint8 Value);
+	void		WriteRegister(uint16_t Reg, uint8_t Value);
 
 	void		RegisterKeyState(int Channel, int Note);
+	void		SetNamcoMixing(bool bLinear);			// // //
 
 	// Player
 	int			GetPlayerRow() const;
@@ -203,20 +209,29 @@ public:
 	int			GetPlayerTrack() const;
 	int			GetPlayerTicks() const;
 	void		QueueNote(int Channel, stChanNote &NoteData, note_prio_t Priority) const;
+	void		ForceReloadInstrument(int Channel);		// // //
 	void		MoveToFrame(int Frame);
 	void		SetQueueFrame(int Frame);
 	int			GetQueueFrame() const;
 
-#ifdef EXPORT_TEST
-	bool		IsTestingExport() const { return m_bExportTesting; }
-#endif /* EXPORT_TEST */
+	// // // Instrument recorder
+	CInstrument		*GetRecordInstrument() const;
+	void			ResetDumpInstrument();
+	int				GetRecordChannel() const;
+	void			SetRecordChannel(int Channel);
+	stRecordSetting *GetRecordSetting() const;
+	void			SetRecordSetting(stRecordSetting *Setting);
 
 	bool HasDocument() const { return m_pDocument != NULL; };
 	CFamiTrackerDoc *GetDocument() const { return m_pDocument; };
+	CFTMComponentInterface *GetDocumentInterface() const;
 
 	// Sequence play position
 	void SetSequencePlayPos(const CSequence *pSequence, int Pos);
 	int GetSequencePlayPos(const CSequence *pSequence);
+
+	void SetMeterDecayRate(int Type) const;		// // // 050B
+	int GetMeterDecayRate() const;		// // // 050B
 
 	int GetDefaultInstrument() const;
 
@@ -226,15 +241,14 @@ public:
 private:
 	// Internal initialization
 	void		CreateChannels();
-	void		AssignChannel(CTrackerChannel *pTrackerChannel, CChannelHandler *pRenderer);
+	void		AssignChannel(CTrackerChannel *pTrackerChannel);		// // //
 	void		ResetAPU();
-	void		GeneratePeriodTables(int BaseFreq);
 
 	// Audio
 	bool		ResetAudioDevice();
 	void		CloseAudioDevice();
 	void		CloseAudio();
-	template<class T, int SHIFT> void FillBuffer(int16 *pBuffer, uint32 Size);
+	template<class T, int SHIFT> void FillBuffer(int16_t *pBuffer, uint32_t Size);
 	bool		PlayBuffer();
 
 	// Player
@@ -261,11 +275,7 @@ private:
 	void		PlayerJumpTo(int Frame);
 	void		PlayerSkipTo(int Row);
 
-	// Verification
-#ifdef EXPORT_TEST
-	void		EndExportTest();
-	void		CompareRegisters();
-#endif /* EXPORT_TEST */
+	void		ApplyGlobalState();		// // //
 
 public:
 	static const double NEW_VIBRATO_DEPTH[];
@@ -288,7 +298,7 @@ private:
 	CDSoundChannel		*m_pDSoundChannel;
 	CVisualizerWnd		*m_pVisualizerWnd;
 	CAPU				*m_pAPU;
-	CSampleMem			*m_pSampleMem;
+	int currN163LevelOffset;
 
 	const CDSample		*m_pPreviewSample;
 
@@ -296,6 +306,7 @@ private:
 
 	// Thread synchronization
 private:
+	mutable CCriticalSection m_csAPULock;		// // //
 	mutable CCriticalSection m_csVisualizerWndLock;
 
 	// Handles
@@ -319,8 +330,9 @@ private:
 private:
 	unsigned int		m_iTempo;							// Tempo and speed
 	unsigned int		m_iSpeed;							
+	int					m_iGrooveIndex;						// // // Current groove
+	unsigned int		m_iGroovePosition;					// // // Groove position
 	int					m_iTempoAccum;						// Used for speed calculation
-	int					m_iTempoFrames;						// Frames / row
 	unsigned int		m_iPlayTicks;
 	bool				m_bPlaying;							// True when tracker is playing back the module
 	bool				m_bHaltRequest;						// True when a halt is requested
@@ -332,27 +344,33 @@ private:
 
 	unsigned int		m_iSpeedSplitPoint;					// Speed/tempo split point fetched from the module
 	unsigned int		m_iFrameRate;						// Module frame rate
+	int					m_iLastHighlight;					// // //
+
+	bool				m_bUpdatingAPU;						// // //
 
 	// Play control
 	int					m_iJumpToPattern;
 	int					m_iSkipToRow;
+	bool				m_bDoHalt;							// // // Cxx effect
 	int					m_iStepRows;						// # of rows skipped last update
+	int					m_iRowTickCount;					// // // 050B
 	play_mode_t			m_iPlayMode;
 
-	unsigned int		*m_pNoteLookupTable;				// NTSC or PAL
 	unsigned int		m_iNoteLookupTableNTSC[96];			// For 2A03
 	unsigned int		m_iNoteLookupTablePAL[96];			// For 2A07
 	unsigned int		m_iNoteLookupTableSaw[96];			// For VRC6 sawtooth
+	unsigned int		m_iNoteLookupTableVRC7[12];			// // // For VRC7
 	unsigned int		m_iNoteLookupTableFDS[96];			// For FDS
 	unsigned int		m_iNoteLookupTableN163[96];			// For N163
-	unsigned int		m_iNoteLookupTableS5B[96];			// For sunsoft
+	unsigned int		m_iNoteLookupTableS5B[96];			// // // For 5B, internal use only
 	int					m_iVibratoTable[VIBRATO_LENGTH];
 
-	unsigned int		m_iMachineType;						// NTSC/PAL
+	machine_t			m_iMachineType;						// // // NTSC/PAL
 
 	// Rendering
 	bool				m_bRendering;
 	bool				m_bRequestRenderStop;
+	bool				m_bStoppingRender;					// // //
 	render_end_t		m_iRenderEndWhen;
 	unsigned int		m_iRenderEndParam;
 	int					m_iDelayedStart;
@@ -365,7 +383,14 @@ private:
 	int					m_iTempoRemainder;
 	bool				m_bUpdateRow;
 
-	CWaveFile			m_wfWaveFile;
+	static const int	AVERAGE_BPM_SIZE = 24;		// // // 050B
+	float				m_fBPMCacheValue[AVERAGE_BPM_SIZE];
+	int					m_iBPMCacheTicks[AVERAGE_BPM_SIZE];
+	int					m_iBPMCachePosition;
+
+	std::queue<int>		m_iRegisterStream;					// // // vgm export
+
+	std::unique_ptr<CWaveFile> m_pWaveFile;
 
 	// FDS & N163 waves
 	volatile bool		m_bWaveChanged;
@@ -386,11 +411,6 @@ private:
 	int					m_iSequencePlayPos;
 	int					m_iSequenceTimeout;
 
-#ifdef EXPORT_TEST
-	CExportTest			*m_pExportTest;
-	bool				m_bExportTesting;
-#endif /* EXPORT_TEST */
-
 	// Overloaded functions
 public:
 	virtual BOOL InitInstance();
@@ -408,10 +428,8 @@ public:
 	afx_msg void OnStartRender(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnStopRender(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnPreviewSample(WPARAM wParam, LPARAM lParam);
-	afx_msg void OnHaltPreview(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnWriteAPU(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnCloseSound(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnSetChip(WPARAM wParam, LPARAM lParam);
-	afx_msg void OnVerifyExport(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnRemoveDocument(WPARAM wParam, LPARAM lParam);
 };

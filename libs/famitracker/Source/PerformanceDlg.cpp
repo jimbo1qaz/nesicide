@@ -21,7 +21,8 @@
 #include "stdafx.h"
 #include "FamiTracker.h"
 #include "PerformanceDlg.h"
-#include "FamiTrackerDoc.h"
+#include "FamiTrackerTypes.h"
+#include "APU/Types.h"
 #include "SoundGen.h"
 
 
@@ -64,7 +65,7 @@ BOOL CPerformanceDlg::OnInitDialog()
 	// EXCEPTION: OCX Property Pages should return FALSE
 }
 
-void CPerformanceDlg::OnTimer(UINT nIDEvent)
+void CPerformanceDlg::OnTimer(UINT_PTR nIDEvent)
 {
 	CProgressCtrl *pBar = static_cast<CProgressCtrl*>(GetDlgItem(IDC_CPU_BAR));
 	unsigned int Usage = theApp.GetCPUUsage();

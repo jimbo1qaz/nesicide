@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -21,84 +23,304 @@
 #pragma once
 
 #include "Action.h"
-#include "FrameEditor.h"
+#include "FrameEditorTypes.h"		// // //
+#include "IntRange.h"		// // //
+
+class CFrameEditor;		// // //
+class CFamiTrackerView;
+class CMainFrame;
+class CFamiTrackerDoc;
+
+/*
+	\brief A structure responsible for recording the cursor and selection state of the frame
+	editor for use by frame actions. Uses CFamiTrackerView since the frame editor class is not
+	independent.
+*/
+struct CFrameEditorState		// TODO maybe merge this with CPatternEditorState
+{
+	/*!	\brief Constructor of the frame editor state.
+		\details On construction, the object retrieves the current state of the frame editor
+		immediately. Once created, a state object remains constant and can be applied back to the
+		frame editor as many times as desired.
+		\param pView Pointer to the tracker view.
+		\param Track The track number. */
+	CFrameEditorState(const CFamiTrackerView *pEditor, int Track);
+
+	/*!	\brief Applies the state to a frame editor.
+		\param pView Pointer to the tracker view. */
+	void ApplyState(CFamiTrackerView *pView) const;
+	
+	/*!	\brief Obtains the first selected frame.
+		\return Starting frame index. */
+	int GetFrameStart() const;
+	/*!	\brief Obtains the last selected frame.
+		\return Ending channel index. */
+	int GetFrameEnd() const;
+	/*!	\brief Obtains the first selected channel.
+		\return Starting frame index. */
+	int GetChanStart() const;
+	/*!	\brief Obtains the last selected channel.
+		\return Ending channel index. */
+	int GetChanEnd() const;
+
+	/*!	\brief The current track number at the time of the state's creation. */
+	int Track;
+
+	/*!	\brief The current cursor position at the time of the state's creation. */
+	CFrameCursorPos Cursor;
+
+	/*!	\brief The current selection position at the time of the state's creation. */
+	CFrameSelection Selection;
+
+	/*!	\brief Whether a selection is active at the time of the state's creation. */
+	bool IsSelecting;
+
+private:
+	CFrameSelection OriginalSelection;
+};
 
 // Frame commands
-class CFrameAction : public CAction
+class CFrameAction : public Action
 {
-public:
-	enum ACTIONS
-	{
-		ACT_ADD,
-		ACT_REMOVE,
-		ACT_DUPLICATE,
-		ACT_DUPLICATE_PATTERNS,
-		ACT_CHANGE_COUNT,
-		ACT_SET_PATTERN,
-		ACT_SET_PATTERN_ALL,
-		ACT_CHANGE_PATTERN,
-		ACT_CHANGE_PATTERN_ALL,
-		ACT_MOVE_DOWN,
-		ACT_MOVE_UP,
-		ACT_PASTE,
-		ACT_PASTE_NEW,
-		ACT_DRAG_AND_DROP_MOVE,
-		ACT_DRAG_AND_DROP_COPY,
-		ACT_DRAG_AND_DROP_COPY_NEW,
-		ACT_DELETE_SELECTION,
-		ACT_MERGE_DUPLICATED_PATTERNS
-	};
+protected:
+	CFrameAction();		// // //
 
 public:
-	CFrameAction(int iAction);
 	virtual ~CFrameAction();
 
-	bool SaveState(CMainFrame *pMainFrm);
-	void Undo(CMainFrame *pMainFrm);
-	void Redo(CMainFrame *pMainFrm);
+	void SaveUndoState(const CMainFrame *pMainFrm);		// // //
+	void SaveRedoState(const CMainFrame *pMainFrm);		// // //
+	void RestoreUndoState(CMainFrame *pMainFrm) const;		// // //
+	void RestoreRedoState(CMainFrame *pMainFrm) const;		// // //
 
+protected:
+	static int ClipPattern(int Pattern);
+
+	CIntRange<int> m_itFrames, m_itChannels;
+
+protected:
+	CFrameEditorState *m_pUndoState = nullptr, *m_pRedoState = nullptr;		// // //
+};
+
+// // // built-in frame action subtypes
+
+class CFActionAddFrame : public CFrameAction
+{
 public:
-	void SetFrameCount(unsigned int FrameCount);
-	void SetPattern(unsigned int Pattern);
-	void SetPatternDelta(int Delta, bool ChangeAll);
-	void Update(CMainFrame *pMainFrm);
-	void SetPasteData(CFrameClipData *pClipData);
-	void SetDragInfo(int DragTarget, CFrameClipData *pClipData, bool Remove);
-
+	CFActionAddFrame() { }
 private:
-	void SaveFrame(CFamiTrackerDoc *pDoc);
-	void RestoreFrame(CFamiTrackerDoc *pDoc);
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+};
 
-	void SaveAllFrames(CFamiTrackerDoc *pDoc);
-	void RestoreAllFrames(CFamiTrackerDoc *pDoc);
-
-	int ClipPattern(int Pattern) const;
-
-	void ClearPatterns(CFamiTrackerDoc *pDoc, int Target);
-
+class CFActionRemoveFrame : public CFrameAction
+{
+public:
+	CFActionRemoveFrame() { }
+	~CFActionRemoveFrame() { SAFE_RELEASE(m_pRowClipData); }
 private:
-	unsigned int m_iUndoTrack;
-	unsigned int m_iUndoFramePos;
-	unsigned int m_iUndoChannelPos;
-	unsigned int m_iRedoFramePos;
-	unsigned int m_iRedoChannelPos;
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+private:
+	CFrameClipData *m_pRowClipData = nullptr;
+};
 
-	unsigned int m_iNewFrameCount;
-	unsigned int m_iUndoFrameCount;
-	unsigned int m_iNewPattern;
-	unsigned int m_iOldPattern;
-	
-	int m_iPatternDelta;
-	bool m_bChangeAll;
+class CFActionDuplicateFrame : public CFrameAction
+{
+public:
+	CFActionDuplicateFrame() { }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+};
 
-	unsigned int m_iPatterns[MAX_CHANNELS];
+class CFActionCloneFrame : public CFrameAction
+{
+public:
+	CFActionCloneFrame() { }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+};
 
-	bool m_bDragRemove;
-	unsigned int m_iDragTarget;
+class CFActionFrameCount : public CFrameAction
+{
+public:
+	CFActionFrameCount(int Count) : m_iNewFrameCount(Count) { }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+	bool Merge(const Action *Other) override;		// // //
+private:
+	int m_iOldFrameCount, m_iNewFrameCount;
+};
 
-	unsigned int *m_pAllPatterns;
+class CFActionSetPattern : public CFrameAction
+{
+public:
+	CFActionSetPattern(int Pattern) : m_iNewPattern(Pattern) { }
+	~CFActionSetPattern() { SAFE_RELEASE(m_pClipData); }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+	bool Merge(const Action *Other) override;		// // //
+private:
+	int m_iNewPattern;
+	CFrameClipData *m_pClipData = nullptr;
+};
 
-	CFrameClipData *m_pClipData;
+class CFActionSetPatternAll : public CFrameAction
+{
+public:
+	CFActionSetPatternAll(int Pattern) : m_iNewPattern(Pattern) { }
+	~CFActionSetPatternAll() { SAFE_RELEASE(m_pRowClipData); }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+	bool Merge(const Action *Other) override;		// // //
+private:
+	int m_iNewPattern;
+	CFrameClipData *m_pRowClipData = nullptr;
+};
 
-	stSelectInfo m_oSelInfo;
+class CFActionChangePattern : public CFrameAction
+{
+public:
+	CFActionChangePattern(int Offset) : m_iPatternOffset(Offset) { }
+	~CFActionChangePattern() { SAFE_RELEASE(m_pClipData); }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+	bool Merge(const Action *Other) override;		// // //
+private:
+	int m_iPatternOffset;
+	CFrameClipData *m_pClipData = nullptr;
+	mutable bool m_bOverflow = false;
+};
+
+class CFActionChangePatternAll : public CFrameAction
+{
+public:
+	CFActionChangePatternAll(int Offset) : m_iPatternOffset(Offset) { }
+	~CFActionChangePatternAll() { SAFE_RELEASE(m_pRowClipData); }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+	bool Merge(const Action *Other) override;		// // //
+private:
+	int m_iPatternOffset;
+	CFrameClipData *m_pRowClipData = nullptr;
+	mutable bool m_bOverflow = false;
+};
+
+class CFActionMoveDown : public CFrameAction
+{
+public:
+	CFActionMoveDown() { }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+};
+
+class CFActionMoveUp : public CFrameAction
+{
+public:
+	CFActionMoveUp() { }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+};
+
+class CFActionClonePatterns : public CFrameAction		// // //
+{
+public:
+	CFActionClonePatterns() { }
+	~CFActionClonePatterns() { SAFE_RELEASE(m_pClipData); }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+private:
+	int m_iOldPattern, m_iNewPattern;
+	CFrameClipData *m_pClipData = nullptr;
+};
+
+class CFActionPaste : public CFrameAction
+{
+public:
+	CFActionPaste(CFrameClipData *pData, int Frame, bool Clone) : m_pClipData(pData), m_iTargetFrame(Frame), m_bClone(Clone) { }
+	~CFActionPaste() { SAFE_RELEASE(m_pClipData); }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+private:
+	CFrameClipData *m_pClipData = nullptr;
+	int m_iTargetFrame;
+	bool m_bClone;
+};
+
+class CFActionPasteOverwrite : public CFrameAction
+{
+public:
+	CFActionPasteOverwrite(CFrameClipData *pData) : m_pClipData(pData) { }
+	~CFActionPasteOverwrite() { SAFE_RELEASE(m_pClipData); }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+private:
+	CFrameClipData *m_pClipData = nullptr, *m_pOldClipData = nullptr;
+	CFrameSelection m_TargetSelection;
+};
+
+class CFActionDropMove : public CFrameAction
+{
+public:
+	CFActionDropMove(CFrameClipData *pData, int Frame) : m_pClipData(pData), m_iTargetFrame(Frame) { }
+	~CFActionDropMove() { SAFE_RELEASE(m_pClipData); }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+private:
+	CFrameClipData *m_pClipData = nullptr;
+	int m_iTargetFrame;
+};
+
+class CFActionDeleteSel : public CFrameAction
+{
+public:
+	CFActionDeleteSel() { }
+	~CFActionDeleteSel() { SAFE_RELEASE(m_pClipData); }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+private:
+	CFrameClipData *m_pClipData = nullptr;
+};
+
+class CFActionMergeDuplicated : public CFrameAction
+{
+public:
+	CFActionMergeDuplicated() { }
+	~CFActionMergeDuplicated() { SAFE_RELEASE(m_pOldClipData); SAFE_RELEASE(m_pClipData); }
+private:
+	bool SaveState(const CMainFrame *pMainFrm) override;
+	void Undo(CMainFrame *pMainFrm) const override;
+	void Redo(CMainFrame *pMainFrm) const override;
+private:
+	CFrameClipData *m_pClipData = nullptr, *m_pOldClipData = nullptr;
 };

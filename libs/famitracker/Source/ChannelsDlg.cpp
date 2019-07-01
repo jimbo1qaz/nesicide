@@ -5,8 +5,8 @@
 #include "FamiTracker.h"
 #include "FamiTrackerDoc.h"
 #include "TrackerChannel.h"
-#include "Source/ChannelsDlg.h"
-#include "APU/APU.h"
+#include "Source\ChannelsDlg.h"
+#include "apu/apu.h"
 
 // Used to handle channels in a future version. Not finished.
 
@@ -32,7 +32,7 @@ const int CHILD_ITEMS_ID[ROOT_ITEM_COUNT][9] = {
 	// MMC5
 	{CHANID_MMC5_SQUARE1, CHANID_MMC5_SQUARE2},
 	// N163
-	{CHANID_N163_CHAN1, CHANID_N163_CHAN2, CHANID_N163_CHAN3, CHANID_N163_CHAN4, CHANID_N163_CHAN5, CHANID_N163_CHAN6, CHANID_N163_CHAN7, CHANID_N163_CHAN8}, 
+	{CHANID_N163_CH1, CHANID_N163_CH2, CHANID_N163_CH3, CHANID_N163_CH4, CHANID_N163_CH5, CHANID_N163_CH6, CHANID_N163_CH7, CHANID_N163_CH8}, 
 	 // S5B
 	{CHANID_S5B_CH1, CHANID_S5B_CH2, CHANID_S5B_CH3}
 };
@@ -78,12 +78,9 @@ BEGIN_MESSAGE_MAP(CChannelsDlg, CDialog)
 	ON_NOTIFY(NM_CLICK, IDC_AVAILABLE_TREE, OnClickAvailable)
 	ON_NOTIFY(NM_DBLCLK, IDC_AVAILABLE_TREE, OnDblClickAvailable)
 	ON_NOTIFY(NM_DBLCLK, IDC_ADDED_LIST, OnDblClickAdded)
-//ON_BN_CLICKED(IDC_MOVE_DOWN, &CChannelsDlg::OnBnClickedMoveDown)
-//ON_NOTIFY(NM_RCLICK, IDC_AVAILABLE_TREE, &CChannelsDlg::OnNMRClickAvailableTree)
-//ON_BN_CLICKED(IDC_MOVE_UP, &CChannelsDlg::OnBnClickedMoveUp)
-   ON_BN_CLICKED(IDC_MOVE_DOWN, OnBnClickedMoveDown)
-   ON_NOTIFY(NM_RCLICK, IDC_AVAILABLE_TREE, OnNMRClickAvailableTree)
-	ON_BN_CLICKED(IDC_MOVE_UP, OnBnClickedMoveUp)
+	ON_BN_CLICKED(IDC_MOVE_DOWN, &CChannelsDlg::OnBnClickedMoveDown)
+	ON_NOTIFY(NM_RCLICK, IDC_AVAILABLE_TREE, &CChannelsDlg::OnNMRClickAvailableTree)
+	ON_BN_CLICKED(IDC_MOVE_UP, &CChannelsDlg::OnBnClickedMoveUp)
 END_MESSAGE_MAP()
 
 // CChannelsDlg message handlers
@@ -166,7 +163,7 @@ void CChannelsDlg::OnDblClickAdded(NMHDR *pNMHDR, LRESULT *result)
 			for (int j = 0; CHILD_ITEMS[i][j] != NULL; ++j) {
 				if (CHILD_ITEMS_ID[i][j] == ChanID) {
 					CString str;
-					str.Format(_T("%i: %s"), j + 1, CHILD_ITEMS[i][j]);
+					str.Format(_T("%i: %s"), j, CHILD_ITEMS[i][j]);
 					HTREEITEM hChild = m_pAvailableTree->InsertItem(str, hParent, hParent);
 					m_pAvailableTree->SetItemData(hChild, CHILD_ITEMS_ID[i][j]);
 					m_pAvailableTree->Expand(hParent, TVE_EXPAND);

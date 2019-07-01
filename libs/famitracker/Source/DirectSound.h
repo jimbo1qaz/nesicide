@@ -21,14 +21,8 @@
 #ifndef DSOUND_H
 #define DSOUND_H
 
-//#include <windows.h>
-//#include <mmsystem.h>
-//#include <dsound.h>
-#undef main
-#include <SDL.h>
-#include <QObject>
-
-#include "cqtmfc.h"
+#include <mmsystem.h>
+#include <dsound.h>
 
 // Return values from WaitForDirectSoundEvent()
 enum buffer_event_t {
@@ -40,17 +34,16 @@ enum buffer_event_t {
 };
 
 // DirectSound channel
-class CDSoundChannel : public QObject
+class CDSoundChannel 
 {
-   Q_OBJECT
 	friend class CDSound;
 
 public:
 	CDSoundChannel();
 	~CDSoundChannel();
 
-   bool Play();
-   bool Stop();
+	bool Play() const;
+	bool Stop() const;
 	bool IsPlaying() const;
 	bool ClearBuffer();
 	bool WriteBuffer(char *pBuffer, unsigned int Samples);
@@ -69,13 +62,14 @@ private:
 	int GetPlayBlock() const;
 	int GetWriteBlock() const;
 
+	void AdvanceWritePointer();
 
 private:
-//	LPDIRECTSOUNDBUFFER	m_lpDirectSoundBuffer;
-//	LPDIRECTSOUNDNOTIFY	m_lpDirectSoundNotify;
+	LPDIRECTSOUNDBUFFER	m_lpDirectSoundBuffer;
+	LPDIRECTSOUNDNOTIFY	m_lpDirectSoundNotify;
 
-//	HANDLE			m_hEventList[2];
-//	HWND			m_hWndTarget;
+	HANDLE			m_hEventList[2];
+	HWND			m_hWndTarget;
 
 	// Configuration
 	unsigned int	m_iSampleSize;
@@ -88,19 +82,7 @@ private:
 
 	// State
 	unsigned int	m_iCurrentWriteBlock;
-   bool m_bPaused;
 };
-
-typedef void (*SDL_Callback_Function)(void* userdata,uint8_t* stream,int32_t len);
-
-typedef struct _SDL_Callback
-{
-   SDL_Callback_Function _func;
-   void*                 _user;
-   bool                  _valid;
-} SDL_Callback;
-
-extern QList<SDL_Callback> sdlHooks;
 
 // DirectSound
 class CDSound 
@@ -131,19 +113,19 @@ public:
 	static const unsigned int MAX_SAMPLE_RATE = 96000;
 	static const unsigned int MAX_BUFFER_LENGTH = 10000;
 
-//protected:
-//	static BOOL CALLBACK DSEnumCallback(LPGUID lpGuid, LPCTSTR lpcstrDescription, LPCTSTR lpcstrModule, LPVOID lpContext);
+protected:
+	static BOOL CALLBACK DSEnumCallback(LPGUID lpGuid, LPCTSTR lpcstrDescription, LPCTSTR lpcstrModule, LPVOID lpContext);
 	static CDSound *pThisObject;
 
-//private:
-//	HWND			m_hWndTarget;
-//	HANDLE			m_hNotificationHandle;
-//	LPDIRECTSOUND	m_lpDirectSound;
+private:
+	HWND			m_hWndTarget;
+	HANDLE			m_hNotificationHandle;
+	LPDIRECTSOUND	m_lpDirectSound;
 
-//	// For enumeration
+	// For enumeration
 	unsigned int	m_iDevices;
 	LPCTSTR			m_pcDevice[MAX_DEVICES];
-//	GUID			*m_pGUIDs[MAX_DEVICES];
+	GUID			*m_pGUIDs[MAX_DEVICES];
 };
 
 #endif /* DSOUND_H */

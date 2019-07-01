@@ -43,7 +43,7 @@ void CInstrumentFileTree::DeleteMenuObjects()
 	m_menuArray.RemoveAll();
 	m_iTotalMenusAdded = 0;
 
-	TRACE0("Cleared instrument file tree\n");
+	TRACE("Cleared instrument file tree\n");
 }
 
 CString CInstrumentFileTree::GetFile(int Index) const
@@ -70,7 +70,7 @@ bool CInstrumentFileTree::BuildMenuTree(CString instrumentPath)
 	DeleteMenuObjects();
 	m_fileList.RemoveAll();
 
-	TRACE0("Building instrument file tree...\n");
+	TRACE("Building instrument file tree...\n");
 
 	m_pRootMenu = new CMenu();
 
@@ -101,7 +101,7 @@ bool CInstrumentFileTree::BuildMenuTree(CString instrumentPath)
 		}
 	}
 
-	TRACE0("Done\n");
+	TRACE("Done\n");
 
 	return true;
 }
@@ -128,7 +128,7 @@ bool CInstrumentFileTree::ScanDirectory(CString path, CMenu *pMenu, int level)
 			bool bDisabled = false;
 			if (!ScanDirectory(path + _T("\\") + fileFinder.GetFileName(), pSubMenu, level + 1))
 				bDisabled = true;
-         pMenu->AppendMenu(MF_STRING | MF_POPUP | (bDisabled ? MF_DISABLED : MF_ENABLED), (UINT_PTR)pSubMenu->m_hMenu, fileFinder.GetFileName());
+			pMenu->AppendMenu(MF_STRING | MF_POPUP | (bDisabled ? MF_DISABLED : MF_ENABLED), (UINT_PTR)pSubMenu->m_hMenu, fileFinder.GetFileName());
 			bNoFile = false;
 		}
 	}

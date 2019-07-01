@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -33,35 +35,44 @@ enum vrc7_command_t {
 	CMD_NOTE_RELEASE
 };
 
-class CChannelHandlerVRC7 : public CChannelHandler {
+class CChannelHandlerInterfaceVRC7;
+
+class CChannelHandlerVRC7 : public FrequencyChannelHandler, public CChannelHandlerInterfaceVRC7 {		// // //
 public:
 	CChannelHandlerVRC7();
-	virtual void ProcessChannel();
-	virtual void ResetChannel();
-	virtual void SetChannelID(int ID);
-protected:
-	virtual void HandleNoteData(stChanNote *pNoteData, int EffColumns);
-	virtual void HandleCustomEffects(int EffNum, int EffParam);
-	virtual bool HandleInstrument(int Instrument, bool Trigger, bool NewInstrument);
-	virtual void HandleEmptyNote();
-	virtual void HandleCut();
-	virtual void HandleRelease();
-	virtual void HandleNote(int Note, int Octave);
-	virtual int CalculateVolume() const;
+	void	SetChannelID(int ID) override;
 
-	int TriggerNote(int Note);
+	void	SetPatch(unsigned char Patch);		// // //
+	void	SetCustomReg(size_t Index, unsigned char Val);		// // //
 
 protected:
+	void	HandleNoteData(stChanNote *pNoteData, int EffColumns) override;
+	bool	HandleEffect(effect_t EffNum, unsigned char EffParam) override;		// // //
+	void	HandleEmptyNote() override;
+	void	HandleCut() override;
+	void	HandleRelease() override;
+	void	HandleNote(int Note, int Octave) override;
+	int		RunNote(int Octave, int Note) override;		// // //
+	bool	CreateInstHandler(inst_type_t Type) override;		// // //
+	void	SetupSlide() override;		// // //
+	int		CalculateVolume() const override;
+	int		CalculatePeriod() const override;		// // //
+
+	void	UpdateNoteRelease() override;		// // //
+	int		TriggerNote(int Note) override;
+
+protected:
+	void CorrectOctave();		// // //
 	unsigned int GetFnum(int Note) const;
 
 protected:
 	static bool m_bRegsDirty;
+	static char m_cPatchFlag;		// // // 050B
+	static unsigned char m_iPatchRegs[8];		// // // 050B
 
 protected:
 	unsigned char m_iChannel;
-	unsigned char m_iPatch;
-
-	char	m_iRegs[8];
+	char m_iPatch;
 
 	bool	m_bHold;
 
@@ -69,17 +80,21 @@ protected:
 
 	int		m_iTriggeredNote;
 	int		m_iOctave;
-	
-	int		m_iPostEffect;
-	int		m_iPostEffectParam;
+	int		m_iOldOctave;		// // //
+	int		m_iCustomPort;		// // // 050B
 };
 
 class CVRC7Channel : public CChannelHandlerVRC7 {
 public:
-	CVRC7Channel() : CChannelHandlerVRC7() {};
+	CVRC7Channel() : CChannelHandlerVRC7() { }
 	void RefreshChannel();
+
+	int getDutyMax() const override;
 protected:
+	static const char MAX_DUTY;		// TODO remove class constant, move to .cpp file
+
 	void ClearRegisters();
 private:
 	void RegWrite(unsigned char Reg, unsigned char Value);
 };
+

@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -22,22 +24,27 @@
  * The sequence setting button. Used only by arpeggio at the moment
  */
 
-#include <string>
 #include "stdafx.h"
-#include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
 #include "Sequence.h"
-#include "SequenceEditor.h"
-#include "GraphEditor.h"
-#include "InstrumentEditPanel.h"
 #include "SequenceSetting.h"
+#include "SequenceEditorMessage.h"		// // //
+#include "Instrument.h"		// // // inst_type_t
 
-// Arpeggio menu
-enum {
-	MENU_ARP_ABSOLUTE = 500, 
-	MENU_ARP_RELATIVE, 
-	MENU_ARP_FIXED
+// Sequence setting menu
+
+static LPCTSTR SEQ_SETTING_TEXT[][SEQ_COUNT] = {		// // // 050B
+	{_T("16 steps"), _T("Absolute"), _T("Relative"), nullptr, nullptr},
+	{_T("64 steps"),    _T("Fixed"), _T("Absolute"), nullptr, nullptr},
+#ifdef _DEBUG
+	{       nullptr, _T("Relative"),    _T("Sweep"), nullptr, nullptr},
+#else
+	{       nullptr, _T("Relative"),        nullptr, nullptr, nullptr},
+#endif
+	{       nullptr,   _T("Scheme"),        nullptr, nullptr, nullptr},
 };
+
+const UINT CSequenceSetting::MENU_ID_BASE = 0x1000U;		// // //
+const UINT CSequenceSetting::MENU_ID_MAX  = 0x100FU;		// // //
 
 IMPLEMENT_DYNAMIC(CSequenceSetting, CWnd)
 
@@ -53,9 +60,7 @@ CSequenceSetting::~CSequenceSetting()
 BEGIN_MESSAGE_MAP(CSequenceSetting, CWnd)
 	ON_WM_PAINT()
 	ON_WM_LBUTTONDOWN()
-	ON_COMMAND(MENU_ARP_ABSOLUTE, OnMenuArpAbsolute)
-	ON_COMMAND(MENU_ARP_RELATIVE, OnMenuArpRelative)
-	ON_COMMAND(MENU_ARP_FIXED, OnMenuArpFixed)
+	ON_COMMAND_RANGE(MENU_ID_BASE, MENU_ID_MAX, OnMenuSettingChanged)		// // //
 	ON_WM_MOUSEMOVE()
 	ON_WM_MOUSELEAVE()
 END_MESSAGE_MAP()
@@ -63,46 +68,31 @@ END_MESSAGE_MAP()
 
 void CSequenceSetting::Setup(CFont *pFont)
 {
-	m_menuPopup.CreatePopupMenu();
-
-	m_menuPopup.AppendMenu(MF_STRING, MENU_ARP_ABSOLUTE, _T("Absolute"));
-	m_menuPopup.AppendMenu(MF_STRING, MENU_ARP_RELATIVE, _T("Relative"));
-	m_menuPopup.AppendMenu(MF_STRING, MENU_ARP_FIXED, _T("Fixed"));
-
 	m_pFont = pFont;
 }
 
 void CSequenceSetting::OnPaint()
 {
-	CPaintDC dc(this);
-	bool bDraw(false);
-
+	CPaintDC dc {this};
 	CRect rect;
 	GetClientRect(&rect);
 
-	if (m_iType == SEQ_ARPEGGIO)
-		bDraw = true;
-
-	int mode = m_pSequence->GetSetting();
-
-	if (bDraw) {
-
-		int BgColor = m_bMouseOver ? 0x303030 : 0x101010;
-
-		dc.FillSolidRect(rect, BgColor);
-		dc.DrawEdge(rect, EDGE_SUNKEN, BF_RECT);
-		dc.SelectObject(m_pFont);
-		dc.SetTextColor(0xFFFFFF);
-		dc.SetBkColor(BgColor);
-
-		LPCTSTR MODES[] = {_T("Absolute"), _T("Fixed"), _T("Relative")};
-
-		rect.top += 2;
-		dc.DrawText(MODES[mode], _tcslen(MODES[mode]), rect, DT_CENTER);
+	unsigned mode = m_pSequence->GetSetting();		// // //
+	if (mode > SEQ_SETTING_COUNT[m_iType] || SEQ_SETTING_TEXT[mode][m_iType] == nullptr) {
+		dc.FillSolidRect(rect, 0xFFFFFF); return;
 	}
-	else {
-		dc.FillSolidRect(rect, 0xFFFFFF);
-	}
+	LPCTSTR str = SEQ_SETTING_TEXT[mode][m_iType];
+
+	int BgColor = m_bMouseOver ? 0x303030 : 0x101010;
+
+	dc.FillSolidRect(rect, BgColor);
+	dc.DrawEdge(rect, EDGE_SUNKEN, BF_RECT);
+	dc.SelectObject(m_pFont);
+	dc.SetTextColor(0xFFFFFF);
+	dc.SetBkColor(BgColor);
+
+	rect.top += 2;
+	dc.DrawText(str, _tcslen(str), rect, DT_CENTER);
 }
 
 void CSequenceSetting::OnLButtonDown(UINT nFlags, CPoint point)
@@ -110,22 +100,21 @@ void CSequenceSetting::OnLButtonDown(UINT nFlags, CPoint point)
 	CRect rect;
 	GetWindowRect(rect);
 
-	if (m_iType == SEQ_ARPEGGIO) {
+	unsigned Setting = m_pSequence->GetSetting();		// // //
+	if (SEQ_SETTING_COUNT[m_iType] < 2) return;
 
-		switch (m_pSequence->GetSetting()) {
-			case ARP_SETTING_ABSOLUTE:
-				m_menuPopup.CheckMenuRadioItem(MENU_ARP_ABSOLUTE, MENU_ARP_FIXED, MENU_ARP_ABSOLUTE, MF_BYCOMMAND);
-				break;
-			case ARP_SETTING_RELATIVE:
-				m_menuPopup.CheckMenuRadioItem(MENU_ARP_ABSOLUTE, MENU_ARP_FIXED, MENU_ARP_RELATIVE, MF_BYCOMMAND);
-				break;
-			case ARP_SETTING_FIXED:
-				m_menuPopup.CheckMenuRadioItem(MENU_ARP_ABSOLUTE, MENU_ARP_FIXED, MENU_ARP_FIXED, MF_BYCOMMAND);
-				break;
-		}
-
-		m_menuPopup.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, point.x + rect.left, point.y + rect.top, this);
-	}
+	m_menuPopup.CreatePopupMenu();
+	for (unsigned i = 0; i < SEQ_SETTING_COUNT[m_iType]; ++i)
+		m_menuPopup.AppendMenu(MF_STRING, MENU_ID_BASE + i, SEQ_SETTING_TEXT[i][m_iType]);
+	m_menuPopup.CheckMenuRadioItem(MENU_ID_BASE, MENU_ID_MAX, MENU_ID_BASE + Setting, MF_BYCOMMAND);
+#ifndef _DEBUG
+	if (m_iType == SEQ_VOLUME && m_iInstType != INST_VRC6)
+		m_menuPopup.EnableMenuItem(MENU_ID_BASE + SETTING_VOL_64_STEPS, MF_DISABLED);		// // // 050B
+//	else if (m_iType == SEQ_PITCH && m_iInstType != INST_2A03)
+//		m_menuPopup.EnableMenuItem(MENU_ID_BASE + SETTING_PITCH_SWEEP, MF_DISABLED);
+#endif
+	m_menuPopup.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, point.x + rect.left, point.y + rect.top, this);
+	m_menuPopup.DestroyMenu();		// // //
 
 	CWnd::OnLButtonDown(nFlags, point);
 }
@@ -140,30 +129,42 @@ void CSequenceSetting::SelectSequence(CSequence *pSequence, int Type, int Instru
 	RedrawWindow();
 }
 
-void CSequenceSetting::OnMenuArpAbsolute()
+void CSequenceSetting::OnMenuSettingChanged(UINT ID)		// // //
 {
-	m_pSequence->SetSetting(ARP_SETTING_ABSOLUTE);
-	static_cast<CSequenceEditor*>(m_pParent)->ChangedSetting();
-}
+	unsigned Setting = m_pSequence->GetSetting();
+	unsigned New = ID - MENU_ID_BASE;
+	ASSERT(New < SEQ_SETTING_COUNT[m_iType]);
 
-void CSequenceSetting::OnMenuArpRelative()
-{
-	m_pSequence->SetSetting(ARP_SETTING_RELATIVE);
-	static_cast<CSequenceEditor*>(m_pParent)->ChangedSetting();
-}
+	const auto MapFunc = [&] (signed char(*f) (signed char)) {
+		for (unsigned int i = 0, Count = m_pSequence->GetItemCount(); i < Count; ++i)
+			m_pSequence->SetItem(i, f(m_pSequence->GetItem(i)));
+	};
 
-void CSequenceSetting::OnMenuArpFixed()
-{
-	m_pSequence->SetSetting(ARP_SETTING_FIXED);
-	static_cast<CSequenceEditor*>(m_pParent)->ChangedSetting();
-
-	// Prevent invalid sequence items
-	for (unsigned int i = 0; i < m_pSequence->GetItemCount(); ++i) {
-		int Item = m_pSequence->GetItem(i);
-		if (Item < 0)
-			Item = 0;
-		m_pSequence->SetItem(i, Item);
+	if (New != Setting) switch (m_iType) {
+	case SEQ_VOLUME:
+		switch (New) {
+		case SETTING_VOL_16_STEPS: MapFunc([] (signed char x) -> signed char { return x / 4; }); break;
+		case SETTING_VOL_64_STEPS: MapFunc([] (signed char x) -> signed char { return x * 4; }); break;
+		}
+		break;
+	case SEQ_ARPEGGIO:
+		switch (Setting) {
+		case SETTING_ARP_SCHEME: MapFunc([] (signed char x) -> signed char {
+			signed char Item = x & 0x3F;
+			return Item > ARPSCHEME_MAX ? Item - 0x40 : Item;
+		}); break;
+		}
+		switch (New) {
+		case SETTING_ARP_SCHEME: MapFunc([] (signed char x) -> signed char {
+			return (x > ARPSCHEME_MAX ? ARPSCHEME_MAX : (x < ARPSCHEME_MIN ? ARPSCHEME_MIN : x)) & 0x3F;
+		}); break;
+		case SETTING_ARP_FIXED: MapFunc([] (signed char x) -> signed char { return x < 0 ? 0 : x; }); break;
+		}
+		break;
 	}
+	
+	m_pSequence->SetSetting(static_cast<seq_setting_t>(New));
+	m_pParent->PostMessage(WM_SETTING_CHANGED);		// // //
 }
 
 void CSequenceSetting::OnMouseMove(UINT nFlags, CPoint point)

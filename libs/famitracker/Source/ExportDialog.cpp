@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -28,7 +30,7 @@
 #include "stdafx.h"
 #include "FamiTracker.h"
 #include "ExportDialog.h"
-#include "FamiTrackerDoc.h"
+#include "FamitrackerDoc.h"
 #include "Compiler.h"
 #include "Settings.h"
 #include "CustomExporters.h"
@@ -42,6 +44,7 @@ const LPTSTR CExportDialog::DEFAULT_EXPORT_NAMES[] = {
 	_T("BIN - Raw music data"),
 	_T("PRG - Clean 32kB ROM image"),
 	_T("ASM - Assembly source"),
+	_T("NSFe - Extended Nintendo Sound File"),		// // //
 };
 
 const exportFunc_t CExportDialog::DEFAULT_EXPORT_FUNCS[] = {
@@ -50,9 +53,10 @@ const exportFunc_t CExportDialog::DEFAULT_EXPORT_FUNCS[] = {
 	&CExportDialog::CreateBIN,
 	&CExportDialog::CreatePRG,
 	&CExportDialog::CreateASM,
+	&CExportDialog::CreateNSFe,		// // //
 };
 
-const int CExportDialog::DEFAULT_EXPORTERS = 5;
+const int CExportDialog::DEFAULT_EXPORTERS = 6;		// // //
 
 // Remember last option when dialog is closed
 int CExportDialog::m_iExportOption = 0;
@@ -64,6 +68,7 @@ LPCTSTR CExportDialog::RAW_FILTER[]   = { _T("Raw song data (*.bin)"), _T(".bin"
 LPCTSTR CExportDialog::DPCMS_FILTER[] = { _T("DPCM sample bank (*.bin)"), _T(".bin") };
 LPCTSTR CExportDialog::PRG_FILTER[]   = { _T("NES program bank (*.prg)"), _T(".prg") };
 LPCTSTR CExportDialog::ASM_FILTER[]	  = { _T("Assembly text (*.asm)"), _T(".asm") };
+LPCTSTR CExportDialog::NSFE_FILTER[]  = { _T("NSFe file (*.nsfe)"), _T(".nsfe") };		// // //
 
 // Compiler logger
 
@@ -111,8 +116,7 @@ void CExportDialog::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CExportDialog, CDialog)
 	ON_BN_CLICKED(IDC_CLOSE, OnBnClickedClose)
-//ON_BN_CLICKED(IDC_EXPORT, &CExportDialog::OnBnClickedExport)
-   ON_BN_CLICKED(IDC_EXPORT, OnBnClickedExport)
+	ON_BN_CLICKED(IDC_EXPORT, &CExportDialog::OnBnClickedExport)
 	ON_BN_CLICKED(IDC_PLAY, OnBnClickedPlay)
 END_MESSAGE_MAP()
 
@@ -234,6 +238,48 @@ void CExportDialog::CreateNSF()
 	theApp.GetSettings()->SetPath(FileDialog.GetPathName(), PATH_NSF);
 }
 
+void CExportDialog::CreateNSFe()		// // //
+{
+	CFamiTrackerDoc *pDoc = CFamiTrackerDoc::GetDoc();
+	CString	DefFileName = pDoc->GetFileTitle();
+	CCompiler Compiler(pDoc, new CEditLog(GetDlgItem(IDC_OUTPUT)));
+	CString Name, Artist, Copyright;
+	CString filter = LoadDefaultFilter(NSFE_FILTER[0], NSFE_FILTER[1]);
+	int MachineType = 0;
+
+	// Collect header info
+	GetDlgItemText(IDC_NAME, Name);
+	GetDlgItemText(IDC_ARTIST, Artist);
+	GetDlgItemText(IDC_COPYRIGHT, Copyright);
+
+	if (IsDlgButtonChecked(IDC_NTSC) != 0)
+		MachineType = 0;
+	else if (IsDlgButtonChecked(IDC_PAL) != 0)
+		MachineType = 1;
+	else if (IsDlgButtonChecked(IDC_DUAL) != 0)
+		MachineType = 2;
+
+	USES_CONVERSION;
+
+	pDoc->SetSongName(T2A(Name.GetBuffer()));
+	pDoc->SetSongArtist(T2A(Artist.GetBuffer()));
+	pDoc->SetSongCopyright(T2A(Copyright.GetBuffer()));
+
+	CFileDialog FileDialog(FALSE, NSF_FILTER[1], DefFileName, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, filter);
+
+	FileDialog.m_pOFN->lpstrInitialDir = theApp.GetSettings()->GetPath(PATH_NSF);
+
+	if (FileDialog.DoModal() == IDCANCEL)
+		return;
+
+	// Display wait cursor
+	CWaitCursor wait;
+
+	Compiler.ExportNSFE(FileDialog.GetPathName(), MachineType);
+
+	theApp.GetSettings()->SetPath(FileDialog.GetPathName(), PATH_NSF);
+}
+
 void CExportDialog::CreateNES()
 {
 	CFamiTrackerDoc *pDoc = CFamiTrackerDoc::GetDoc();
@@ -263,23 +309,39 @@ void CExportDialog::CreateBIN()
 	CString MusicFilter = LoadDefaultFilter(RAW_FILTER[0], RAW_FILTER[1]);
 	CString DPCMFilter = LoadDefaultFilter(DPCMS_FILTER[0], DPCMS_FILTER[1]);
 
-	CFileDialog FileDialogMusic(FALSE, RAW_FILTER[1], _T("music.bin"), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, MusicFilter);
-	CFileDialog FileDialogSamples(FALSE, DPCMS_FILTER[1], _T("samples.bin"), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, DPCMFilter);
+	const CString DEFAULT_MUSIC_NAME = _T("music.bin");		// // //
+	const CString DEFAULT_SAMPLE_NAME = _T("samples.bin");
+
+	CFileDialog FileDialogMusic(FALSE, RAW_FILTER[1], DEFAULT_MUSIC_NAME, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, MusicFilter);
+	CFileDialog FileDialogSamples(FALSE, DPCMS_FILTER[1], DEFAULT_SAMPLE_NAME, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, DPCMFilter);
 
 	FileDialogMusic.m_pOFN->lpstrInitialDir = theApp.GetSettings()->GetPath(PATH_NSF);
 
 	if (FileDialogMusic.DoModal() == IDCANCEL)
 		return;
 
+	CString SampleDir = FileDialogMusic.GetPathName();		// // //
 	if (pDoc->GetSampleCount() > 0) {
 		if (FileDialogSamples.DoModal() == IDCANCEL)
 			return;
+		SampleDir = FileDialogSamples.GetPathName();
+	}
+	else {
+		int Pos = SampleDir.ReverseFind(_T('\\'));
+		ASSERT(Pos != -1);
+		SampleDir = SampleDir.Left(Pos + 1) + DEFAULT_SAMPLE_NAME;
+		if (PathFileExists(SampleDir)) {
+			CString msg;
+			AfxFormatString1(msg, IDS_EXPORT_SAMPLES_FILE, DEFAULT_SAMPLE_NAME);
+			if (AfxMessageBox(msg, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO)
+				return;
+		}
 	}
 
 	// Display wait cursor
 	CWaitCursor wait;
 
-	Compiler.ExportBIN(FileDialogMusic.GetPathName(), FileDialogSamples.GetPathName());
+	Compiler.ExportBIN(FileDialogMusic.GetPathName(), SampleDir);
 
 	theApp.GetSettings()->SetPath(FileDialogMusic.GetPathName(), PATH_NSF);
 }

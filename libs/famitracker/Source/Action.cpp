@@ -21,116 +21,97 @@
 // These classes implements a new more flexible undo system
 
 #include "stdafx.h"
-#include "resource.h"
-#include "FamiTrackerDoc.h"
-#include "FamiTrackerView.h"
-#include "MainFrm.h"
-#include "PatternEditor.h"
 #include "Action.h"
 
-// CAction ////////////////////////////////////////////////////////////////////////
+// Action ////////////////////////////////////////////////////////////////////////
 
-CAction::CAction(int iAction)
-{
-	m_iAction = iAction;
-}
-
-CAction::~CAction()
+Action::Action(int iAction) : m_iAction(iAction)
 {
 }
 
-int CAction::GetAction() const
+Action::~Action()
+{
+}
+
+bool Action::Merge(const Action *Other)		// // //
+{
+	return false;
+}
+
+int Action::GetAction() const
 {
 	return m_iAction;
 }
 
 
-// CActionHandler /////////////////////////////////////////////////////////////////
+// History /////////////////////////////////////////////////////////////////
 
-CActionHandler::CActionHandler()
+const int History::MAX_LEVELS = 64;		// // //
+
+History::History() : m_UndoStack(), m_RedoStack()
 {
-	m_iUndoLevel = 0;
-	m_iRedoLevel = 0;
+}
 
-	for (int i = 0; i < MAX_LEVELS; ++i) {
-		m_pActionStack[i] = NULL;
+void History::Clear()
+{
+	m_UndoStack.clear();
+	m_RedoStack.clear();
+}
+
+void History::Push(Action *pAction)
+{
+	auto ptr = std::unique_ptr<Action>(pAction);		// // //
+	if (m_UndoStack.empty() || !(*m_UndoStack.rbegin())->Merge(pAction)) {
+		if (m_UndoStack.size() == MAX_LEVELS)
+			m_UndoStack.erase(m_UndoStack.begin(), m_UndoStack.begin() + 1);
+		m_UndoStack.push_back(std::move(ptr));
 	}
+	m_RedoStack.clear();
 }
 
-CActionHandler::~CActionHandler()
+Action *History::PopUndo()
 {
-	Clear();
+	if (m_UndoStack.empty())
+		return nullptr;
+
+	Action *pAction = m_UndoStack.rbegin()->release();
+	m_UndoStack.erase(m_UndoStack.end() - 1, m_UndoStack.end());
+	m_RedoStack.push_back(std::unique_ptr<Action>(pAction));
+	return pAction;
 }
 
-void CActionHandler::Clear()
+Action *History::PopRedo()
 {
-	m_iUndoLevel = 0;
-	m_iRedoLevel = 0;
+	if (m_RedoStack.empty())
+		return nullptr;
 
-	for (int i = 0; i < MAX_LEVELS; ++i) {
-		SAFE_RELEASE(m_pActionStack[i]);
-	}
+	Action *pAction = m_RedoStack.rbegin()->release();
+	m_RedoStack.erase(m_RedoStack.end() - 1, m_RedoStack.end());
+	m_UndoStack.push_back(std::unique_ptr<Action>(pAction));
+	return pAction;
 }
 
-void CActionHandler::Push(CAction *pAction)
+Action *History::GetLastAction() const
 {
-	if (m_iUndoLevel < MAX_LEVELS) {
-		SAFE_RELEASE(m_pActionStack[m_iUndoLevel]);
-		m_pActionStack[m_iUndoLevel++] = pAction;
-	}
-	else {
-		SAFE_RELEASE(m_pActionStack[0]);
-		for (int i = 1; i < MAX_LEVELS; ++i)
-			m_pActionStack[i - 1] = m_pActionStack[i];
-		m_pActionStack[MAX_LEVELS - 1] = pAction;
-	}
-
-	m_iRedoLevel = 0;
+	return m_UndoStack.empty() ? nullptr : m_UndoStack.rbegin()->get();
 }
 
-CAction *CActionHandler::PopUndo()
+int History::GetUndoLevel() const
 {
-	if (!m_iUndoLevel)
-		return NULL;
-
-	m_iRedoLevel++;
-	m_iUndoLevel--;
-
-	return m_pActionStack[m_iUndoLevel];
+	return m_UndoStack.size();
 }
 
-CAction *CActionHandler::PopRedo()
+int History::GetRedoLevel() const
 {
-	if (!m_iRedoLevel)
-		return NULL;
-
-	m_iUndoLevel++;
-	m_iRedoLevel--;
-
-	return m_pActionStack[m_iUndoLevel - 1];
+	return m_RedoStack.size();
 }
 
-CAction *CActionHandler::GetLastAction() const
+bool History::CanUndo() const
 {
-	return (m_iUndoLevel == 0) ? NULL : m_pActionStack[m_iUndoLevel - 1];
+	return !m_UndoStack.empty();
 }
 
-int CActionHandler::GetUndoLevel() const
+bool History::CanRedo() const
 {
-	return m_iUndoLevel;
-}
-
-int CActionHandler::GetRedoLevel() const
-{
-	return m_iRedoLevel;
-}
-
-bool CActionHandler::CanUndo() const
-{
-	return m_iUndoLevel > 0;
-}
-
-bool CActionHandler::CanRedo() const
-{
-	return m_iRedoLevel > 0;
+	return !m_RedoStack.empty();
 }

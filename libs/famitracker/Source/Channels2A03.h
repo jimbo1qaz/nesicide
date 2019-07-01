@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -27,97 +29,121 @@
 class CChannelHandler2A03 : public CChannelHandler {
 public:
 	CChannelHandler2A03();
-	virtual void ProcessChannel();
 	virtual void ResetChannel();
 
 protected:
-	virtual void HandleNoteData(stChanNote *pNoteData, int EffColumns);
-	virtual void HandleCustomEffects(int EffNum, int EffParam);
-	virtual bool HandleInstrument(int Instrument, bool Trigger, bool NewInstrument);
-	virtual void HandleEmptyNote();
-	virtual void HandleCut();
-	virtual void HandleRelease();
-	virtual void HandleNote(int Note, int Octave);
+	void	HandleNoteData(stChanNote *pNoteData, int EffColumns) override;
+	bool	HandleEffect(effect_t EffNum, unsigned char EffParam) override;		// // //
+	void	HandleEmptyNote() override;
+	void	HandleCut() override;
+	void	HandleRelease() override;
+	bool	CreateInstHandler(inst_type_t Type) override;		// // //
 
 protected:
-	unsigned char m_cSweep;			// Sweep, used by pulse channels
+	// // //
+	bool	m_bHardwareEnvelope;	// // // (constant volume flag, bit 4)
+	bool	m_bEnvelopeLoop;		// // // (halt length counter flag, bit 5 / triangle bit 7)
+	bool	m_bResetEnvelope;		// // //
+	int		m_iLengthCounter;		// // //
+};
 
-	bool	m_bManualVolume;		// Flag for Exx
-	int		m_iInitVolume;			// Initial volume
-	bool	m_bSweeping;			// Flag for HW sweep
+// // // 2A03 Square
+class C2A03Square : public CChannelHandler2A03 {
+public:
+	C2A03Square();
+	void	RefreshChannel() override;
+	void	SetChannelID(int ID) override;		// // //
+	int getDutyMax() const override;
+protected:
+	static const char MAX_DUTY;
+
+	int		ConvertDuty(int Duty) const override;		// // //
+	void	ClearRegisters() override;
+
+	void	HandleNoteData(stChanNote *pNoteData, int EffColumns) override;
+	bool	HandleEffect(effect_t EffNum, unsigned char EffParam) override;		// // //
+	void	HandleEmptyNote() override;
+	void	HandleNote(int Note, int Octave) override;
+	CString	GetCustomEffectString() const override;		// // //
+
+	unsigned char m_iChannel;		// // //
+	unsigned char m_cSweep;
+	bool	m_bSweeping;
 	int		m_iSweep;
-	int		m_iPostEffect;
-	int		m_iPostEffectParam;
-};
-
-// Square 1
-class CSquare1Chan : public CChannelHandler2A03 {
-public:
-	CSquare1Chan() : CChannelHandler2A03() { m_iDefaultDuty = 0; };
-	virtual void RefreshChannel();
-protected:
-	virtual void ClearRegisters();
-};
-
-// Square 2
-class CSquare2Chan : public CChannelHandler2A03 {
-public:
-	CSquare2Chan() : CChannelHandler2A03() { m_iDefaultDuty = 0; };
-	virtual void RefreshChannel();
-protected:
-	virtual void ClearRegisters();
+	int		m_iLastPeriod;
 };
 
 // Triangle
 class CTriangleChan : public CChannelHandler2A03 {
 public:
-	CTriangleChan() : CChannelHandler2A03() {};
-	virtual void RefreshChannel();
+	CTriangleChan();
+	void	RefreshChannel() override;
+	void	ResetChannel() override;		// // //
+	int		GetChannelVolume() const override;		// // //
 protected:
-	virtual void ClearRegisters();
+	bool	HandleEffect(effect_t EffNum, unsigned char EffParam) override;		// // //
+	void	ClearRegisters() override;
+	CString	GetCustomEffectString() const override;		// // //
+private:
+	int m_iLinearCounter;
 };
 
 // Noise
 class CNoiseChan : public CChannelHandler2A03 {
 public:
-	CNoiseChan();
-	virtual void RefreshChannel();
+	void	RefreshChannel();
+	int getDutyMax() const override;
 protected:
-	virtual void ClearRegisters();
-	virtual void HandleNote(int Note, int Octave);
-	virtual void SetupSlide(int Type, int EffParam);
+	static const char MAX_DUTY;
 
-	int TriggerNote(int Note);
+	void	ClearRegisters() override;
+	CString	GetCustomEffectString() const override;		// // //
+	void	HandleNote(int Note, int Octave) override;
+	void	SetupSlide() override;		// // //
+
+	int		LimitPeriod(int Period) const override;		// // //
+	int		LimitRawPeriod(int Period) const override;		// // //
+
+	int		TriggerNote(int Note) override;
 };
 
-// DPCM
-class CDPCMChan : public CChannelHandler2A03 {
-public:
-	CDPCMChan(CSampleMem *pSampleMem);
-	virtual void RefreshChannel();
-protected:
-	virtual void HandleNoteData(stChanNote *pNoteData, int EffColumns);
-	virtual void HandleCustomEffects(int EffNum, int EffParam);
-	virtual bool HandleInstrument(int Instrument, bool Trigger, bool NewInstrument);
-	virtual void HandleEmptyNote();
-	virtual void HandleCut();
-	virtual void HandleRelease();
-	virtual void HandleNote(int Note, int Octave);
+class CDSample;		// // //
 
-	virtual void ClearRegisters();
+// DPCM
+class CDPCMChan : public CChannelHandler, public CChannelHandlerInterfaceDPCM {		// // //
+public:
+	CDPCMChan();		// // //
+	void	RefreshChannel() override;
+	int		GetChannelVolume() const override;		// // //
+
+	void WriteDCOffset(unsigned char Delta);		// // //
+	void SetLoopOffset(unsigned char Loop);		// // //
+	void PlaySample(const CDSample *pSamp, int Pitch);		// // //
+protected:
+	void	HandleNoteData(stChanNote *pNoteData, int EffColumns) override;
+	bool	HandleEffect(effect_t EffNum, unsigned char EffParam) override;		// // //
+	void	HandleEmptyNote() override;
+	void	HandleCut() override;
+	void	HandleRelease() override;
+	void	HandleNote(int Note, int Octave) override;
+	bool	CreateInstHandler(inst_type_t Type) override;		// // //
+
+	void triggerSample();
+	void queueSample();
+
+	void	ClearRegisters() override;
+	CString	GetCustomEffectString() const override;		// // //
 private:
 	// DPCM variables
-	CSampleMem *m_pSampleMem;
-
 	unsigned char m_cDAC;
 	unsigned char m_iLoop;
 	unsigned char m_iOffset;
 	unsigned char m_iSampleLength;
 	unsigned char m_iLoopOffset;
 	unsigned char m_iLoopLength;
-	int m_iRetrigger;
-	int m_iRetriggerCntr;
+	int mRetriggerPeriod;	// If zero, DPCM will not retrigger.
+	int mRetriggerCtr;		// Time until next DPCM retrigger (frames)
 	int m_iCustomPitch;
-	bool m_bTrigger;
-	bool m_bEnabled;
+	bool mTriggerSample;		// // //
+	bool mEnabled;
 };

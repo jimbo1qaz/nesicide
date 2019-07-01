@@ -153,7 +153,7 @@ void qtMfcInitToolBarResource_{0}(UINT dlgID,CToolBar* parent)
 			}}
 		}}
 	}}
-	
+
 	// {0} TOOLBAR {1}, {2}
 		toolBar->setIconSize(QSize({1},{2}));
 	// BEGIN"""
@@ -245,7 +245,7 @@ class rcAcceleratorTable(object):
 	AcceleratorTablesImplHeaderFormat = \
 """
 // {0} ACCELERATORS
-ACCEL ACCEL_{0}[] = 
+ACCEL ACCEL_{0}[] =
 {{
 	// BEGIN"""
 	AcceleratorTablesImplItemFormat = \
@@ -353,7 +353,7 @@ void qtMfcInitMenuResource_{0}(CMenu* parent)
 		parent->AppendMenu(MF_POPUP|MF_STRING,(UINT_PTR)subMenu->m_hMenu,{0});
 	else
 		subMenuTree.at(subMenuTree.count()-2)->AppendMenu(MF_POPUP|MF_STRING,(UINT_PTR)subMenu->m_hMenu,{0});
-		
+
 	// BEGIN"""
 	PopupsImplFooter = \
 """   // END
@@ -459,7 +459,7 @@ class rcDialogEx(object):
 void qtMfcInitDialogResource_{0}(CDialog* parent)
 {{
 	QHash<int,CWnd*>* mfcToQtWidget = parent->mfcToQtWidgetMap();
-	
+
 	// {0} DIALOGEX {1}, {2}, {3}, {4}
 	CRect rect(CPoint({1},{2}),CSize({3},{4}));
 	parent->MapDialogRect(&rect);
@@ -826,6 +826,11 @@ void qtMfcInitDialogResource(UINT dlgID,CDialog* parent)
 		print(self.DialogExsDeclFooter)
 
 
+def bytes_to_cpp_literal(b: bytes) -> str:
+	"""Converts bytes into a C++ hex-escaped string (without double-quotes)."""
+	return str(b)[2:-1]
+
+
 class rcDialogInitList(object):
 	DialogInitItemFormat = """
 	mfc{0}->AddString(_T("{1}"));
@@ -847,9 +852,12 @@ class rcDialogInitList(object):
 				items = itemsForId[str(subId)]
 				if items:
 					for item in items:
+						# If odd number of hex-digits, pad with 0.
 						if len(item)%2:
 							item += "0"
-						print(self.DialogInitItemFormat.format(mfc, bytearray.fromhex(item).decode()))
+
+						cpp_literal = bytes_to_cpp_literal(unhexlify(item))
+						print(self.DialogInitItemFormat.format(mfc, cpp_literal))
 
 class myRcVisitor(rcVisitor):
 	def visitToolbar_statement(self, ctx):

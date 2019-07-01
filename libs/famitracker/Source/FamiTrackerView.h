@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -23,20 +25,19 @@
 
 // CFamiTrackerView, the document view class
 
-//#include <afxmt.h>	// Include synchronization objects
+#include <afxmt.h>	// Include synchronization objects
+#include <unordered_map>		// // //
 
-// Custom window messages for CFamiTrackerView
-enum {
-	WM_USER_PLAYER = WM_USER,		// Pattern play row has changed
-	WM_USER_MIDI_EVENT,				// There is a new MIDI command	
-	WM_USER_NOTE_EVENT				// There is a new note command (by player)
-};
+#include "PatternEditorTypes.h"		// // //
+#include "FamiTrackerViewMessage.h"		// // //
+#include "utils/input.h"
 
 // External classes
 class CFamiTrackerDoc;
 class CPatternEditor;
 class CFrameEditor;
-class CAction;
+class Action;
+class CNoteQueue;		// // //
 
 // TODO move general tracker state variables to the mainframe instead of the view, such as selected octave, instrument etc
 
@@ -61,6 +62,7 @@ public:
 	// Instruments
 	bool		 SwitchToInstrument() const { return m_bSwitchToInstrument; };
 	void		 SwitchToInstrument(bool Switch) { m_bSwitchToInstrument = Switch; };
+	unsigned int GetSplitInstrument() const;		// // //
 
 	// Scrolling/viewing no-editing functions
 	void		 MoveCursorNextChannel();
@@ -71,8 +73,8 @@ public:
 	void		 SelectFirstFrame();
 	void		 SelectLastFrame();
 	void		 SelectFrame(unsigned int Frame);
+	void		 SelectRow(unsigned int Row);		// // //
 	void		 SelectChannel(unsigned int Channel);
-	void		 SelectFrameChannel(unsigned int Frame, unsigned int Channel);
 	 
 	unsigned int GetSelectedFrame() const;
 	unsigned int GetSelectedChannel() const;
@@ -80,12 +82,19 @@ public:
 
 	void		 SetFollowMode(bool Mode);
 	bool		 GetFollowMode() const;
+	void		 SetCompactMode(bool Mode);		// // //
 	int			 GetSelectedChipType() const;
-	void		 SetOctave(unsigned int iOctave);
-	unsigned int GetOctave() const { return m_iOctave; };
 	bool		 GetEditMode() const { return m_bEditEnable; };
 	void		 SetStepping(int Step);
 	unsigned int GetStepping() const { return m_iInsertKeyStepping; };
+	paste_pos_t  GetPastePos() const { return m_iPastePos; };		// // //
+	void		 AdjustOctave(int Delta);		// // //
+
+	// // // 050B
+	int			GetMarkerFrame() const { return m_iMarkerFrame; }		// // // 050B
+	int			GetMarkerRow() const { return m_iMarkerRow; }		// // // 050B
+	void		SetMarker(int Frame, int Row);		// // // 050B
+	bool		IsMarkerValid() const;		// // //
 
 	// Player callback (TODO move to new interface)
 	void		 PlayerTick();
@@ -96,12 +105,14 @@ public:
 	void		 RegisterKeyState(int Channel, int Note);
 
 	// Note preview
-	bool		 PreviewNote(unsigned char Key);
-	void		 PreviewRelease(unsigned char Key);
+	bool		 PreviewNote(Keycode Key);
+	void		 PreviewRelease(Keycode Key);
 
 	// Mute methods
 	void		 SoloChannel(unsigned int Channel);
 	void		 ToggleChannel(unsigned int Channel);
+	void		 SoloChip(unsigned int Channel);		// // //
+	void		 ToggleChip(unsigned int Channel);		// // //
 	void		 UnmuteAllChannels();
 	bool		 IsChannelMuted(unsigned int Channel) const;
 	void		 SetChannelMute(int Channel, bool bMute);
@@ -114,6 +125,8 @@ public:
 	void		 SetupColors();
 
 	bool		 DoRelease() const;
+
+	void		 EditReplace(stChanNote &Note);		// // //
 
 	CPatternEditor *GetPatternEditor() const { return m_pPatternEditor; }
 
@@ -155,14 +168,14 @@ private:
 	void	StepDown();
 
 	// Input key handling
-	void	HandleKeyboardInput(char Key);
+	void HandleKeyboardInput(Input input);
 	void	TranslateMidiMessage();
 
 	void	OnKeyDirUp();
 	void	OnKeyDirDown();
 	void	OnKeyDirLeft();
 	void	OnKeyDirRight();
-	void	OnKeyEscape();
+	// // //
 	void	OnKeyTab();
 	void	OnKeyPageUp();
 	void	OnKeyPageDown();
@@ -176,28 +189,31 @@ private:
 	void	KeyIncreaseAction();
 	void	KeyDecreaseAction();
 	
-	int		TranslateKey(unsigned char Key) const;
-	int		TranslateKeyDefault(unsigned char Key) const;
-	int		TranslateKeyModplug(unsigned char Key) const;
-	int		TranslateKeyAzerty(unsigned char Key) const;
+	int		TranslateKey(Keycode Key) const;
+	int		TranslateKeyDefault(Keycode Key) const;
+	int		TranslateKeyModplug(Keycode Key) const;
 	
-	bool	CheckClearKey(unsigned char Key) const;
-	bool	CheckHaltKey(unsigned char Key) const;
-	bool	CheckReleaseKey(unsigned char Key) const;
-	bool	CheckRepeatKey(unsigned char Key) const;
+	bool	CheckClearKey(Keycode Key) const;
+	bool	CheckHaltKey(Keycode Key) const;
+	bool	CheckReleaseKey(Keycode Key) const;
+	bool	CheckRepeatKey(Keycode Key) const;
+	bool	CheckEchoKey(Keycode Key) const;		// // //
 
-	bool	PreventRepeat(unsigned char Key, bool Insert);
-	void	RepeatRelease(unsigned char Key);
+	bool	PreventRepeat(Keycode Key, bool Insert);
+	void	RepeatRelease(Keycode Key);
 
-	bool	EditInstrumentColumn(stChanNote &Note, int Value, bool &StepDown, bool &MoveRight, bool &MoveLeft);
-	bool	EditVolumeColumn(stChanNote &Note, int Value, bool &bStepDown);
-	bool	EditEffNumberColumn(stChanNote &Note, unsigned char nChar, int EffectIndex, bool &bStepDown);
-	bool	EditEffParamColumn(stChanNote &Note, int Value, int EffectIndex, bool &bStepDown, bool &bMoveRight, bool &bMoveLeft);
+	bool	EditInstrumentColumn(stChanNote &Note, Keycode key, bool &StepDown, bool &MoveRight, bool &MoveLeft);
+	bool	EditVolumeColumn(stChanNote &Note, Keycode key, bool &bStepDown);
+	bool	EditEffNumberColumn(stChanNote &Note, Input input, int EffectIndex, bool &bStepDown);
+	bool	EditEffParamColumn(stChanNote &Note, Keycode key, int EffectIndex, bool &bStepDown, bool &bMoveRight, bool &bMoveLeft);
 
 	void	InsertNote(int Note, int Octave, int Channel, int Velocity);
 
 	// MIDI keyboard emulation
-	void	HandleKeyboardNote(char nChar, bool Pressed);
+	void	HandleKeyboardNote(Keycode key, bool Pressed);
+	bool	IsSplitEnabled(int MidiNote, int Channel) const;		// // //
+	void	SplitKeyboardAdjust(stChanNote &Note) const;		// // //
+	void	SplitAdjustChannel(unsigned int &Channel, const stChanNote &Note) const;		// // //
 
 	// MIDI note functions
 	void	TriggerMIDINote(unsigned int Channel, unsigned int MidiNote, unsigned int Velocity, bool Insert);
@@ -205,38 +221,26 @@ private:
 	void	CutMIDINote(unsigned int Channel, unsigned int MidiNote, bool InsertCut);
 
 	// Note handling
-	void	PlayNote(unsigned int Channel, unsigned int Note, unsigned int Octave, unsigned int Velocity);
-	void	ReleaseNote(unsigned int Channel);
-	void	HaltNote(unsigned int Channel);
-	void	HaltNoteSingle(unsigned int Channel);
+	void	PlayNote(unsigned int Channel, unsigned int Note, unsigned int Octave, unsigned int Velocity) const;
+	void	ReleaseNote(unsigned int Channel, unsigned int Note, unsigned int Octave) const;		// // //
+	void	HaltNote(unsigned int Channel, unsigned int Note, unsigned int Octave) const;		// // //
+	void	HaltNoteSingle(unsigned int Channel) const;		// // //
 	
 	void	UpdateArpDisplay();
+	void	UpdateNoteQueues();		// // //
 	
 	// Mute methods
 	bool	IsChannelSolo(unsigned int Channel) const;
+	bool	IsChipSolo(unsigned int Chip) const;		// // //
 
 	// Other
-	bool	AddAction(CAction *pAction) const;
+	bool	AddAction(Action *pAction) const;
+	CString	GetEffectHint(const stChanNote &Note, int Column) const;		// // //
 
-#ifdef EXPORT_TEST
-	void	DrawExportTestProgress();
-#endif /* EXPORT_TEST */
-
-	// Copy
-	void	CopyVolumeColumn();
-
+	// // //
 	// Keyboard
 	bool	IsShiftPressed() const;
 	bool	IsControlPressed() const;
-
-	// Update timer
-#if 0
-	static UINT ThreadProcFunc(LPVOID pParam);
-
-	bool	StartTimerThread();
-	void	EndTimerThread();
-	UINT	ThreadProc();
-#endif
 
 //
 // Constants
@@ -250,22 +254,27 @@ public:
 private:
 	// General
 	bool				m_bHasFocus;
-	UINT				m_iClipboard;
+	UINT				mClipboardFormat;
 	int					m_iMenuChannel;							// Which channel a popup-menu belongs to
 
 	// Cursor & editing
-	unsigned int		m_iMoveKeyStepping;						// Number of rows to jump when moving
+	unsigned int MoveKeyStepping() const;
 	unsigned int		m_iInsertKeyStepping;					// Number of rows to move when inserting notes
-	unsigned int		m_iOctave;								// Selected octave	 (TODO move to mainframe)
 	bool				m_bEditEnable;							// Edit is enabled
 	bool				m_bSwitchToInstrument;					// Select active instrument
 	bool				m_bFollowMode;							// Follow mode, default true
+	bool				m_bCompactMode;							// // // Compact mode, default false
 	bool				m_bMaskInstrument;						// Ignore instrument column on new notes
 	bool				m_bMaskVolume;							// Ignore volume column on new notes
+	paste_pos_t			m_iPastePos;							// // // Paste position
 
 	// Playing
 	bool				m_bMuteChannels[MAX_CHANNELS];			// Muted channels
 	int					m_iSwitchToInstrument;
+
+	// // // 050B
+	int					m_iMarkerFrame;
+	int					m_iMarkerRow;
 
 	// Auto arpeggio
 	char				m_iAutoArpNotes[128];
@@ -279,13 +288,21 @@ private:
 	unsigned int		m_iWindowHeight;						// Height of view area
 
 	// Input
-	char				m_cKeyList[256];
+	char				m_cKeyList[256];	// TODO unordered_set<Keycode> keysHeldDown;
 	unsigned int		m_iKeyboardNote;
 	int					m_iLastNote;							// Last note added to pattern
 	int					m_iLastInstrument;						// Last instrument added to pattern
 	int					m_iLastVolume;							// Last volume added to pattern
-	int					m_iLastEffect;							// Last effect number added to pattern
+	effect_t			m_iLastEffect;							// Last effect number added to pattern
 	int					m_iLastEffectParam;						// Last effect parameter added to pattern
+
+	int					m_iSplitNote;							// // // Split keyboard settings
+	int					m_iSplitChannel;
+	int					m_iSplitInstrument;
+	int					m_iSplitTranspose;
+
+	std::unordered_map<Keycode, int> m_iNoteCorrection;			// // // correction from changing octaves
+	CNoteQueue			*m_pNoteQueue;							// // // Note queue for handling note triggers
 
 	// MIDI
 	unsigned int		m_iLastMIDINote;
@@ -328,23 +345,21 @@ public:
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
-	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
-	afx_msg void OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags);
+	afx_msg void OnKeyDown(UINT key, UINT nRepCnt, UINT nFlags);
+	afx_msg void OnChar(UINT nChar, UINT nRepCnt, UINT nFlags);
+	afx_msg void OnKeyUp(UINT key, UINT nRepCnt, UINT nFlags);
 	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+	afx_msg void OnXButtonDown(UINT nFlags, UINT nButton, CPoint point);		// // //
 	afx_msg void OnEditCopy();
 	afx_msg void OnEditCut();
 	afx_msg void OnEditPaste();
-	afx_msg void OnEditPastemix();
+	afx_msg void OnEditPasteMix();		// // // case
 	afx_msg void OnEditDelete();
 	afx_msg void OnEditInstrumentMask();
 	afx_msg void OnEditVolumeMask();
 	afx_msg void OnEditPasteoverwrite();
 	afx_msg void OnTrackerEdit();
-	afx_msg void OnTrackerPal();
-	afx_msg void OnTrackerNtsc();
-	afx_msg void OnSpeedCustom();
-	afx_msg void OnSpeedDefault();
 	afx_msg void OnTransposeDecreasenote();
 	afx_msg void OnTransposeDecreaseoctave();
 	afx_msg void OnTransposeIncreasenote();
@@ -356,10 +371,6 @@ public:
 	afx_msg void OnUpdateEditPaste(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateEditDelete(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateTrackerEdit(CCmdUI *pCmdUI);
-	afx_msg void OnUpdateTrackerPal(CCmdUI *pCmdUI);
-	afx_msg void OnUpdateTrackerNtsc(CCmdUI *pCmdUI);
-	afx_msg void OnUpdateSpeedDefault(CCmdUI *pCmdUI);
-	afx_msg void OnUpdateSpeedCustom(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateEditPasteoverwrite(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateEditInstrumentMask(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateEditVolumeMask(CCmdUI *pCmdUI);
@@ -378,9 +389,7 @@ public:
 	afx_msg void OnTrackerToggleChannel();
 	afx_msg void OnTrackerSoloChannel();
 	afx_msg void OnTrackerUnmuteAllChannels();
-	afx_msg void OnNextOctave();
-	afx_msg void OnPreviousOctave();
-	afx_msg void OnSysKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
+	afx_msg void OnSysKeyDown(UINT key, UINT nRepCnt, UINT nFlags);
 	afx_msg void OnEditInterpolate();
 	afx_msg void OnEditReplaceInstrument();
 	afx_msg void OnEditReverse();
@@ -399,6 +408,42 @@ public:
 	virtual DROPEFFECT OnDragOver(COleDataObject* pDataObject, DWORD dwKeyState, CPoint point);
 	virtual BOOL OnDrop(COleDataObject* pDataObject, DROPEFFECT dropEffect, CPoint point);
 	afx_msg void OnDestroy();
+	// // //
+	afx_msg LRESULT OnUserDumpInst(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnTrackerDetune();
+	afx_msg void OnTrackerGroove();
+	afx_msg void OnUpdateFind(CCmdUI *pCmdUI);
+	afx_msg void OnCoarseDecreaseValues();
+	afx_msg void OnCoarseIncreaseValues();
+	afx_msg void OnEditCopyAsText();
+	afx_msg void OnEditCopyAsVolumeSequence();
+	afx_msg void OnEditCopyAsPPMCK();
+	afx_msg void OnEditSelectnone();
+	afx_msg void OnEditSelectrow();
+	afx_msg void OnEditSelectcolumn();
+	afx_msg void OnEditSelectpattern();
+	afx_msg void OnEditSelectframe();
+	afx_msg void OnEditSelectchannel();
+	afx_msg void OnEditSelecttrack();
+	afx_msg void OnEditExpandPatterns();
+	afx_msg void OnEditShrinkPatterns();
+	afx_msg void OnEditStretchPatterns();
+	afx_msg void OnEditPasteOverwrite();
+	afx_msg void OnEditPasteInsert();
+	afx_msg void OnEditPasteSpecialCursor();
+	afx_msg void OnEditPasteSpecialSelection();
+	afx_msg void OnEditPasteSpecialFill();
+	afx_msg void OnUpdatePasteSpecial(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateDisableWhilePlaying(CCmdUI *pCmdUI);
+	afx_msg void OnBookmarksToggle();
+	afx_msg void OnBookmarksNext();
+	afx_msg void OnBookmarksPrevious();
+	afx_msg void OnEditSplitKeyboard();
+	afx_msg void OnTrackerToggleChip();
+	afx_msg void OnTrackerSoloChip();
+	afx_msg void OnTrackerRecordToInst();
+	afx_msg void OnTrackerRecorderSettings();
+	afx_msg void OnRecallChannelState();
 };
 
 #ifndef _DEBUG  // debug version in FamiTrackerView.cpp

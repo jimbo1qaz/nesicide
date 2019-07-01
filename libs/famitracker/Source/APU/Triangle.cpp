@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -21,18 +23,20 @@
 #include "APU.h"
 #include "Triangle.h"
 
-const uint8 CTriangle::TRIANGLE_WAVE[] = {
+const uint8_t CTriangle::TRIANGLE_WAVE[] = {
 	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 
 	0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00
 };
 
-CTriangle::CTriangle(CMixer *pMixer, int ID) : CChannel(pMixer, ID, SNDCHIP_NONE)
+CTriangle::CTriangle(CMixer *pMixer, int ID) : C2A03Chan(pMixer, SNDCHIP_NONE, ID)		// // //
 {
 	m_iStepGen = 0;
 	m_iLoop = 0;
 	m_iLinearLoad = 0;
 	m_iHalt = 0;
 	m_iLinearCounter = 0;
+	
+	CPU_RATE = CAPU::BASE_FREQ_NTSC;		// // //
 }
 
 CTriangle::~CTriangle()
@@ -49,10 +53,11 @@ void CTriangle::Reset()
 	Write(2, 0);
 	Write(3, 0);
 
+	Mix(0);		// // //
 	EndFrame();
 }
 
-void CTriangle::Write(uint16 Address, uint8 Value)
+void CTriangle::Write(uint16_t Address, uint8_t Value)
 {
 	switch (Address) {
 		case 0x00:
@@ -74,7 +79,7 @@ void CTriangle::Write(uint16 Address, uint8 Value)
 	}
 }
 
-void CTriangle::WriteControl(uint8 Value)
+void CTriangle::WriteControl(uint8_t Value)
 {
 	m_iControlReg = Value & 1;
 	
@@ -82,27 +87,25 @@ void CTriangle::WriteControl(uint8 Value)
 		m_iEnabled = 0;
 }
 
-uint8 CTriangle::ReadControl()
+uint8_t CTriangle::ReadControl()
 {
 	return ((m_iLengthCounter > 0) && (m_iEnabled == 1));
 }
 
-void CTriangle::Process(uint32 Time)
+void CTriangle::Process(uint32_t Time)
 {
-	// Triangle skips if a wavelength less than 2 is used
-	// It takes to much CPU and it wouldn't be possible to hear anyway
-	//
-
 	if (!m_iLinearCounter || !m_iLengthCounter || !m_iEnabled) {
 		m_iTime += Time;
 		return;
 	}
 	else if (m_iPeriod <= 1) {
+		/*
 		// Frequency is too high to be audible
 		m_iTime += Time;
 		m_iStepGen = 7;
 		Mix(TRIANGLE_WAVE[m_iStepGen]);
 		return;
+		*/
 	}
 
 	while (Time >= m_iCounter) {
@@ -115,6 +118,13 @@ void CTriangle::Process(uint32 Time)
 	
 	m_iCounter -= Time;
 	m_iTime += Time;
+}
+
+double CTriangle::GetFrequency() const		// // //
+{
+	if (!m_iLinearCounter || !m_iLengthCounter || !m_iEnabled)
+		return 0.;
+	return CPU_RATE / 32. / (m_iPeriod + 1.);
 }
 
 void CTriangle::LengthCounterUpdate()

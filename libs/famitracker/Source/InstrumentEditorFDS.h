@@ -20,8 +20,9 @@
 
 #pragma once
 
-#include "WaveEditor.h"
-#include "ModSequenceEditor.h"
+class CWaveEditorFDS;
+class CModSequenceEditor;
+class CInstrumentFDS;
 
 // CInstrumentEditorFDS dialog
 
@@ -36,21 +37,19 @@ public:
 	virtual TCHAR *GetTitle() const { return _T("Nintendo FDS"); };
 
 	// Public
-	virtual void SelectInstrument(int Instrument);
+	virtual void SelectInstrument(std::shared_ptr<CInstrument> pInst);
 
 	// Dialog Data
 	enum { IDD = IDD_INSTRUMENT_FDS };
 
 protected:
-	virtual	void PreviewNote(unsigned char Key);
-
 	void EnableModControls(bool enable);
 
 	void ParseWaveString(LPCTSTR pString);
 	void ParseTableString(LPCTSTR pString);
 
 protected:
-	CInstrumentFDS		*m_pInstrument;
+	std::shared_ptr<CInstrumentFDS> m_pInstrument;
 	CWaveEditorFDS		*m_pWaveEditor;
 	CModSequenceEditor	*m_pModSequenceEditor;
 
@@ -60,6 +59,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	virtual BOOL OnInitDialog();
+	virtual BOOL PreTranslateMessage(MSG* pMsg);		// // //
 	afx_msg void OnPresetSine();
 	afx_msg void OnPresetTriangle();
 	afx_msg void OnPresetPulse50();

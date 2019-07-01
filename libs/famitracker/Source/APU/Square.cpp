@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -24,14 +26,14 @@
 
 // This is also shared with MMC5
 
-const uint8 CSquare::DUTY_TABLE[4][16] = {
+const uint8_t CSquare::DUTY_TABLE[4][16] = {
 	{0, 0, 1, 1,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0},
 	{0, 0, 1, 1,  1, 1, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0},
 	{0, 0, 1, 1,  1, 1, 1, 1,  1, 1, 0, 0,  0, 0, 0, 0},
 	{1, 1, 0, 0,  0, 0, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1}
 };
 
-CSquare::CSquare(CMixer *pMixer, int ID, int Chip) : CChannel(pMixer, ID, Chip)
+CSquare::CSquare(CMixer *pMixer, int ID, int Chip) : C2A03Chan(pMixer, Chip, ID)		// // //
 {
 	m_iDutyLength = 0;
 	m_iDutyCycle = 0;
@@ -49,6 +51,8 @@ CSquare::CSquare(CMixer *pMixer, int ID, int Chip) : CChannel(pMixer, ID, Chip)
 
 	m_iFixedVolume = 0;
 	m_iEnvelopeCounter = 0;
+
+	CPU_RATE = CAPU::BASE_FREQ_NTSC;		// // //
 }
 
 CSquare::~CSquare()
@@ -73,10 +77,11 @@ void CSquare::Reset()
 
 	SweepUpdate(false);
 
+	Mix(0);		// // //
 	EndFrame();
 }
 
-void CSquare::Write(uint16 Address, uint8 Value)
+void CSquare::Write(uint16_t Address, uint8_t Value)
 {
 	switch (Address) {
 	case 0x00:
@@ -101,13 +106,14 @@ void CSquare::Write(uint16 Address, uint8 Value)
 		m_iLengthCounter = CAPU::LENGTH_TABLE[(Value & 0xF8) >> 3];
 		m_iDutyCycle = 0;
 		m_iEnvelopeVolume = 0x0F;
+		m_iEnvelopeCounter = m_iEnvelopeSpeed;		// // //
 		if (m_iControlReg)
 			m_iEnabled = 1;
 		break;
 	}
 }
 
-void CSquare::WriteControl(uint8 Value)
+void CSquare::WriteControl(uint8_t Value)
 {
 	m_iControlReg = Value & 0x01;
 
@@ -115,31 +121,41 @@ void CSquare::WriteControl(uint8 Value)
 		m_iEnabled = 0;
 }
 
-uint8 CSquare::ReadControl()
+uint8_t CSquare::ReadControl()
 {
 	return ((m_iLengthCounter > 0) && (m_iEnabled == 1));
 }
 
-void CSquare::Process(uint32 Time)
+void CSquare::Process(uint32_t Time)
 {
 	if (!m_iPeriod) {
 		m_iTime += Time;
 		return;
 	}
 
-	bool Valid = (m_iPeriod > 7) && (m_iEnabled != 0) && (m_iLengthCounter > 0) && (m_iSweepResult < 0x800);
+	bool Valid = (m_iPeriod > 7 || (m_iPeriod > 0 && m_iChip == SNDCHIP_MMC5))		// // //
+		&& (m_iEnabled != 0) && (m_iLengthCounter > 0) && (m_iSweepResult < 0x800);
 
 	while (Time >= m_iCounter) {
 		Time		-= m_iCounter;
 		m_iTime		+= m_iCounter;
 		m_iCounter	 = m_iPeriod + 1;
-		uint8 Volume = m_iEnvelopeFix ? m_iFixedVolume : m_iEnvelopeVolume;
+		uint8_t Volume = m_iEnvelopeFix ? m_iFixedVolume : m_iEnvelopeVolume;
 		Mix(Valid && DUTY_TABLE[m_iDutyLength][m_iDutyCycle] ? Volume : 0);
 		m_iDutyCycle = (m_iDutyCycle + 1) & 0x0F;
 	}
 
 	m_iCounter -= Time;
 	m_iTime += Time;
+}
+
+double CSquare::GetFrequency() const		// // //
+{
+	bool Valid = (m_iPeriod > 7 || (m_iPeriod > 0 && m_iChip == SNDCHIP_MMC5))
+		&& m_iEnabled && m_iLengthCounter && m_iSweepResult < 0x800;
+	if (!Valid)
+		return 0.;
+	return CPU_RATE / 16. / (m_iPeriod + 1.);
 }
 
 void CSquare::LengthCounterUpdate()

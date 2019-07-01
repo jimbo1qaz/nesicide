@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2016 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -23,6 +25,9 @@
 
 // Key accelerator class
 
+#include <vector>		// // //
+#include <unordered_set>		// // //
+
 #define MOD_NONE 0
 
 struct stAccelEntry {
@@ -30,6 +35,7 @@ struct stAccelEntry {
 	int	mod;
 	int	key;
 	int	id;
+	LPCTSTR orig_name;		// // //
 };
 
 class CAccelerator {
@@ -58,20 +64,26 @@ public:
 
 	bool			GetShortcutString(int id, CString &str) const;
 
+	// // // check if key is used as a modifier-less shortcut
+	bool			IsKeyUsed(int nChar) const;
+
 public:
 	// Class member constants
 	static LPCTSTR			  MOD_NAMES[];							// Strings for modifiers
-	static const stAccelEntry DEFAULT_TABLE[];						// List of default shortcuts
+	static const std::vector<stAccelEntry> DEFAULT_TABLE;			// // // List of default shortcuts
 	static const int		  ACCEL_COUNT;							// Number of shortcuts
 	static LPCTSTR			  SHORTCUTS_SECTION;					// Registry section
 
 private:
-	HACCEL	m_hAccel;
-	HACCEL	m_hAdditionalAccel;
+	HACCEL	m_hAccel = nullptr;
+	HACCEL	m_hAdditionalAccel = nullptr;
 
 	// Shortcut table
-	stAccelEntry *m_pEntriesTable;
+	std::vector<stAccelEntry> m_pEntriesTable;		// // //
 
 	// Accelerator table
-	ACCEL	*m_pAccelTable;
+	std::vector<ACCEL> m_pAccelTable;		// // //
+
+	// // // Used keys
+	std::unordered_set<int> m_iUsedKeys;
 };

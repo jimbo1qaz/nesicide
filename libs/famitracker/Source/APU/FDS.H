@@ -18,21 +18,21 @@
 ** must bear this legend.
 */
 
-#ifndef FDS_H
-#define FDS_H
 
-#include "External.h"
+#pragma once
+
+#include "SoundChip.h"
 #include "Channel.h"
 
-class CFDS : public CExternal, CExChannel {
+class CFDS : public CSoundChip, public CChannel {
 public:
 	CFDS(CMixer *pMixer);
 	virtual ~CFDS();
 	void	Reset();
-	void	Write(uint16 Address, uint8 Value);
-	uint8	Read(uint16 Address, bool &Mapped);
+	void	Write(uint16_t Address, uint8_t Value);
+	uint8_t	Read(uint16_t Address, bool &Mapped);
 	void	EndFrame();
-	void	Process(uint32 Time);
+	void	Process(uint32_t Time);
+	double	GetFreq(int Channel) const;		// // //
+	double	GetFrequency() const { return GetFreq(0); }		// // //
 };
-
-#endif /* FDS_H */

@@ -23,6 +23,8 @@
 
 // CDocumentFile, class for reading/writing document files
 
+class CModuleException;
+
 class CDocumentFile : public CFile
 {
 public:
@@ -40,10 +42,11 @@ public:
 	void		WriteBlockInt(int Value);
 	void		WriteBlockChar(char Value);
 	void		WriteString(CString String);
+	void WriteString(std::string_view sv);
 	bool		FlushBlock();
 
 	// Read functions
-	bool		ValidateFile();
+	void		ValidateFile();		// // //
 	unsigned int GetFileVersion() const;
 
 	bool		ReadBlock();
@@ -62,6 +65,15 @@ public:
 	void		RollbackPointer(int count);	// avoid this
 
 	bool		IsFileIncomplete() const;
+
+	// // // exception
+	CModuleException *GetException() const;
+	void SetDefaultFooter(CModuleException *e) const;
+	__declspec(noreturn) void RaiseModuleException(std::string Msg) const;
+
+	// // // Overrides
+	virtual UINT Read(void* lpBuf, UINT nCount);
+	virtual void Write(const void* lpBuf, UINT nCount);
 
 public:
 	// Constants
@@ -92,5 +104,7 @@ protected:
 
 	unsigned int	m_iMaxBlockSize;
 
-	unsigned int	m_iBlockPointer;	
+	unsigned int	m_iBlockPointer;
+	unsigned int	m_iPreviousPointer;		// // //
+	ULONGLONG		m_iFilePosition, m_iPreviousPosition;		// // //
 };

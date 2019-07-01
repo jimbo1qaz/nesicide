@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -34,17 +36,19 @@ private:
 	CMenu m_menuPopup;
 	CFont *m_pFont;
 	CSequence *m_pSequence;
+
+	static const UINT MENU_ID_BASE, MENU_ID_MAX;		// // //
+
 	int m_iInstType;
 	int m_iType;
 	bool m_bMouseOver;
+
 protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	afx_msg void OnPaint();
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
-	afx_msg void OnMenuArpAbsolute();
-	afx_msg void OnMenuArpRelative();
-	afx_msg void OnMenuArpFixed();
+	afx_msg void OnMenuSettingChanged(UINT ID);		// // //
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg void OnMouseLeave();
 };

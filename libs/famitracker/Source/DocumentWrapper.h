@@ -22,6 +22,7 @@
 
 // Document wrapper class for custom exporters
 
+#include "DSample.h"		// // //
 #include "FamiTrackerDoc.h"
 
 class CFamiTrackerDocWrapper : public CFamiTrackerDocInterface
@@ -39,6 +40,7 @@ public:
 	virtual int				  GetSequenceCount(int Type) const;
 	virtual int               GetInstrumentCount() const;
 	virtual CInstrument2A03Interface const *Get2A03Instrument(int Instrument) const;
+	virtual CSeqInstrumentInterface const *GetSeqInstrument(int Instrument) const;		// // //
 	virtual unsigned int	GetNoteEffectType(unsigned int Frame, unsigned int Channel, unsigned int Row, int Index) const;
 	virtual unsigned int	GetNoteEffectParam(unsigned int Frame, unsigned int Channel, unsigned int Row, int Index) const;
 	virtual int				GetSampleCount() const;

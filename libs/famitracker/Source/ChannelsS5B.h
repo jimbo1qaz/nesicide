@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -24,84 +26,54 @@
 // Derived channels, 5B
 //
 
-class CChannelHandlerS5B : public CChannelHandler {
+class CChannelHandlerS5B : public CChannelHandler, public CChannelHandlerInterfaceS5B {
 public:
 	CChannelHandlerS5B();
-	virtual void ProcessChannel();
+	void	ResetChannel() override;
+	void	RefreshChannel() override;
 
+	void	SetNoiseFreq(int Pitch) override final;		// // //
+
+	int getDutyMax() const override;
 protected:
-	virtual void HandleNoteData(stChanNote *pNoteData, int EffColumns);
-	virtual void HandleCustomEffects(int EffNum, int EffParam);
-	virtual bool HandleInstrument(int Instrument, bool Trigger, bool NewInstrument);
-	virtual void HandleEmptyNote();
-	virtual void HandleCut();
-	virtual void HandleRelease();
-	virtual void HandleNote(int Note, int Octave);
+	static const char MAX_DUTY;		// TODO remove class constant, move to .cpp file
+
+	bool	HandleEffect(effect_t EffNum, unsigned char EffParam) override;		// // //
+	void	HandleNote(int Note, int Octave) override;		// // //
+	void	HandleEmptyNote() override;
+	void	HandleCut() override;
+	void	HandleRelease() override;
+	bool	CreateInstHandler(inst_type_t Type) override;		// // //
+	
+	int		CalculateVolume() const override;		// // //
+	int		ConvertDuty(int Duty) const override;		// // //
+	void	ClearRegisters() override;
+	CString	GetCustomEffectString() const override;		// // //
 
 protected:
 	void WriteReg(int Reg, int Value);
 
 	// Static functions
 protected:	
-	static void SetEnvelopeHigh(int Val);
-	static void SetEnvelopeLow(int Val);
-	static void SetEnvelopeType(int Val);
 	static void SetMode(int Chan, int Square, int Noise);
-	static void SetNoiseFreq(int Freq);
-	static void UpdateRegs(CAPU *pAPU);
+	void UpdateAutoEnvelope(int Period);		// // // 050B
+	void UpdateRegs();		// // //
 
 	// Static memebers
 protected:
-	static int m_iModes;
-	static int m_iNoiseFreq;
-	static unsigned char m_iEnvFreqHi;
-	static unsigned char m_iEnvFreqLo;
-	static int m_iEnvType;
-	static bool m_bRegsDirty;
+	static int s_iModes;
+	static int s_iNoiseFreq;
+	static int s_iNoisePrev;		// // //
+	static int s_iDefaultNoise;		// // //
+	static unsigned char s_iEnvFreqHi;
+	static unsigned char s_iEnvFreqLo;
+	static bool s_bEnvTrigger;		// // // 050B
+	static int s_iEnvType;
+	static int s_unused;		// // // 050B, unused
 
 	// Instance members
 protected:
-	int m_iNoiseOffset;
-	bool m_bEnvEnable;
-
+	bool m_bEnvelopeEnabled;		// // // 050B
+	int m_iAutoEnvelopeShift;		// // // 050B
 	bool m_bUpdate;
-
-//	void RunSequence(int Index, CSequence *pSequence);
-/*
-	unsigned char m_cSweep;
-	unsigned char m_cDutyCycle, m_iDefaultDuty;
-
-	int ModEnable[SEQ_COUNT];
-	int	ModIndex[SEQ_COUNT];
-	int	ModDelay[SEQ_COUNT];
-	int	ModPointer[SEQ_COUNT];
-	*/
-
-};
-
-// Channel 1
-class CS5BChannel1 : public CChannelHandlerS5B {
-public:
-	CS5BChannel1() : CChannelHandlerS5B() { m_iDefaultDuty = 0; };
-	void RefreshChannel();
-protected:
-	void ClearRegisters();
-};
-
-// Channel 2
-class CS5BChannel2 : public CChannelHandlerS5B {
-public:
-	CS5BChannel2() : CChannelHandlerS5B() { m_iDefaultDuty = 0; };
-	void RefreshChannel();
-protected:
-	void ClearRegisters();
-};
-
-// Channel 3
-class CS5BChannel3 : public CChannelHandlerS5B {
-public:
-	CS5BChannel3() : CChannelHandlerS5B() { m_iDefaultDuty = 0; };
-	void RefreshChannel();
-protected:
-	void ClearRegisters();
 };

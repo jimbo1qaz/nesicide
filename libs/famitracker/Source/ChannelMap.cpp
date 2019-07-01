@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -18,9 +20,11 @@
 ** must bear this legend.
 */
 
+#include <vector>		// // //
+#include <memory>		// // //
 #include "stdafx.h"
-#include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
+#include "APU/Types.h"
+#include "InstrumentFactory.h"		// // //
 #include "TrackerChannel.h"
 #include "ChannelMap.h"
 
@@ -37,43 +41,27 @@ CChannelMap::CChannelMap() :
 
 CChannelMap::~CChannelMap()
 {
-	for (int i = 0; i < m_iAddedChips; ++i) {
-		m_pChipInst[i]->Release();
-		m_pChipInst[i] = NULL;
-	}
 }
 
 void CChannelMap::SetupSoundChips()
 {
 	// Add available chips
-#ifdef _DEBUG
-	// Under development
-	AddChip(SNDCHIP_NONE, new CInstrument2A03(), _T("NES channels only"));
-	AddChip(SNDCHIP_VRC6, new CInstrumentVRC6(), _T("Konami VRC6"));
-	AddChip(SNDCHIP_VRC7, new CInstrumentVRC7(), _T("Konami VRC7"));
-	AddChip(SNDCHIP_FDS,  new CInstrumentFDS(),  _T("Nintendo FDS sound"));
-	AddChip(SNDCHIP_MMC5, new CInstrument2A03(), _T("Nintendo MMC5"));
-	AddChip(SNDCHIP_N163, new CInstrumentN163(), _T("Namco 163"));
-	AddChip(SNDCHIP_S5B,  new CInstrumentS5B(),  _T("Sunsoft 5B"));
-#else /* _DEBUG */
-	// Ready for use
-	AddChip(SNDCHIP_NONE, new CInstrument2A03(), _T("NES channels only"));
-	AddChip(SNDCHIP_VRC6, new CInstrumentVRC6(), _T("Konami VRC6"));
-	AddChip(SNDCHIP_VRC7, new CInstrumentVRC7(), _T("Konami VRC7"));
-	AddChip(SNDCHIP_FDS,  new CInstrumentFDS(),  _T("Nintendo FDS sound"));
-	AddChip(SNDCHIP_MMC5, new CInstrument2A03(), _T("Nintendo MMC5"));
-	AddChip(SNDCHIP_N163, new CInstrumentN163(), _T("Namco 163"));
-//	AddChip(SNDCHIP_S5B,  new CInstrumentS5B(),  _T("Sunsoft 5B"));
-#endif /* _DEBUG */
+	AddChip(SNDCHIP_NONE, INST_2A03, _T("NES channels only"));
+	AddChip(SNDCHIP_VRC6, INST_VRC6, _T("Konami VRC6"));
+	AddChip(SNDCHIP_VRC7, INST_VRC7, _T("Konami VRC7"));
+	AddChip(SNDCHIP_FDS,  INST_FDS,  _T("Nintendo FDS sound"));
+	AddChip(SNDCHIP_MMC5, INST_2A03, _T("Nintendo MMC5"));
+	AddChip(SNDCHIP_N163, INST_N163, _T("Namco 163"));
+	AddChip(SNDCHIP_S5B,  INST_S5B,  _T("Sunsoft 5B"));
 }
 
-void CChannelMap::AddChip(int Ident, CInstrument *pInst, LPCTSTR pName)
+void CChannelMap::AddChip(int Ident, inst_type_t Inst, LPCTSTR pName)
 {
 	ASSERT(m_iAddedChips < CHIP_COUNT);
 
 	m_pChipNames[m_iAddedChips] = pName;
 	m_iChipIdents[m_iAddedChips] = Ident;
-	m_pChipInst[m_iAddedChips] = pInst;
+	m_iChipInstType[m_iAddedChips] = Inst;
 	++m_iAddedChips;
 }
 
@@ -110,10 +98,7 @@ CInstrument* CChannelMap::GetChipInstrument(int Chip) const
 	// Get instrument from chip ID
 	int Index = GetChipIndex(Chip);
 
-	if (m_pChipInst[Index] == NULL)
-		return NULL;
-
-	return m_pChipInst[Index]->CreateNew();
+	return CInstrumentFactory::CreateNew(m_iChipInstType[Index]);		// // //
 }
 
 // Todo move enabled module channels here

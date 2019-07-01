@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -19,15 +21,15 @@
 */
 
 #include <iterator> 
-#include <string>
 #include <sstream>
 #include "stdafx.h"
 #include "FamiTracker.h"
 #include "FamiTrackerDoc.h"
 #include "FamiTrackerView.h"
 #include "InstrumentEditPanel.h"
-#include "InstrumentEditDlg.h"
 #include "SequenceEditor.h"
+#include "SequenceParser.h"		// // //
+#include "DPI.h"		// // //
 
 // CInstrumentEditPanel dialog
 //
@@ -35,7 +37,8 @@
 //
 
 IMPLEMENT_DYNAMIC(CInstrumentEditPanel, CDialog)
-CInstrumentEditPanel::CInstrumentEditPanel(UINT nIDTemplate, CWnd* pParent) : CDialog(nIDTemplate, pParent)//, m_bShow(false)
+CInstrumentEditPanel::CInstrumentEditPanel(UINT nIDTemplate, CWnd* pParent) : CDialog(nIDTemplate, pParent),
+	m_pInstManager(nullptr)		// // //, m_bShow(false)
 {
 }
 
@@ -79,8 +82,7 @@ HBRUSH CInstrumentEditPanel::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 			pDC->SetBkMode(TRANSPARENT);
 			// TODO: this might fail on some themes?
 			//return NULL;
-         qFatal("GetSysColorBrush support!");
-//			return GetSysColorBrush(COLOR_3DHILIGHT);
+			return GetSysColorBrush(COLOR_3DHILIGHT);
 			//return CreateSolidBrush(m_iBGColor);
 	}
 
@@ -99,7 +101,7 @@ BOOL CInstrumentEditPanel::PreTranslateMessage(MSG* pMsg)
 					OnKeyReturn();
 					return TRUE;
 				case VK_ESCAPE:	// Esc, close the dialog
-					static_cast<CInstrumentEditDlg*>(GetParent())->DestroyWindow();
+					GetParent()->DestroyWindow();		// // // no need for static_cast
 					return TRUE;
 				case VK_TAB:
 				case VK_DOWN:
@@ -111,13 +113,13 @@ BOOL CInstrumentEditPanel::PreTranslateMessage(MSG* pMsg)
 					break;
 				default:	// Note keys
 					// Make sure the dialog is selected when previewing
-               GetClassName(pMsg->hwnd, ClassName, 256);
-               if (_tcscmp(ClassName, _T("Edit"))) {
-                  // Remove repeated keys
-                  if ((pMsg->lParam & (1 << 30)) == 0)
-                     PreviewNote((unsigned char)pMsg->wParam);
-                  return TRUE;
-               }
+					GetClassName(pMsg->hwnd, ClassName, 256);
+					if (_tcscmp(ClassName, _T("Edit"))) {
+						// Remove repeated keys
+						if ((pMsg->lParam & (1 << 30)) == 0)
+							PreviewNote((unsigned char)pMsg->wParam);
+						return TRUE;
+					}
 			}
 			break;
 		case WM_KEYUP:
@@ -145,6 +147,11 @@ void CInstrumentEditPanel::OnSetFocus(CWnd* pOldWnd)
 	// Kill the default handler to avoid setting focus to a child control
 	//Invalidate();
 	CDialog::OnSetFocus(pOldWnd);
+}
+
+void CInstrumentEditPanel::SetInstrumentManager(CInstrumentManager *pManager)		// // //
+{
+	m_pInstManager = pManager;
 }
 
 CFamiTrackerDoc *CInstrumentEditPanel::GetDocument() const
@@ -176,12 +183,15 @@ CSequenceInstrumentEditPanel::CSequenceInstrumentEditPanel(UINT nIDTemplate, CWn
 	m_pSequenceEditor(NULL),
 	m_pSequence(NULL),
 	m_pParentWin(pParent),
-	m_iSelectedSetting(0)
+	m_iSelectedSetting(0),
+	m_pParser {new CSequenceParser { }}		// // //
 {
 }
 
 CSequenceInstrumentEditPanel::~CSequenceInstrumentEditPanel()
 {
+	SAFE_RELEASE(m_pSequenceEditor);
+	SAFE_RELEASE(m_pParser);		// // //
 }
 
 void CSequenceInstrumentEditPanel::DoDataExchange(CDataExchange* pDX)
@@ -197,11 +207,15 @@ void CSequenceInstrumentEditPanel::SetupDialog(LPCTSTR *pListItems)
 {
 	// Instrument settings
 	CListCtrl *pList = static_cast<CListCtrl*>(GetDlgItem(IDC_INSTSETTINGS));
+
+	CRect r;		// // // 050B
+	pList->GetClientRect(&r);
+	int Width = r.Width();
 	
 	pList->DeleteAllItems();
-	pList->InsertColumn(0, _T(""), LVCFMT_LEFT, 26);
-	pList->InsertColumn(1, _T("#"), LVCFMT_LEFT, 30);
-	pList->InsertColumn(2, _T("Effect name"), LVCFMT_LEFT, 84);
+	pList->InsertColumn(0, _T(""), LVCFMT_LEFT, static_cast<int>(.18 * Width));
+	pList->InsertColumn(1, _T("#"), LVCFMT_LEFT, static_cast<int>(.22 * Width));
+	pList->InsertColumn(2, _T("Effect name"), LVCFMT_LEFT, static_cast<int>(.6 * Width));
 	pList->SendMessage(LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_FULLROWSELECT | LVS_EX_CHECKBOXES);
 	
 	for (int i = SEQ_COUNT - 1; i > -1; i--) {
@@ -218,79 +232,56 @@ void CSequenceInstrumentEditPanel::SetupDialog(LPCTSTR *pListItems)
 	CSpinButtonCtrl *pSequenceSpin = static_cast<CSpinButtonCtrl*>(GetDlgItem(IDC_SEQUENCE_SPIN));
 	pSequenceSpin->SetRange(0, MAX_SEQUENCES - 1);
 
-	CRect rect(190 - 2, 30 - 2, CSequenceEditor::SEQUENCE_EDIT_WIDTH, CSequenceEditor::SEQUENCE_EDIT_HEIGHT);
-	
-	m_pSequenceEditor = new CSequenceEditor(GetDocument());	
-	m_pSequenceEditor->CreateEditor(this, rect);
+	GetDlgItem(IDC_INST_SEQUENCE_GRAPH)->GetWindowRect(&r);		// // //
+	GetDesktopWindow()->MapWindowPoints(this, &r);
+	m_pSequenceEditor = new CSequenceEditor();
+	m_pSequenceEditor->CreateEditor(this, r);
 	m_pSequenceEditor->ShowWindow(SW_SHOW);
 }
 
-int CSequenceInstrumentEditPanel::ReadStringValue(const std::string &str)
+int CSequenceInstrumentEditPanel::ReadStringValue(const std::string &str, bool Signed)		// // //
 {
-	// Translate a string number to integer, accepts '$' and 'x' for hexadecimal notation
+	// Translate a string number to integer, accepts '$' for hexadecimal notation
+	// // // 'x' has been disabled due to arp scheme support
 	std::stringstream ss;
-	if (str[0] == '$')
-		ss << std::hex << str.substr(1);
-	else if (str[0] == 'x')
+	if (Signed) {
+		if (str[0] == '$')
+			ss << std::hex << str.substr(1, 2);
+		else
+			ss << std::hex << str.substr(0, 2);
+	}
+	else if (str[0] == '$')
 		ss << std::hex << str.substr(1);
 	else
 		ss << str;
 	int value = 0;
 	ss >> value;
-	return value;
+	if (Signed)
+		return static_cast<signed char>(value);
+	else
+		return value;
 }
 
 void CSequenceInstrumentEditPanel::PreviewNote(unsigned char Key)
 {
 	// Skip if MML window has focus
 	if (GetDlgItem(IDC_SEQUENCE_STRING) != GetFocus())
-		CFamiTrackerView::GetView()->PreviewNote(Key);
+		CInstrumentEditPanel::PreviewNote(Key);
 }
 
-void CSequenceInstrumentEditPanel::PreviewRelease(unsigned char Key)
-{
-	CFamiTrackerView::GetView()->PreviewRelease(Key);
-}
-
-void CSequenceInstrumentEditPanel::TranslateMML(CString String, CSequence *pSequence, int Max, int Min) const
+void CSequenceInstrumentEditPanel::TranslateMML(CString String) const
 {
 	// Takes a string and translates it into a sequence
+	m_pParser->ParseSequence(String.GetBuffer());		// // //
+	String.ReleaseBuffer();
+	
+	// Update editor
+	if (m_pSequenceEditor != nullptr)
+		m_pSequenceEditor->RedrawWindow();
 
-	int AddedItems = 0;
-
-	// Reset loop points
-	pSequence->SetLoopPoint(-1);
-	pSequence->SetReleasePoint(-1);
-
-	std::string str;
-	str.assign(CStringA(String));
-	std::istringstream values(str);
-	std::istream_iterator<std::string> begin(values);
-	std::istream_iterator<std::string> end;
-
-	while (begin != end && AddedItems < MAX_SEQUENCE_ITEMS) {
-		std::string item = *begin++;
-
-		if (item[0] == '|') {
-			// Set loop point
-			pSequence->SetLoopPoint(AddedItems);
-		}
-		else if (item[0] == '/') {
-			// Set release point
-			pSequence->SetReleasePoint(AddedItems);
-		}
-		else {
-			// Convert to number
-			int value = ReadStringValue(item);
-			// Check for invalid chars
-			if (!(value == 0 && item[0] != '0')) {
-				value = std::min<int>(std::max<int>(value, Min), Max);
-				pSequence->SetItem(AddedItems++, value);
-			}
-		}
-	}
-
-	pSequence->SetItemCount(AddedItems);
+	// Register a document change
+	GetDocument()->SetModifiedFlag();
+	GetDocument()->SetExceededFlag();		// // //
 }
 
 void CSequenceInstrumentEditPanel::OnRClickInstSettings(NMHDR* pNMHDR, LRESULT* pResult)
@@ -305,6 +296,6 @@ void CSequenceInstrumentEditPanel::OnRClickInstSettings(NMHDR* pNMHDR, LRESULT* 
 	CMenu contextMenu;
 	contextMenu.LoadMenu(IDR_SEQUENCE_POPUP);
 	CMenu *pMenu = contextMenu.GetSubMenu(0);
-	pMenu->EnableMenuItem(ID_CLONE_SEQUENCE, (m_pSequence->GetItemCount() != 0) ? FALSE : TRUE);
+	pMenu->EnableMenuItem(ID_CLONE_SEQUENCE, (m_pSequence->GetItemCount() != 0) ? MF_ENABLED : MF_DISABLED);
 	pMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, oPoint.x, oPoint.y, this);
 }

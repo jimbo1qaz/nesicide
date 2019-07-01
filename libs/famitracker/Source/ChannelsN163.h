@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -24,42 +26,53 @@
 // Derived channels, N163
 //
 
-class CChannelHandlerN163 : public CChannelHandlerInverted {
+class CChannelHandlerN163 : public FrequencyChannelHandler, public CChannelHandlerInterfaceN163 {
 public:
 	CChannelHandlerN163();
-	virtual void ResetChannel();
-	virtual void ProcessChannel();
-	virtual void RefreshChannel();
+	void	RefreshChannel() override;
+	void	ResetChannel() override;
+
+	void	SetWaveLength(int Length);		// // //
+	void	SetWavePosition(int Pos);
+	void	SetWaveCount(int Count);
+	void	FillWaveRAM(const char *Buffer, int Count);
+
+	void	SetChannelCount(int Count);		// // //
+
+	int getDutyMax() const override;
 
 protected:
-	virtual void HandleNoteData(stChanNote *pNoteData, int EffColumns);
-	virtual void HandleCustomEffects(int EffNum, int EffParam);
-	virtual bool HandleInstrument(int Instrument, bool Trigger, bool NewInstrument);
-	virtual void HandleEmptyNote();
-	virtual void HandleCut();
-	virtual void HandleRelease();
-	virtual void HandleNote(int Note, int Octave);
-	virtual void ClearRegisters();
+	bool	HandleEffect(effect_t EffNum, unsigned char EffParam) override;		// // //
+	bool	HandleInstrument(bool Trigger, bool NewInstrument) override;		// // //
+	void	HandleEmptyNote() override;
+	void	HandleCut() override;
+	void	HandleRelease() override;
+	void	HandleNote(int Note, int Octave) override;
+	bool	CreateInstHandler(inst_type_t Type) override;		// // //
+	void	SetupSlide() override;		// // //
+	int		ConvertDuty(int Duty) const override;		// // //
+	void	ClearRegisters() override;
+	int		CalculatePeriod() const override;		// // //
+	CString	GetSlideEffectString() const override;		// // //
+	CString	GetCustomEffectString() const override;		// // //
 
 private:
 	void WriteReg(int Reg, int Value);
 	void SetAddress(char Addr, bool AutoInc);
 	void WriteData(char Data);
 	void WriteData(int Addr, char Data);
-	void LoadWave();
-	void CheckWaveUpdate();
 private:
-	inline int GetIndex() const { return m_iChannelID - CHANID_N163_CHAN1; }
+	inline int GetIndex() const { return m_iChannelID - CHANID_N163_CH1; }
 private:
 	bool m_bLoadWave;
+	bool m_bDisableLoad;		// // //
 	int m_iChannels;
 	int m_iWaveLen;
 	int m_iWavePos;
-	int m_iWaveIndex;
+	int m_iWavePosOld;			// // //
 	int m_iWaveCount;
 protected:
-	int m_iPostEffect;
-	int m_iPostEffectParam;
+	// // //
 
 	bool m_bResetPhase;
 };

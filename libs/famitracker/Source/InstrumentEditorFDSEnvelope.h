@@ -33,8 +33,9 @@ public:
 	virtual TCHAR *GetTitle() const { return _T("Envelopes"); };
 
 	// Public
-	virtual void SelectInstrument(int Instrument);
-	virtual void SetSequenceString(CString Sequence, bool Changed);
+	virtual void SelectInstrument(std::shared_ptr<CInstrument> pInst);
+	void UpdateSequenceString(bool Changed) override;		// // //
+	void SetupParser() const override;		// // //
 
 // Dialog Data
 	enum { IDD = IDD_INSTRUMENT_FDS_ENVELOPE };
@@ -49,8 +50,7 @@ protected:
 	static const int MAX_VOLUME = 32;
 
 protected:
-	CInstrumentFDS	*m_pInstrument;
-	int				m_iSelectedType;
+	std::shared_ptr<CInstrumentFDS> m_pInstrument;
 
 	DECLARE_MESSAGE_MAP()
 public:

@@ -25,19 +25,19 @@
 class CClipboard
 {
 public:
-	CClipboard(CWnd *pWnd, UINT Clipboard);
+	CClipboard(CWnd *pWnd, UINT clipboardFormat);
 	~CClipboard();
 
 	bool	IsOpened() const;
 	HGLOBAL AllocMem(UINT Size) const;
 	void	SetData(HGLOBAL hMemory) const;
 	bool	SetDataPointer(LPVOID pData, UINT Size) const;
-	HGLOBAL GetData() const;
+	bool	GetData(HGLOBAL &hMemory) const;		// // //
 	LPVOID	GetDataPointer();
 	bool	IsDataAvailable()const;
 
 private:
 	bool m_bOpened;
-	UINT m_iClipboard;
+	UINT mClipboardFormat;
 	HGLOBAL m_hMemory;
 };

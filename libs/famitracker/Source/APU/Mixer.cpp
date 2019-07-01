@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -28,7 +30,7 @@
 
  VRC6 (Madara): 
 	Pulse channels has the same amplitude as internal-
-    pulse channels on equal volume levels.
+	pulse channels on equal volume levels.
 
  FDS: 
 	Square wave @ v = $1F: 2.4V
@@ -56,7 +58,6 @@
 #include "Mixer.h"
 #include "APU.h"
 #include "emu2413.h"
-#include "emu2149.h"
 
 //#define LINEAR_MIXING
 
@@ -67,9 +68,9 @@ static const int   LEVEL_FALL_OFF_DELAY = 3;
 
 CMixer::CMixer()
 {
-	memset(m_iChannels, 0, sizeof(int32) * CHANNELS);
+	memset(m_iChannels, 0, sizeof(int32_t) * CHANNELS);
 	memset(m_fChannelLevels, 0, sizeof(float) * CHANNELS);
-	memset(m_iChanLevelFallOff, 0, sizeof(uint32) * CHANNELS);
+	memset(m_iChanLevelFallOff, 0, sizeof(uint32_t) * CHANNELS);
 
 	m_fLevelAPU1 = 1.0f;
 	m_fLevelAPU2 = 1.0f;
@@ -77,6 +78,7 @@ CMixer::CMixer()
 	m_fLevelMMC5 = 1.0f;
 	m_fLevelFDS = 1.0f;
 	m_fLevelN163 = 1.0f;
+	m_fLevelS5B = 1.0f;		// // // 050B
 
 	m_iExternalChip = 0;
 	m_iSampleRate = 0;
@@ -87,6 +89,9 @@ CMixer::CMixer()
 
 	m_dSumSS = 0.0;
 	m_dSumTND = 0.0;
+
+	m_iMeterDecayRate = DECAY_SLOW;		// // // 050B
+	m_bNamcoMixing = false;		// // //
 }
 
 CMixer::~CMixer()
@@ -121,6 +126,11 @@ void CMixer::ExternalSound(int Chip)
 	UpdateSettings(m_iLowCut, m_iHighCut, m_iHighDamp, m_fOverallVol);
 }
 
+void CMixer::SetNamcoMixing(bool bLinear)		// // //
+{
+	m_bNamcoMixing = bLinear;
+}
+
 void CMixer::SetChipLevel(chip_level_t Chip, float Level)
 {
 	switch (Chip) {
@@ -142,6 +152,9 @@ void CMixer::SetChipLevel(chip_level_t Chip, float Level)
 		case CHIP_LEVEL_N163:
 			m_fLevelN163 = Level;
 			break;
+		case CHIP_LEVEL_S5B:		// // // 050B
+			m_fLevelS5B = Level;
+			break;
 	}
 }
 
@@ -149,28 +162,32 @@ float CMixer::GetAttenuation() const
 {
 	const float ATTENUATION_VRC6 = 0.80f;
 	const float ATTENUATION_VRC7 = 0.64f;
-	const float ATTENUATION_N163 = 0.70f;
 	const float ATTENUATION_MMC5 = 0.83f;
 	const float ATTENUATION_FDS  = 0.90f;
+	const float ATTENUATION_N163 = 0.70f;
+	const float ATTENUATION_S5B  = 0.50f;		// // // 050B
 
 	float Attenuation = 1.0f;
 
 	// Increase headroom if some expansion chips are enabled
 
-	if (m_iExternalChip & SNDCHIP_VRC7)
-		Attenuation *= ATTENUATION_VRC7;
-
-	if (m_iExternalChip & SNDCHIP_N163)
-		Attenuation *= ATTENUATION_N163;
-
 	if (m_iExternalChip & SNDCHIP_VRC6)
 		Attenuation *= ATTENUATION_VRC6;
+
+	if (m_iExternalChip & SNDCHIP_VRC7)
+		Attenuation *= ATTENUATION_VRC7;
 
 	if (m_iExternalChip & SNDCHIP_MMC5)
 		Attenuation *= ATTENUATION_MMC5;
 
 	if (m_iExternalChip & SNDCHIP_FDS)
 		Attenuation *= ATTENUATION_FDS;
+
+	if (m_iExternalChip & SNDCHIP_N163)
+		Attenuation *= ATTENUATION_N163;
+
+	if (m_iExternalChip & SNDCHIP_S5B)		// // // 050B
+		Attenuation *= ATTENUATION_S5B;
 
 	return Attenuation;
 }
@@ -216,8 +233,8 @@ void CMixer::UpdateSettings(int LowCut,	int HighCut, int HighDamp, float Overall
 	SynthMMC5.volume(Volume * 1.18421f * m_fLevelMMC5);
 	
 	// Not checked
+	SynthS5B.volume(Volume * m_fLevelS5B);		// // // 050B
 	SynthN163.volume(Volume * 1.1f * m_fLevelN163);
-	//SynthS5B.volume(Volume * 1.0f);
 
 	m_iLowCut = LowCut;
 	m_iHighCut = HighCut;
@@ -232,25 +249,35 @@ void CMixer::SetNamcoVolume(float fVol)
 	SynthN163.volume(fVolume * 1.1f * m_fLevelN163);
 }
 
-void CMixer::MixSamples(blip_sample_t *pBuffer, uint32 Count)
+int CMixer::GetMeterDecayRate() const		// // // 050B
+{
+	return m_iMeterDecayRate;
+}
+
+void CMixer::SetMeterDecayRate(int Rate)		// // // 050B
+{
+	m_iMeterDecayRate = Rate;
+}
+
+void CMixer::MixSamples(blip_sample_t *pBuffer, uint32_t Count)
 {
 	// For VRC7
 	BlipBuffer.mix_samples(pBuffer, Count);
 }
 
-uint32 CMixer::GetMixSampleCount(int t) const
+uint32_t CMixer::GetMixSampleCount(int t) const
 {
 	return BlipBuffer.count_samples(t);
 }
 
-bool CMixer::AllocateBuffer(unsigned int BufferLength, uint32 SampleRate, uint8 NrChannels)
+bool CMixer::AllocateBuffer(unsigned int BufferLength, uint32_t SampleRate, uint8_t NrChannels)
 {
 	m_iSampleRate = SampleRate;
-	BlipBuffer.sample_rate(SampleRate, (BufferLength * 1000 * 2) / SampleRate);
+	BlipBuffer.set_sample_rate(SampleRate, (BufferLength * 1000 * 2) / SampleRate);
 	return true;
 }
 
-void CMixer::SetClockRate(uint32 Rate)
+void CMixer::SetClockRate(uint32_t Rate)
 {
 	// Change the clockrate
 	BlipBuffer.clock_rate(Rate);
@@ -273,25 +300,28 @@ int CMixer::FinishBuffer(int t)
 {
 	BlipBuffer.end_frame(t);
 
-	// Get channel levels for VRC7
-	for (int i = 0; i < 6; ++i)
-		StoreChannelLevel(CHANID_VRC7_CH1 + i, OPLL_getchanvol(i));
-
-	// Get channel levels for Sunsoft
-	for (int i = 0; i < 3; ++i)
-		StoreChannelLevel(CHANID_S5B_CH1 + i, PSG_getchanvol(i));
-
 	for (int i = 0; i < CHANNELS; ++i) {
-		if (m_iChanLevelFallOff[i] > 0)
-			m_iChanLevelFallOff[i]--;
-		else {
-			if (m_fChannelLevels[i] > 0) {
+		// TODO: this is more complicated than 0.5.0 beta's implementation
+		if (m_iChanLevelFallOff[i] > 0) {
+			if (m_iMeterDecayRate == DECAY_FAST)		// // // 050B
+				m_iChanLevelFallOff[i] = 0;
+			else
+				--m_iChanLevelFallOff[i];
+		}
+		else if (m_fChannelLevels[i] > 0) {
+			if (m_iMeterDecayRate == DECAY_FAST)		// // // 050B
+				m_fChannelLevels[i] = 0;
+			else {
 				m_fChannelLevels[i] -= LEVEL_FALL_OFF_RATE;
 				if (m_fChannelLevels[i] < 0)
 					m_fChannelLevels[i] = 0;
 			}
 		}
 	}
+
+	// Get channel levels for VRC7
+	for (int i = 0; i < 6; ++i)
+		StoreChannelLevel(CHANID_VRC7_CH1 + i, OPLL_getchanvol(i));
 
 	// Return number of samples available
 	return BlipBuffer.samples_avail();
@@ -389,6 +419,9 @@ void CMixer::AddValue(int ChanID, int Chip, int Value, int AbsValue, int FrameCy
 		case SNDCHIP_VRC6:
 			MixVRC6(Value, FrameCycles);
 			break;
+		case SNDCHIP_S5B:		// // // 050B
+			MixS5B(Value, FrameCycles);
+			break;
 	}
 }
 
@@ -397,9 +430,9 @@ int CMixer::ReadBuffer(int Size, void *Buffer, bool Stereo)
 	return BlipBuffer.read_samples((blip_sample_t*)Buffer, Size);
 }
 
-int32 CMixer::GetChanOutput(uint8 Chan) const
+int32_t CMixer::GetChanOutput(uint8_t Chan) const
 {
-	return (int32)m_fChannelLevels[Chan];
+	return (int32_t)m_fChannelLevels[Chan];
 }
 
 void CMixer::StoreChannelLevel(int Channel, int Value)
@@ -416,9 +449,9 @@ void CMixer::StoreChannelLevel(int Channel, int Value)
 	if (Channel == CHANID_FDS)
 		AbsVol = AbsVol / 38;
 
-	if (Channel >= CHANID_N163_CHAN1 && Channel <= CHANID_N163_CHAN8) {
+	if (Channel >= CHANID_N163_CH1 && Channel <= CHANID_N163_CH8) {
 		AbsVol /= 15;
-		Channel = (7 - (Channel - CHANID_N163_CHAN1)) + CHANID_N163_CHAN1;
+		Channel = (7 - (Channel - CHANID_N163_CH1)) + CHANID_N163_CH1;
 	}
 
 	if (Channel >= CHANID_VRC7_CH1 && Channel <= CHANID_VRC7_CH6) {
@@ -438,10 +471,10 @@ void CMixer::StoreChannelLevel(int Channel, int Value)
 void CMixer::ClearChannelLevels()
 {
 	memset(m_fChannelLevels, 0, sizeof(float) * CHANNELS);
-	memset(m_iChanLevelFallOff, 0, sizeof(uint32) * CHANNELS);
+	memset(m_iChanLevelFallOff, 0, sizeof(uint32_t) * CHANNELS);
 }
 
-uint32 CMixer::ResampleDuration(uint32 Time) const
+uint32_t CMixer::ResampleDuration(uint32_t Time) const
 {
-	return (uint32)BlipBuffer.resampled_duration((blip_time_t)Time);
+	return (uint32_t)BlipBuffer.resampled_duration((blip_time_t)Time);
 }

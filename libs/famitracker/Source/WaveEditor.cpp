@@ -23,12 +23,15 @@
 #include <sstream>
 #include "stdafx.h"
 #include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
+#include "APU/Types.h"		// // //
 #include "Instrument.h"
+#include "SeqInstrument.h"
+#include "InstrumentFDS.h"		// // //
+#include "InstrumentN163.h"		// // //
 #include "WaveEditor.h"
-#include "resource.h"
 #include "Graphics.h"
 #include "SoundGen.h"
+#include "DPI.h"		// // //
 
 /*
  * This is the wave editor for FDS and N163
@@ -77,6 +80,30 @@ BOOL CWaveEditor::CreateEx(DWORD dwExStyle, LPCTSTR lpszClassName, LPCTSTR lpszW
 		return -1;
 
 	return 0;
+}
+
+void CWaveEditor::PhaseShift(int x)		// // //
+{
+	const int Length = GetMaxSamples();
+	x %= Length;
+	if (x < 0) x += Length;
+	int *buffer = new int[Length];
+	for (int i = 0; i < Length; i++)
+		buffer[i] = GetSample(i);
+	for (int i = 0; i < Length; i++)
+		SetSample(i, buffer[(i + x) % Length]);
+	SAFE_RELEASE_ARRAY(buffer);
+	Invalidate();
+	RedrawWindow();
+}
+
+void CWaveEditor::Invert(int x)		// // //
+{
+	const int Length = GetMaxSamples();
+	for (int i = GetMaxSamples() - 1; i >= 0; i--)
+		SetSample(i, x - GetSample(i));
+	Invalidate();
+	RedrawWindow();
 }
 
 void CWaveEditor::OnPaint()
@@ -194,8 +221,8 @@ void CWaveEditor::OnMButtonUp(UINT nFlags, CPoint point)
 
 void CWaveEditor::EditWave(CPoint pt1, CPoint pt2)
 {
-	int x1 = std::min(pt2.x, pt1.x);
-	int x2 = std::max(pt2.x, pt1.x);
+	int x1 = min(pt2.x, pt1.x);
+	int x2 = max(pt2.x, pt1.x);
 
 	float dx = float(pt2.x - pt1.x);
 	float dy = float(pt2.y - pt1.y) / dx;
@@ -301,7 +328,7 @@ void CWaveEditor::OnContextMenu(CWnd* /*pWnd*/, CPoint point)
 
 // FDS wave
 
-void CWaveEditorFDS::SetInstrument(CInstrumentFDS *pInst)
+void CWaveEditorFDS::SetInstrument(std::shared_ptr<CInstrumentFDS> pInst)
 {
 	m_pInstrument = pInst;
 	WaveChanged();
@@ -332,7 +359,7 @@ void CWaveEditorFDS::DrawRect(CDC *pDC, int x, int y, int sx, int sy) const
 
 // N163 wave
 
-void CWaveEditorN163::SetInstrument(CInstrumentN163 *pInst)
+void CWaveEditorN163::SetInstrument(std::shared_ptr<CInstrumentN163> pInst)
 {
 	m_pInstrument = pInst;
 	WaveChanged();

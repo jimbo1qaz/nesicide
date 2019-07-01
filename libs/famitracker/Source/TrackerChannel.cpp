@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -19,8 +21,13 @@
 */
 
 #include "stdafx.h"
-#include "FamiTrackerDoc.h"
+#include "PatternNote.h"		// // //
+#include "Instrument.h"		// // //
 #include "TrackerChannel.h"
+
+#include "ChannelFactory.h"
+#include "ChannelHandler.h"
+#include <stdexcept>
 
 /*
  * This class serves as the interface between the UI and the sound player for each channel
@@ -28,7 +35,8 @@
  *
  */
 
-CTrackerChannel::CTrackerChannel(LPCTSTR pName, const int iChip, const int iID) : 
+CTrackerChannel::CTrackerChannel(LPCTSTR pName, LPCTSTR pShort, const int iChip, chan_id_t iID) :		// // //
+	m_pShortName(pShort),		// // //
 	m_pChannelName(pName),
 	m_iChip(iChip),
 	m_iChannelID(iID),
@@ -49,12 +57,17 @@ LPCTSTR CTrackerChannel::GetChannelName() const
 	return m_pChannelName;
 }
 
+LPCTSTR CTrackerChannel::GetShortName() const
+{
+	return m_pShortName;
+}
+
 const char CTrackerChannel::GetChip() const
 {
 	return m_iChip;
 }
 
-const int CTrackerChannel::GetID() const
+chan_id_t CTrackerChannel::GetID() const		// // //
 {
 	return m_iChannelID;
 }
@@ -133,35 +146,103 @@ int CTrackerChannel::GetPitch() const
 	return m_iPitch;
 }
 
-bool CTrackerChannel::IsInstrumentCompatible(int Instrument, CFamiTrackerDoc *pDoc) const
+bool CTrackerChannel::IsInstrumentCompatible(int Instrument, inst_type_t Type) const
 {
-	int InstType = pDoc->GetInstrumentType(Instrument);
-
 	switch (m_iChip) {
 		case SNDCHIP_NONE:
 		case SNDCHIP_MMC5:
-			return InstType == INST_2A03;
-		case SNDCHIP_N163:
-			return InstType == INST_N163;
+		case SNDCHIP_N163:		// // //
 		case SNDCHIP_S5B:
-			return InstType == INST_S5B;
 		case SNDCHIP_VRC6:
-			return InstType == INST_VRC6;
-		case SNDCHIP_VRC7:
-			return InstType == INST_VRC7;
 		case SNDCHIP_FDS:
-			return InstType == INST_FDS;
+			switch (Type) {
+			case INST_2A03:
+			case INST_VRC6:
+			case INST_N163:
+			case INST_S5B:
+			case INST_FDS:
+				return true;
+			default: return false;
+			}
+		case SNDCHIP_VRC7:
+			return Type == INST_VRC7;
 	}
 
 	return false;
 }
 
-/*
-int CTrackerChannel::GetEffect(int Letter) const
+bool CTrackerChannel::IsEffectCompatible(effect_t EffNumber, int EffParam) const
 {
-	if (m_iChip == SNDCHIP_FDS) {
+	switch (EffNumber) {
+		case EF_NONE:
+		case EF_SPEED: case EF_JUMP: case EF_SKIP: case EF_HALT:
+		case EF_DELAY:
+			return true;
+		case EF_NOTE_CUT: case EF_NOTE_RELEASE:
+			return EffParam <= 0x7F || m_iChannelID == CHANID_TRIANGLE;
+		case EF_GROOVE:
+			return EffParam < MAX_GROOVE;
+		case EF_VOLUME:
+			return ((m_iChip == SNDCHIP_NONE && m_iChannelID != CHANID_DPCM) || m_iChip == SNDCHIP_MMC5) &&
+				(EffParam <= 0x1F || (EffParam >= 0xE0 && EffParam <= 0xE3));
+		case EF_PORTAMENTO: case EF_ARPEGGIO: case EF_VIBRATO: case EF_TREMOLO:
+		case EF_PITCH: case EF_PORTA_UP: case EF_PORTA_DOWN: case EF_SLIDE_UP: case EF_SLIDE_DOWN:
+		case EF_VOLUME_SLIDE: case EF_DELAYED_VOLUME: case EF_TRANSPOSE:
+			return m_iChannelID != CHANID_DPCM;
+		case EF_PORTAOFF:
+			return false;
+		case EF_SWEEPUP: case EF_SWEEPDOWN:
+			return m_iChannelID == CHANID_SQUARE1 || m_iChannelID == CHANID_SQUARE2;
+		case EF_DAC: case EF_SAMPLE_OFFSET: case EF_RETRIGGER: case EF_DPCM_PITCH: {
+			// TODO move to virtual method of Effect subclasses.
+			if (m_iChannelID != CHANID_DPCM) return false;
+
+			int limit;
+			switch (EffNumber) {
+				case EF_DAC:
+					limit = 0x7f; break;
+				case EF_SAMPLE_OFFSET:
+					limit = 0x3f; break;
+				case EF_DPCM_PITCH:
+					limit = 0x0f; break;
+				case EF_RETRIGGER:
+					limit = 0xff; break;
+					/* 0xff on the same row as a note causes mRetriggerCtr = 0x100.
+					 * mRetriggerCtr is an int and does not overflow.
+					 * Had mRetriggerCtr been an u8, XFF would assign mRetriggerCtr=0 and trigger DPCM.
+					 * But the note triggers DPCM too, so the double-trigger is harmless. */
+				default:
+					throw std::runtime_error("Error: DPCM effect without limit defined");
+			}
+			return EffParam <= limit;
+		}
+		case EF_DUTY_CYCLE: {
+			static CChannelFactory F;
+			// Don't use make_unique if you need a custom deleter or are adopting a raw pointer from elsewhere.
+
+			auto channelHandler = std::unique_ptr<CChannelHandler>(F.Produce(this->m_iChannelID));
+			int limit = channelHandler->getDutyMax();
+			return EffParam <= limit;
+		}
+		case EF_FDS_MOD_DEPTH:
+			return m_iChip == SNDCHIP_FDS && (EffParam <= 0x3F || EffParam >= 0x80);
+		case EF_FDS_MOD_SPEED_HI: case EF_FDS_MOD_SPEED_LO: case EF_FDS_MOD_BIAS:
+			return m_iChip == SNDCHIP_FDS;
+		case EF_SUNSOFT_ENV_LO: case EF_SUNSOFT_ENV_HI: case EF_SUNSOFT_ENV_TYPE:
+		case EF_SUNSOFT_NOISE:		// // // 050B
+			return m_iChip == SNDCHIP_S5B;
+		case EF_N163_WAVE_BUFFER:
+			return m_iChip == SNDCHIP_N163 && EffParam <= 0x7F;
+		case EF_FDS_VOLUME:
+			return m_iChip == SNDCHIP_FDS && (EffParam <= 0x7F || EffParam == 0xE0);
+		case EF_VRC7_PORT: case EF_VRC7_WRITE:		// // // 050B
+			return m_iChip == SNDCHIP_VRC7;
+		case EF_PHASE_RESET:
+			return this->m_iChip == SNDCHIP_VRC6 && EffParam == 0x00;
+		case EF_COUNT:
+		default:
+			throw std::runtime_error("Missing case in CTrackerChannel::IsEffectCompatible");
 	}
 
-	return 
+	return false;
 }
-*/

@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -18,20 +20,19 @@
 ** must bear this legend.
 */
 
-#include <iterator> 
-#include <string>
+#include <iterator>
 #include <sstream>
 #include "stdafx.h"
-#include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
-#include "FamiTrackerView.h"
+#include "res/resource.h"        // // //
+#include "Instrument.h"
+#include "InstrumentVRC7.h"		// // //
 #include "InstrumentEditPanel.h"
 #include "InstrumentEditorVRC7.h"
 #include "Clipboard.h"
 
 static unsigned char default_inst[(16+3)*16] = 
 {
-#include "APU/vrc7tone.h" 
+#include "apu/vrc7tone.h" 
 };
 
 // CInstrumentSettingsVRC7 dialog
@@ -41,13 +42,10 @@ IMPLEMENT_DYNAMIC(CInstrumentEditorVRC7, CInstrumentEditPanel)
 CInstrumentEditorVRC7::CInstrumentEditorVRC7(CWnd* pParent /*=NULL*/)
 	: CInstrumentEditPanel(CInstrumentEditorVRC7::IDD, pParent)
 {
-	m_pInstrument = NULL;
 }
 
 CInstrumentEditorVRC7::~CInstrumentEditorVRC7()
 {
-	if (m_pInstrument)
-		m_pInstrument->Release();
 }
 
 void CInstrumentEditorVRC7::DoDataExchange(CDataExchange* pDX)
@@ -58,33 +56,21 @@ void CInstrumentEditorVRC7::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CInstrumentEditorVRC7, CInstrumentEditPanel)
 	ON_CBN_SELCHANGE(IDC_PATCH, OnCbnSelchangePatch)
-//ON_BN_CLICKED(IDC_M_AM, &CInstrumentEditorVRC7::OnBnClickedCheckbox) 
-//ON_BN_CLICKED(IDC_M_VIB, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-//ON_BN_CLICKED(IDC_M_EG, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-//ON_BN_CLICKED(IDC_M_KSR2, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-//ON_BN_CLICKED(IDC_M_DM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-//ON_BN_CLICKED(IDC_C_AM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-//ON_BN_CLICKED(IDC_C_VIB, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-//ON_BN_CLICKED(IDC_C_EG, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-//ON_BN_CLICKED(IDC_C_KSR, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-//ON_BN_CLICKED(IDC_C_DM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-   ON_BN_CLICKED(IDC_M_AM, OnBnClickedCheckbox) 
-   ON_BN_CLICKED(IDC_M_VIB, OnBnClickedCheckbox)
-   ON_BN_CLICKED(IDC_M_EG, OnBnClickedCheckbox)
-   ON_BN_CLICKED(IDC_M_KSR2, OnBnClickedCheckbox)
-   ON_BN_CLICKED(IDC_M_DM, OnBnClickedCheckbox)
-   ON_BN_CLICKED(IDC_C_AM, OnBnClickedCheckbox)
-   ON_BN_CLICKED(IDC_C_VIB, OnBnClickedCheckbox)
-   ON_BN_CLICKED(IDC_C_EG, OnBnClickedCheckbox)
-   ON_BN_CLICKED(IDC_C_KSR, OnBnClickedCheckbox)
-   ON_BN_CLICKED(IDC_C_DM, OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_M_AM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_M_VIB, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_M_EG, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_M_KSR2, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_M_DM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_C_AM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_C_VIB, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_C_EG, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_C_KSR, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_C_DM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
 	ON_WM_VSCROLL()
 	ON_WM_HSCROLL()
 	ON_WM_CONTEXTMENU()
-//ON_COMMAND(IDC_COPY, &CInstrumentEditorVRC7::OnCopy)
-//ON_COMMAND(IDC_PASTE, &CInstrumentEditorVRC7::OnPaste)
-   ON_COMMAND(IDC_COPY, OnCopy)
-   ON_COMMAND(IDC_PASTE, OnPaste)
+	ON_COMMAND(IDC_COPY, &CInstrumentEditorVRC7::OnCopy)
+	ON_COMMAND(IDC_PASTE, &CInstrumentEditorVRC7::OnPaste)
 END_MESSAGE_MAP()
 
 
@@ -97,24 +83,24 @@ BOOL CInstrumentEditorVRC7::OnInitDialog()
 	CComboBox *pPatchBox = static_cast<CComboBox*>(GetDlgItem(IDC_PATCH));
 	CString Text;
 
-    const TCHAR* const PATCH_NAME[16] = {
-        _T("(custom patch)"),
-        _T("Bell"),
-        _T("Guitar"),
-        _T("Piano"),
-        _T("Flute"),
-        _T("Clarinet"),
-        _T("Rattling Bell"),
-        _T("Trumpet"),
-        _T("Reed Organ"),
-        _T("Soft Bell"),
-        _T("Xylophone"),
-        _T("Vibraphone"),
-        _T("Brass"),
-        _T("Bass Guitar"),
-        _T("Synthesizer"),
-        _T("Chorus")
-    };
+	const _TCHAR* const PATCH_NAME[16] = {
+		_T("(custom patch)"),
+		_T("Bell"),
+		_T("Guitar"),
+		_T("Piano"),
+		_T("Flute"),
+		_T("Clarinet"),
+		_T("Rattling Bell"),
+		_T("Trumpet"),
+		_T("Reed Organ"),
+		_T("Soft Bell"),
+		_T("Xylophone"),
+		_T("Vibraphone"),
+		_T("Brass"),
+		_T("Bass Guitar"),
+		_T("Synthesizer"),
+		_T("Chorus")
+	};
 
 	for (int i = 0; i < 16; ++i) {
 		Text.Format(_T("Patch #%i - %s"), i, PATCH_NAME[i]);
@@ -185,15 +171,12 @@ void CInstrumentEditorVRC7::EnableControls(bool bEnable)
 		GetDlgItem(SLIDER_IDS[i])->EnableWindow(bEnable ? TRUE : FALSE);
 }
 
-void CInstrumentEditorVRC7::SelectInstrument(int Instrument)
+void CInstrumentEditorVRC7::SelectInstrument(std::shared_ptr<CInstrument> pInst)
 {
+	m_pInstrument = std::dynamic_pointer_cast<CInstrumentVRC7>(pInst);
+	ASSERT(m_pInstrument);
+
 	CComboBox *pPatchBox = static_cast<CComboBox*>(GetDlgItem(IDC_PATCH));
-
-	if (m_pInstrument)
-		m_pInstrument->Release();
-
-	m_pInstrument = static_cast<CInstrumentVRC7*>(GetDocument()->GetInstrument(Instrument));
-	ASSERT(m_pInstrument->GetType() == INST_VRC7);
 
 	int Patch = m_pInstrument->GetPatch();
 
@@ -292,7 +275,7 @@ void CInstrumentEditorVRC7::LoadInternalPatch(int Num)
 
 void CInstrumentEditorVRC7::LoadCustomPatch()
 {
-	unsigned int Reg;
+	unsigned char Reg;
 
 	GetDlgItem(IDC_PASTE)->EnableWindow(TRUE);
 
@@ -347,7 +330,7 @@ void CInstrumentEditorVRC7::LoadCustomPatch()
 
 void CInstrumentEditorVRC7::SaveCustomPatch()
 {
-	int Reg;
+	unsigned char Reg;
 
 	// Register 0
 	Reg  = (IsDlgButtonChecked(IDC_M_AM) ? 0x80 : 0);
@@ -424,13 +407,17 @@ void CInstrumentEditorVRC7::OnContextMenu(CWnd* /*pWnd*/, CPoint point)
 	
 	menu.CreatePopupMenu();
 	menu.AppendMenu(MF_STRING, 1, _T("&Copy"));
-	menu.AppendMenu(MF_STRING, 2, _T("&Paste"));
+	menu.AppendMenu(MF_STRING, 2, _T("Copy as Plain &Text"));		// // //
+	menu.AppendMenu(MF_STRING, 3, _T("&Paste"));
 
 	switch (menu.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, point.x, point.y, this)) {
 		case 1: // Copy
 			OnCopy();
 			break;
-		case 2: // Paste
+		case 2: // // //
+			CopyAsPlainText();
+			break;
+		case 3: // Paste
 			OnPaste();
 			break;
 	}
@@ -444,6 +431,34 @@ void CInstrumentEditorVRC7::OnCopy()
 	// Assemble a MML string
 	for (int i = 0; i < 8; ++i)
 		MML.AppendFormat(_T("$%02X "), (patch == 0) ? (unsigned char)(m_pInstrument->GetCustomReg(i)) : default_inst[patch * 16 + i]);
+	
+	CClipboard Clipboard(this, CF_TEXT);
+
+	if (!Clipboard.IsOpened()) {
+		AfxMessageBox(IDS_CLIPBOARD_OPEN_ERROR);
+		return;
+	}
+
+	Clipboard.SetDataPointer(MML.GetBuffer(), MML.GetLength() + 1);
+}
+
+void CInstrumentEditorVRC7::CopyAsPlainText()		// // //
+{
+	int patch = m_pInstrument->GetPatch();
+	unsigned char reg[8] = {};
+	for (int i = 0; i < 8; ++i)
+		reg[i] = patch == 0 ? m_pInstrument->GetCustomReg(i) : default_inst[patch * 16 + i];
+	
+	CString MML;
+	GetDlgItemTextA(IDC_PATCH, MML);
+	MML.Format(_T(";%s\r\n;%s\r\n"), MML, m_pInstrument->GetName());
+	MML.AppendFormat(_T(";TL FB\r\n %2d,%2d,\r\n;AR DR SL RR KL MT AM VB EG KR DT\r\n"), reg[2] & 0x3F, reg[3] & 0x07);
+	for (int i = 0; i <= 1; i++)
+		MML.AppendFormat(_T(" %2d,%2d,%2d,%2d,%2d,%2d,%2d,%2d,%2d,%2d,%2d,\r\n"),
+			(reg[4 + i] >> 4) & 0x0F, reg[4 + i] & 0x0F, (reg[6 + i] >> 4) & 0x0F, reg[6 + i] & 0x0F,
+			(reg[2 + i] >> 6) & 0x03, reg[i] & 0x0F,
+			(reg[i] >> 7) & 0x01, (reg[i] >> 6) & 0x01, (reg[i] >> 5) & 0x01, (reg[i] >> 4) & 0x01,
+			(reg[3] >> (4 - i)) & 0x01);
 	
 	CClipboard Clipboard(this, CF_TEXT);
 
@@ -482,8 +497,9 @@ void CInstrumentEditorVRC7::PasteSettings(LPCTSTR pString)
 	std::istream_iterator<std::string> end;
 
 	for (int i = 0; (i < 8) && (begin != end); ++i) {
-		int value = CSequenceInstrumentEditPanel::ReadStringValue(*begin++);
-		value = std::min<int>(std::max<int>(value, 0x00), 0xFF);
+		int value = CSequenceInstrumentEditPanel::ReadStringValue(*begin++, false);		// // //
+		if (value < 0) value = 0;
+		if (value > 0xFF) value = 0xFF;
 		m_pInstrument->SetCustomReg(i, value);
 	}
 

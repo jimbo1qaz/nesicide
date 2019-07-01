@@ -19,18 +19,20 @@
 */
 
 #include <iterator> 
-#include <string>
 #include <sstream>
-#include <cmath>
 #include "stdafx.h"
 #include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
-#include "FamiTrackerView.h"
+#include "Instrument.h"		// // //
+#include "SeqInstrument.h"		// // //
+#include "InstrumentFDS.h"		// // //
+#include "DPI.h"		// // //
 #include "InstrumentEditPanel.h"
 #include "InstrumentEditorFDS.h"
-#include "MainFrm.h"
+#include "APU/Types.h"		// // //
 #include "SoundGen.h"
 #include "Clipboard.h"
+#include "WaveEditor.h"		// // //
+#include "ModSequenceEditor.h"
 
 // CInstrumentEditorFDS dialog
 
@@ -38,8 +40,7 @@ IMPLEMENT_DYNAMIC(CInstrumentEditorFDS, CInstrumentEditPanel)
 
 CInstrumentEditorFDS::CInstrumentEditorFDS(CWnd* pParent) : CInstrumentEditPanel(CInstrumentEditorFDS::IDD, pParent),
 	m_pWaveEditor(NULL), 
-	m_pModSequenceEditor(NULL), 
-	m_pInstrument(NULL)
+	m_pModSequenceEditor(NULL)
 {
 }
 
@@ -47,9 +48,6 @@ CInstrumentEditorFDS::~CInstrumentEditorFDS()
 {
 	SAFE_RELEASE(m_pModSequenceEditor);
 	SAFE_RELEASE(m_pWaveEditor);
-
-	if (m_pInstrument)
-		m_pInstrument->Release();
 }
 
 void CInstrumentEditorFDS::DoDataExchange(CDataExchange* pDX)
@@ -57,13 +55,10 @@ void CInstrumentEditorFDS::DoDataExchange(CDataExchange* pDX)
 	CInstrumentEditPanel::DoDataExchange(pDX);
 }
 
-void CInstrumentEditorFDS::SelectInstrument(int Instrument)
+void CInstrumentEditorFDS::SelectInstrument(std::shared_ptr<CInstrument> pInst)
 {
-	if (m_pInstrument)
-		m_pInstrument->Release();
-
-	m_pInstrument = static_cast<CInstrumentFDS*>(GetDocument()->GetInstrument(Instrument));
-	ASSERT(m_pInstrument->GetType() == INST_FDS);
+	m_pInstrument = std::dynamic_pointer_cast<CInstrumentFDS>(pInst);
+	ASSERT(m_pInstrument);
 	
 	if (m_pWaveEditor)
 		m_pWaveEditor->SetInstrument(m_pInstrument);
@@ -93,15 +88,10 @@ BEGIN_MESSAGE_MAP(CInstrumentEditorFDS, CInstrumentEditPanel)
 	ON_EN_CHANGE(IDC_MOD_RATE, OnModRateChange)
 	ON_EN_CHANGE(IDC_MOD_DEPTH, OnModDepthChange)
 	ON_EN_CHANGE(IDC_MOD_DELAY, OnModDelayChange)
-//ON_BN_CLICKED(IDC_COPY_WAVE, &CInstrumentEditorFDS::OnBnClickedCopyWave)
-//ON_BN_CLICKED(IDC_PASTE_WAVE, &CInstrumentEditorFDS::OnBnClickedPasteWave)
-//ON_BN_CLICKED(IDC_COPY_TABLE, &CInstrumentEditorFDS::OnBnClickedCopyTable)
-//ON_BN_CLICKED(IDC_PASTE_TABLE, &CInstrumentEditorFDS::OnBnClickedPasteTable)
-////	ON_BN_CLICKED(IDC_ENABLE_FM, &CInstrumentEditorFDS::OnBnClickedEnableFm)
-   ON_BN_CLICKED(IDC_COPY_WAVE, OnBnClickedCopyWave)
-   ON_BN_CLICKED(IDC_PASTE_WAVE, OnBnClickedPasteWave)
-   ON_BN_CLICKED(IDC_COPY_TABLE, OnBnClickedCopyTable)
-   ON_BN_CLICKED(IDC_PASTE_TABLE, OnBnClickedPasteTable)
+	ON_BN_CLICKED(IDC_COPY_WAVE, &CInstrumentEditorFDS::OnBnClickedCopyWave)
+	ON_BN_CLICKED(IDC_PASTE_WAVE, &CInstrumentEditorFDS::OnBnClickedPasteWave)
+	ON_BN_CLICKED(IDC_COPY_TABLE, &CInstrumentEditorFDS::OnBnClickedCopyTable)
+	ON_BN_CLICKED(IDC_PASTE_TABLE, &CInstrumentEditorFDS::OnBnClickedPasteTable)
 //	ON_BN_CLICKED(IDC_ENABLE_FM, &CInstrumentEditorFDS::OnBnClickedEnableFm)
 	ON_MESSAGE(WM_USER + 1, OnModChanged)
 END_MESSAGE_MAP()
@@ -113,16 +103,14 @@ BOOL CInstrumentEditorFDS::OnInitDialog()
 	CInstrumentEditPanel::OnInitDialog();
 
 	// Create wave editor
-	CRect rect(SX(20), SY(30), 0, 0);
 	m_pWaveEditor = new CWaveEditorFDS(5, 2, 64, 64);
-	m_pWaveEditor->CreateEx(WS_EX_CLIENTEDGE, NULL, _T(""), WS_CHILD | WS_VISIBLE, rect, this);
+	m_pWaveEditor->CreateEx(WS_EX_CLIENTEDGE, NULL, _T(""), WS_CHILD | WS_VISIBLE, DPI::Rect(20, 30, 0, 0), this);		// // //
 	m_pWaveEditor->ShowWindow(SW_SHOW);
 	m_pWaveEditor->UpdateWindow();
 
 	// Create modulation sequence editor
-	rect = CRect(SX(10), SY(200), 0, 0);
 	m_pModSequenceEditor = new CModSequenceEditor();
-	m_pModSequenceEditor->CreateEx(WS_EX_CLIENTEDGE, NULL, _T(""), WS_CHILD | WS_VISIBLE, rect, this);
+	m_pModSequenceEditor->CreateEx(WS_EX_CLIENTEDGE, NULL, _T(""), WS_CHILD | WS_VISIBLE, DPI::Rect(10, 200, 0, 0), this);		// // //
 	m_pModSequenceEditor->ShowWindow(SW_SHOW);
 	m_pModSequenceEditor->UpdateWindow();
 
@@ -136,6 +124,27 @@ BOOL CInstrumentEditorFDS::OnInitDialog()
 */
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// EXCEPTION: OCX Property Pages should return FALSE
+}
+
+BOOL CInstrumentEditorFDS::PreTranslateMessage(MSG* pMsg)		// // //
+{
+	if (pMsg->message == WM_KEYDOWN) {
+		if ((::GetKeyState(VK_CONTROL) & 0x80) == 0x80) {
+			switch (pMsg->wParam) {
+			case VK_LEFT:
+				m_pWaveEditor->PhaseShift(1);
+				return TRUE;
+			case VK_RIGHT:
+				m_pWaveEditor->PhaseShift(-1);
+				return TRUE;
+			case VK_DOWN:
+				m_pWaveEditor->Invert(63);
+				return TRUE;
+			}
+		}
+	}
+
+	return CInstrumentEditPanel::PreTranslateMessage(pMsg);
 }
 
 void CInstrumentEditorFDS::OnPresetSine()
@@ -196,7 +205,7 @@ void CInstrumentEditorFDS::OnPresetSawtooth()
 
 void CInstrumentEditorFDS::OnModPresetFlat()
 {
-	for (int i = 0; i < 32; ++i) {
+	for (int i = 0; i < CInstrumentFDS::MOD_SIZE; ++i) {
 		m_pInstrument->SetModulation(i, 0);
 	}
 
@@ -206,20 +215,22 @@ void CInstrumentEditorFDS::OnModPresetFlat()
 
 void CInstrumentEditorFDS::OnModPresetSine()
 {
-	for (int i = 0; i < 8; ++i) {
-		m_pInstrument->SetModulation(i, 7);
-		m_pInstrument->SetModulation(i + 8, 1);
-		m_pInstrument->SetModulation(i + 16, 1);
-		m_pInstrument->SetModulation(i + 24, 7);
+	const int BEGIN = 0;
+	const int CENTER = CInstrumentFDS::MOD_SIZE / 2;
+	const int END = CInstrumentFDS::MOD_SIZE;
+	const int DELTA = 6;
+
+	for (int i = 0; i < END; i++) m_pInstrument->SetModulation(i, 0);
+
+	m_pInstrument->SetModulation(BEGIN, 4);
+	m_pInstrument->SetModulation(CENTER, 4);
+
+	for (int i = 1; i <= DELTA; ++i) {
+		m_pInstrument->SetModulation(BEGIN + i, -1);
+		m_pInstrument->SetModulation(CENTER - i, 1);
+		m_pInstrument->SetModulation(CENTER + i, 1);
+		m_pInstrument->SetModulation(END - i, -1);
 	}
-
-	m_pInstrument->SetModulation(7, 0);
-	m_pInstrument->SetModulation(8, 0);
-	m_pInstrument->SetModulation(9, 0);
-
-	m_pInstrument->SetModulation(23, 0);
-	m_pInstrument->SetModulation(24, 0);
-	m_pInstrument->SetModulation(25, 0);
 
 	m_pModSequenceEditor->RedrawWindow();
 	theApp.GetSoundGenerator()->WaveChanged();
@@ -267,11 +278,6 @@ void CInstrumentEditorFDS::OnModDelayChange()
 	theApp.GetSoundGenerator()->WaveChanged();
 }
 
-void CInstrumentEditorFDS::PreviewNote(unsigned char Key)
-{
-	CFamiTrackerView::GetView()->PreviewNote(Key);
-}
-
 void CInstrumentEditorFDS::OnBnClickedCopyWave()
 {
 	CString Str;
@@ -317,7 +323,7 @@ void CInstrumentEditorFDS::ParseWaveString(LPCTSTR pString)
 	std::istream_iterator<std::string> end;
 
 	for (int i = 0; (i < 64) && (begin != end); ++i) {
-		int value = CSequenceInstrumentEditPanel::ReadStringValue(*begin++);
+		int value = CSequenceInstrumentEditPanel::ReadStringValue(*begin++, false);
 		value = std::min<int>(std::max<int>(value, 0), 63);
 		m_pInstrument->SetSample(i, value);
 	}
@@ -371,7 +377,7 @@ void CInstrumentEditorFDS::ParseTableString(LPCTSTR pString)
 	std::istream_iterator<std::string> end;
 
 	for (int i = 0; (i < 32) && (begin != end); ++i) {
-		int value = CSequenceInstrumentEditPanel::ReadStringValue(*begin++);
+		int value = CSequenceInstrumentEditPanel::ReadStringValue(*begin++, false);
 		value = std::min<int>(std::max<int>(value, 0), 7);
 		m_pInstrument->SetModulation(i, value);
 	}

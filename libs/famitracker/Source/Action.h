@@ -18,63 +18,79 @@
 ** must bear this legend.
 */
 
+
 #pragma once
 
+#include <vector>
+#include <memory>
 
 // Undo / redo helper class
 
 //
-// Change MAX_LEVELS in the class CActionHandler if you want more undo levels
+// Change MAX_LEVELS in the class History if you want more undo levels
 //
 
+class CMainFrame;		// // //
+
 // Base class for action commands
-class CAction
+class Action
 {
 public:
-	CAction(int iAction);
-	virtual ~CAction();
+	virtual ~Action();
 
-	// Save the undo state and perform the action. This method may reject the action by returning false
-	virtual bool SaveState(CMainFrame *pMainFrm) = 0;
+	// // // Save the action-specific state information. This method may reject the action by returning false
+	virtual bool SaveState(const CMainFrame *pMainFrm) = 0;
 
-	// Undo the operation, using the saved state
-	virtual void Undo(CMainFrame *pMainFrm) = 0;
+	// Undo the operation
+	virtual void Undo(CMainFrame *pMainFrm) const = 0;
 
 	// Redo the operation
-	virtual void Redo(CMainFrame *pMainFrm) = 0;
+	virtual void Redo(CMainFrame *pMainFrm) const = 0;
+
+	// // // Save the undo state before performing the action
+	virtual void SaveUndoState(const CMainFrame *pMainFrm) = 0;
+
+	// // // Save the redo state after performing the action
+	virtual void SaveRedoState(const CMainFrame *pMainFrm) = 0;
+
+	// // // Restore the state just before the action
+	virtual void RestoreUndoState(CMainFrame *pMainFrm) const = 0;
+
+	// // // Restore the state just after the action
+	virtual void RestoreRedoState(CMainFrame *pMainFrm) const = 0;
+
+	// // // Combine current action with another one, return true if permissible
+	virtual bool Merge(const Action *Other);
 
 	// Get the action type
 	int GetAction() const;
 
 protected:
+	Action(int iAction = -1);		// // //
+
 	int m_iAction;
 };
 
-class CPatternEditor;
-class CFrameClipData;
-class CPatternClipData;
-
 // Stores action objects (a dual-stack, kind of)
-class CActionHandler
+class History
 {
 public:
-	CActionHandler();
-	~CActionHandler();
+	History();
 
 	// Clear the undo list
 	void Clear();
 
 	// Add new action to undo list
-	void Push(CAction *pAction);
+	void Push(Action *pAction);
 
 	// Get first undo action object in queue
-	CAction *PopUndo();
+	Action *PopUndo();
 
 	// Get first redo action object in queue
-	CAction *PopRedo();
+	Action *PopRedo();
 
 	// Return last action in queue without changing the queue
-	CAction *GetLastAction() const;
+	Action *GetLastAction() const;
 
 	// Get number of undo levels available
 	int GetUndoLevel() const;
@@ -90,12 +106,9 @@ public:
 
 public:
 	// Levels of undo in the editor. Higher value requires more memory
-	static const int MAX_LEVELS = 64;
+	static const int MAX_LEVELS;
 
 private:
-	CAction *m_pActionStack[MAX_LEVELS + 1];
-	int		m_iUndoLevel;
-	int		m_iRedoLevel;
-
+	std::vector<std::unique_ptr<Action>> m_UndoStack, m_RedoStack;
 };
 

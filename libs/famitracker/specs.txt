@@ -1,0 +1,95 @@
+0CC-FamiTracker Mod
+Specification
+Written by HertzDevil
+Version 0.3.14.5 - Jan 16 2017
+
+--------------------------------------------------------------------------------
+
+	===
+	DETUNETABLES Block
+	===
+
+Version 1:
+ - total: char[0,6] - number of detune tables
+   Repeat [total] times:
+  - chip: char[0,5] - index of the detune table. 0=2A03, 1=2A07,
+                      2=VRC6 sawtooth, 3=VRC7, 4=FDS, 5=N163
+  - count: char[1,96] - number of notes in the specified detune table
+    Repeat [count] times:
+   - note: char[0,95] - zero-based note index of the detune table entry
+   - offset: int[-32767,32767] - register offset of the detune table entry
+
+	===
+	GROOVES Block
+	===
+
+Version 1:
+ - count: char[0,32] - number of grooves
+   Repeat [count] times:
+  - index: char[0,31] - index of the groove
+  - size: char[1,128] - size of the groove
+    Repeat [size] times:
+   - entry: char[1,255] - groove entry
+ - tracks: char[1,64] - Number of tracks
+   Repeat [tracks] times:
+  - flag: char[0,1] - 0 for default speed, 1 for default groove
+
+	===
+	BOOKMARKS Block
+	===
+
+Version 1:
+ - count: int[0,] - number of bookmarks in the FTM
+   Repeat [count] times:
+  - track: char[0,63] - track index
+  - frame: char[0,255] - frame index
+  - row: char[0,255] - row index
+  - high1: int[0,256] - first highlight
+  - high2: int[0,256] - second highlight
+  - flag: char[0,1] - 0 for highlight in current frame, 1 for following frames
+  - name: str[] - bookmark name
+
+	===
+	PARAMS_EXTRA Block
+	===
+
+Version 1:
+ - linearpitch: int[0,1] - enable linear pitch mode
+
+Version 2:
+ - linearpitch: int[0,1] - enable linear pitch mode
+ - semitone: char[-12,12] - global semitone tuning
+ - cent: char[-100,100] - global cent tuning
+
+	===
+	Text exporter syntax
+	===
+
+The text command syntax for a detune table entry is:
+
+ - DETUNE [chip] [octave] [note] [offset]
+  - chip: int[0,5] - index of the detune table. 0=2A03, 1=2A07, 2=VRC6 sawtooth,
+                     3=VRC7, 4=FDS, 5=N163
+  - octave: int[0,7] - octave of key
+  - note: int[0,11] - scale note of key
+  - offset: int[-32767,32767] - register offset
+
+The text command syntax for a groove is:
+
+ - GROOVE [index] [size] : [speed]
+  - index: int[0,31] - index of the groove
+  - size: int[1,128] - length of the groove
+  - speed: int_list[1,255] - groove entries
+
+To use grooves in a module, the following command must be included before all
+TRACK commands:
+
+ - USEGROOVE : [track]
+  - track: int_list[1,64] - list of one-based indices of tracks that use a
+                            default groove
+
+Bookmarks and the linear pitch setting are not exported to text files.
+
+--------------------------------------------------------------------------------
+
+For enquiries mail to nicetas.c@gmail.com

@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -18,7 +20,6 @@
 ** must bear this legend.
 */
 
-#include <vector>		// needed for Complier.h > Chunk.h
 #include "stdafx.h"
 #include "FamiTracker.h"
 #include "FamiTrackerDoc.h"
@@ -147,6 +148,16 @@ void CCommandLineExport::CommandLineExport(const CString& fileIn, const CString&
 		if (bLog)
 		{
 			fLog.WriteString(_T("\nASM export complete.\n"));
+		}
+		return;
+	}
+	else if (0 == ext.CompareNoCase(_T(".nsfe")))		// // //
+	{
+		CCompiler compiler(pExportDoc, bLog ? new CCommandLineLog(&fLog) : NULL);
+		compiler.ExportNSFE(fileOut, pExportDoc->GetMachine());
+		if (bLog)
+		{
+			fLog.WriteString(_T("\nNSFe export complete.\n"));
 		}
 		return;
 	}

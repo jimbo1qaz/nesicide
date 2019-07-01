@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -21,10 +23,33 @@
 #include <map>
 #include <vector>
 #include "stdafx.h"
-#include "FamiTrackerDoc.h"
+#include "DSample.h"		// // //
+#include "FamiTrackerDoc.h"		// // // output title
 #include "Compiler.h"
 #include "Chunk.h"
 #include "ChunkRenderText.h"
+
+// Assembly labels
+// // // moved from CCompiler
+const char CChunkRenderText::LABEL_SONG_LIST[]			= "ft_song_list";
+const char CChunkRenderText::LABEL_INSTRUMENT_LIST[]	= "ft_instrument_list";
+const char CChunkRenderText::LABEL_SAMPLES_LIST[]		= "ft_sample_list";
+const char CChunkRenderText::LABEL_SAMPLES[]			= "ft_samples";
+const char CChunkRenderText::LABEL_GROOVE_LIST[]		= "ft_groove_list";			// // //
+const char CChunkRenderText::LABEL_GROOVE[]				= "ft_groove_%i";			// // // one argument
+const char CChunkRenderText::LABEL_WAVETABLE[]			= "ft_wave_table";
+const char CChunkRenderText::LABEL_SAMPLE[]				= "ft_sample_%i";			// one argument
+const char CChunkRenderText::LABEL_WAVES[]				= "ft_waves_%i";			// one argument
+const char CChunkRenderText::LABEL_SEQ_2A03[]			= "ft_seq_2a03_%i";			// one argument
+const char CChunkRenderText::LABEL_SEQ_VRC6[]			= "ft_seq_vrc6_%i";			// one argument
+const char CChunkRenderText::LABEL_SEQ_FDS[]			= "ft_seq_fds_%i";			// one argument
+const char CChunkRenderText::LABEL_SEQ_N163[]			= "ft_seq_n163_%i";			// one argument
+const char CChunkRenderText::LABEL_SEQ_S5B[]			= "ft_seq_s5b_%i";			// // // one argument
+const char CChunkRenderText::LABEL_INSTRUMENT[]			= "ft_inst_%i";				// one argument
+const char CChunkRenderText::LABEL_SONG[]				= "ft_song_%i";				// one argument
+const char CChunkRenderText::LABEL_SONG_FRAMES[]		= "ft_s%i_frames";			// one argument
+const char CChunkRenderText::LABEL_SONG_FRAME[]			= "ft_s%if%i";				// two arguments
+const char CChunkRenderText::LABEL_PATTERN[]			= "ft_s%ip%ic%i";			// three arguments
 
 /**
  * Text chunk render, these methods will always output single byte strings
@@ -41,6 +66,8 @@ const stChunkRenderFunc CChunkRenderText::RENDER_FUNCTIONS[] = {
 	{CHUNK_INSTRUMENT,		&CChunkRenderText::StoreInstrumentChunk},
 	{CHUNK_SAMPLE_LIST,		&CChunkRenderText::StoreSampleListChunk},
 	{CHUNK_SAMPLE_POINTERS,	&CChunkRenderText::StoreSamplePointersChunk},
+	{CHUNK_GROOVE_LIST,		&CChunkRenderText::StoreGrooveListChunk},		// // //
+	{CHUNK_GROOVE,			&CChunkRenderText::StoreGrooveChunk},		// // //
 	{CHUNK_SONG_LIST,		&CChunkRenderText::StoreSongListChunk},
 	{CHUNK_SONG,			&CChunkRenderText::StoreSongChunk},
 	{CHUNK_FRAME_LIST,		&CChunkRenderText::StoreFrameListChunk},
@@ -57,15 +84,13 @@ CChunkRenderText::CChunkRenderText(CFile *pFile) : m_pFile(pFile)
 void CChunkRenderText::StoreChunks(const std::vector<CChunk*> &Chunks)
 {
 	// Generate strings
-	for (std::vector<CChunk*>::const_iterator it = Chunks.begin(); it != Chunks.end(); ++it) {
-		for (int j = 0; j < sizeof(RENDER_FUNCTIONS) / sizeof(stChunkRenderFunc); ++j) {
-			if ((*it)->GetType() == RENDER_FUNCTIONS[j].type)
-				(this->*RENDER_FUNCTIONS[j].function)(*it, m_pFile);
-		}
-	}
+	for (const auto pChunk : Chunks)
+		for (int j = 0; j < sizeof(RENDER_FUNCTIONS) / sizeof(stChunkRenderFunc); ++j)
+			if (pChunk->GetType() == RENDER_FUNCTIONS[j].type)
+				CALL_MEMBER_FN(this, RENDER_FUNCTIONS[j].function)(pChunk, m_pFile);
 
 	// Write strings to file
-	WriteFileString(CStringA("; FamiTracker exported music data: "), m_pFile);
+	WriteFileString(CStringA("; " APP_NAME " exported music data: "), m_pFile);
 	WriteFileString(CFamiTrackerDoc::GetDoc()->GetTitle(), m_pFile);
 	WriteFileString(CStringA("\n;\n\n"), m_pFile);
 
@@ -92,6 +117,10 @@ void CChunkRenderText::StoreChunks(const std::vector<CChunk*> &Chunks)
 	DumpStrings(CStringA("; DPCM instrument list (pitch, sample index)\n"), CStringA("\n"), m_sampleListStrings, m_pFile);
 	DumpStrings(CStringA("; DPCM samples list (location, size, bank)\n"), CStringA("\n"), m_samplePointersStrings, m_pFile);
 
+	// // // Grooves
+	DumpStrings(CStringA("; Groove list\n"), CStringA(""), m_grooveListStrings, m_pFile);
+	DumpStrings(CStringA("; Grooves (size, terms)\n"), CStringA("\n"), m_grooveStrings, m_pFile);
+
 	// Songs
 	DumpStrings(CStringA("; Song pointer list\n"), CStringA("\n"), m_songListStrings, m_pFile);
 	DumpStrings(CStringA("; Song info\n"), CStringA("\n"), m_songStrings, m_pFile);
@@ -115,13 +144,12 @@ void CChunkRenderText::StoreSamples(const std::vector<const CDSample*> &Samples)
 	}
 
 	unsigned int Address = CCompiler::PAGE_SAMPLES;
-	for (size_t i = 0; i < Samples.size(); ++i) {
-		const CDSample *pDSample = Samples[i];
+	for (size_t i = 0; i < Samples.size(); ++i) if (const CDSample *pDSample = Samples[i]) {		// // //
 		const unsigned int SampleSize = pDSample->GetSize();
 		const char *pData = pDSample->GetData();
 		
 		CStringA label;
-		label.Format(CCompiler::LABEL_SAMPLE, i);
+		label.Format(LABEL_SAMPLE, i);		// // //
 		str.Format("%s: ; %s\n", LPCSTR(label), pDSample->GetName());
 		StoreByteString(pData, SampleSize, str, DEFAULT_LINE_BREAK);
 		Address += SampleSize;
@@ -159,6 +187,7 @@ void CChunkRenderText::StoreHeaderChunk(CChunk *pChunk, CFile *pFile)
 	str.AppendFormat("\t.word %s\n", pChunk->GetDataRefName(i++));
 	str.AppendFormat("\t.word %s\n", pChunk->GetDataRefName(i++));
 	str.AppendFormat("\t.word %s\n", pChunk->GetDataRefName(i++));
+	str.AppendFormat("\t.word %s\n", pChunk->GetDataRefName(i++));		// // // Groove
 	str.AppendFormat("\t.byte %i ; flags\n", pChunk->GetData(i++));
 	if (pChunk->IsDataReference(i))
 		str.AppendFormat("\t.word %s\n", pChunk->GetDataRefName(i++));	// FDS waves
@@ -258,6 +287,29 @@ void CChunkRenderText::StoreSamplePointersChunk(CChunk *pChunk, CFile *pFile)
 	m_samplePointersStrings.Add(str);
 }
 
+void CChunkRenderText::StoreGrooveListChunk(CChunk *pChunk, CFile *pFile)		// // //
+{
+	CStringA str;
+	
+	str.Format("%s:\n", pChunk->GetLabel());
+	
+	for (int i = 0; i < pChunk->GetLength(); ++i) {
+		str.AppendFormat("\t.byte $%02X\n", pChunk->GetData(i));
+	}
+
+	m_grooveListStrings.Add(str);
+}
+
+void CChunkRenderText::StoreGrooveChunk(CChunk *pChunk, CFile *pFile)		// // //
+{
+	CStringA str;
+	
+	// str.Format("%s:\n", pChunk->GetLabel());
+	StoreByteString(pChunk, str, DEFAULT_LINE_BREAK);
+
+	m_grooveStrings.Add(str);
+}
+
 void CChunkRenderText::StoreSongListChunk(CChunk *pChunk, CFile *pFile)
 {
 	CStringA str;
@@ -283,6 +335,7 @@ void CChunkRenderText::StoreSongChunk(CChunk *pChunk, CFile *pFile)
 		str.AppendFormat("\t.byte %i\t; pattern length\n", pChunk->GetData(i++));
 		str.AppendFormat("\t.byte %i\t; speed\n", pChunk->GetData(i++));
 		str.AppendFormat("\t.byte %i\t; tempo\n", pChunk->GetData(i++));
+		str.AppendFormat("\t.byte %i\t; groove position\n", pChunk->GetData(i++));		// // //
 		str.AppendFormat("\t.byte %i\t; initial bank\n", pChunk->GetData(i++));
 	}
 

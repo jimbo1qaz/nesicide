@@ -19,9 +19,8 @@
 */
 
 #include <map>
-#include <vector>
 #include "stdafx.h"
-#include "Chunk.h"
+#include "chunk.h"
 
 /**
  * CChunk - Stores NSF data
@@ -39,9 +38,8 @@ CChunk::~CChunk()
 
 void CChunk::Clear()
 {
-	for (std::vector<CChunkData*>::iterator it = m_vChunkData.begin(); it != m_vChunkData.end(); ++it) {
-		delete (*it);
-	}
+	for (auto x : m_vChunkData)
+		delete x;
 
 	m_vChunkData.clear();
 }
@@ -162,17 +160,14 @@ unsigned int CChunk::CountDataSize() const
 	// Count sizes of all data items
 	int Size = 0;
 
-	for (std::vector<CChunkData*>::const_iterator it = m_vChunkData.begin(); it != m_vChunkData.end(); ++it)
-		Size += (*it)->GetSize();
+	for (const auto pChunk : m_vChunkData)
+		Size += pChunk->GetSize();
 
 	return Size;
 }
 
 void CChunk::AssignLabels(CMap<CStringA, LPCSTR, int, int> &labelMap)
 {
-	for (std::vector<CChunkData*>::iterator it = m_vChunkData.begin(); it != m_vChunkData.end(); ++it) {
-		CChunkDataReference *pChunkData = dynamic_cast<CChunkDataReference*>(*it);
-		if (pChunkData != NULL)
-			pChunkData->ref = labelMap[pChunkData->m_refName];
-	}
+	for (auto x : m_vChunkData) if (auto pChunkData = dynamic_cast<CChunkDataReference*>(x))
+		pChunkData->ref = labelMap[pChunkData->m_refName];
 }

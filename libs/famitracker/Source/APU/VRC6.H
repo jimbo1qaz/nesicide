@@ -18,62 +18,63 @@
 ** must bear this legend.
 */
 
-#ifndef VRC6_H
-#define VRC6_H
 
-#include "External.h"
+#pragma once
+
+#include "SoundChip.h"
 #include "Channel.h"
 
-class CVRC6_Pulse : public CExChannel {
+class CVRC6_Pulse : public CChannel {
 public:
 	CVRC6_Pulse(CMixer *pMixer, int ID);
 	void Reset();
-	void Write(uint16 Address, uint8 Value);
+	void Write(uint16_t Address, uint8_t Value);
 	void Process(int Time);
+	double GetFrequency() const;		// // //
 
 private:
-	uint8	m_iDutyCycle, 
+	uint8_t	m_iDutyCycle, 
 			m_iVolume, 
 			m_iGate, 
 			m_iEnabled;
-	uint32	m_iPeriod;
-	uint8	m_iPeriodLow, 
+	uint32_t	m_iPeriod;
+	uint8_t	m_iPeriodLow, 
 			m_iPeriodHigh;
-	int32	m_iCounter;
-	uint8	m_iDutyCycleCounter;
+	int32_t	m_iCounter;
+	uint8_t	m_iDutyCycleCounter;
 };
 
-class CVRC6_Sawtooth : public CExChannel {
+class CVRC6_Sawtooth : public CChannel {
 public:
 	CVRC6_Sawtooth(CMixer *pMixer, int ID);
 	void Reset();
-	void Write(uint16 Address, uint8 Value);
+	void Write(uint16_t Address, uint8_t Value);
 	void Process(int Time);
+	double GetFrequency() const;		// // //
 
 private:
-	uint8	m_iPhaseAccumulator, 
+	uint8_t	m_iPhaseAccumulator, 
 			m_iPhaseInput, 
 			m_iEnabled, 
 			m_iResetReg;
-	uint32	m_iPeriod;
-	uint8	m_iPeriodLow, 
+	uint32_t	m_iPeriod;
+	uint8_t	m_iPeriodLow, 
 			m_iPeriodHigh;
-	int32	m_iCounter;
+	int32_t	m_iCounter;
 };
 
-class CVRC6 : public CExternal {
+class CVRC6 : public CSoundChip {
 public:
 	CVRC6(CMixer *pMixer);
 	virtual ~CVRC6();
 	void Reset();
-	void Write(uint16 Address, uint8 Value);
-	uint8 Read(uint16 Address, bool &Mapped);
+	void Write(uint16_t Address, uint8_t Value);
+	uint8_t Read(uint16_t Address, bool &Mapped);
 	void EndFrame();
-	void Process(uint32 Time);
+	void Process(uint32_t Time);
+	double GetFreq(int Channel) const;		// // //
 
 private:
 	CVRC6_Pulse	*m_pPulse1, *m_pPulse2;
 	CVRC6_Sawtooth *m_pSawtooth;
 };
-
-#endif /* VRC6_H */

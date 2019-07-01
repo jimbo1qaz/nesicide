@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -21,11 +23,10 @@
 
 #include "stdafx.h"
 #include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
-#include "MainFrm.h"
 #include "ConfigShortcuts.h"
 #include "Accelerator.h"
 #include "Settings.h"
+#include <unordered_map>		// // //
 
 // CConfigShortcuts dialog
 
@@ -55,9 +56,9 @@ void CConfigShortcuts::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CConfigShortcuts, CPropertyPage)
 	ON_NOTIFY(NM_CLICK, IDC_SHORTCUTS, OnNMClickShortcuts)
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_SHORTCUTS, OnNMClickShortcuts)
 	ON_BN_CLICKED(IDC_DEFAULT, OnBnClickedDefault)
-//ON_BN_CLICKED(IDC_CLEAR, &CConfigShortcuts::OnBnClickedClear)
-   ON_BN_CLICKED(IDC_CLEAR, OnBnClickedClear)
+	ON_BN_CLICKED(IDC_CLEAR, &CConfigShortcuts::OnBnClickedClear)
 END_MESSAGE_MAP()
 
 
@@ -70,10 +71,13 @@ BOOL CConfigShortcuts::OnInitDialog()
 	CAccelerator *pAccel = theApp.GetAccelerator();
 	CListCtrl *pListView = static_cast<CListCtrl*>(GetDlgItem(IDC_SHORTCUTS));
 
+	CRect r;		// // //
+	pListView->GetClientRect(&r);
+	int w = r.Width() - ::GetSystemMetrics(SM_CXHSCROLL);
 	pListView->DeleteAllItems();
-	pListView->InsertColumn(0, _T("Action"), LVCFMT_LEFT, 170);
-	pListView->InsertColumn(1, _T("Modifier"), LVCFMT_LEFT, 90);
-	pListView->InsertColumn(2, _T("Key"), LVCFMT_LEFT, 110);
+	pListView->InsertColumn(0, _T("Action"), LVCFMT_LEFT, static_cast<int>(.52 * w));
+	pListView->InsertColumn(1, _T("Modifier"), LVCFMT_LEFT, static_cast<int>(.23 * w));
+	pListView->InsertColumn(2, _T("Key"), LVCFMT_LEFT, static_cast<int>(.25 * w));
 
 	// Build shortcut list
 	for (int i = 0; i < CAccelerator::ACCEL_COUNT; ++i) {
@@ -122,6 +126,25 @@ void CConfigShortcuts::OnBnClickedDefault()
 BOOL CConfigShortcuts::OnApply()
 {
 	CAccelerator *pAccel = theApp.GetAccelerator();
+	
+	std::unordered_map<int, int> m;		// // // check for conflicts
+	for (int i = 0; i < CAccelerator::ACCEL_COUNT; ++i) {
+		int KeyVal = (m_iKeys[i] & 0xFF) | (m_iMods[i] << 8);
+		if (!KeyVal) continue;
+		auto it = m.find(KeyVal);
+		if (it == m.end())
+			m[KeyVal] = i;
+		else {
+			CString msg;
+			msg.Format(_T("These two commands are assigned to the same shortcut (%s):\n- %s\n- %s"),
+					   AssembleKeyString(m_iMods[i], m_iKeys[i]),
+					   CAccelerator::DEFAULT_TABLE[it->second].name,
+					   CAccelerator::DEFAULT_TABLE[i].name);
+			
+			AfxMessageBox(msg, MB_ICONERROR);
+			return FALSE;
+		}
+	}
 
 	// Store keys
 	for (int i = 0; i < CAccelerator::ACCEL_COUNT; ++i)
@@ -129,9 +152,7 @@ BOOL CConfigShortcuts::OnApply()
 
 	pAccel->Setup();
 
-	CMainFrame* pMainFrame = dynamic_cast<CMainFrame*>(theApp.m_pMainWnd);
-	if (pMainFrame != NULL)
-		pMainFrame->UpdateMenus();
+	theApp.UpdateMenuShortcuts();		// // //
 
 	return CPropertyPage::OnApply();
 }
@@ -237,17 +258,17 @@ CString CConfigShortcuts::AssembleKeyString(int Mod, int Key)
 
 	if (Mod & MOD_SHIFT) {
 		KeyStr.Append(pAccel->GetVKeyName(VK_SHIFT));
-//		KeyStr.Append(_T(" + ")); CP: Name of Qt::ShiftModifier includes '+'
+		KeyStr.Append(_T(" + "));
 	}
 
 	if (Mod & MOD_CONTROL) {
 		KeyStr.Append(pAccel->GetVKeyName(VK_CONTROL));
-//		KeyStr.Append(_T(" + ")); CP: Name of Qt::ControlModifier includes '+'
+		KeyStr.Append(_T(" + "));
 	}
 
 	if (Mod & MOD_ALT) {
 		KeyStr.Append(pAccel->GetVKeyName(VK_MENU));
-//		KeyStr.Append(_T(" + ")); CP: Name of Qt::AltModifier includes '+'
+		KeyStr.Append(_T(" + "));
 	}
 
 	KeyStr.Append(pAccel->GetVKeyName(Key));

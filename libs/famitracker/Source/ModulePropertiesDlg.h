@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,6 +22,8 @@
 
 #pragma once
 
+#include "NoNotifyEdit.h"
+
 
 // CModulePropertiesDlg dialog
 
@@ -31,7 +35,11 @@ private:
 	void SelectSong(int Song);
 	void UpdateSongButtons();
 	
+	bool m_bSingleSelection;		// // //
 	unsigned int m_iSelectedSong;
+	unsigned char m_iExpansions;		// // //
+	int m_iN163Channels;
+	int N163LevelOffset;
 
 	CFamiTrackerDoc *m_pDocument;
 
@@ -43,23 +51,40 @@ public:
 	enum { IDD = IDD_PROPERTIES };
 
 protected:
-	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+	// virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
+	void strFromLevel(CString & target, int Level);
+	bool levelFromStr(int & target, CString dBstr);
+	
 	void FillSongList();
+
+	NoNotifyEdit N163LevelEdit;
 
 	DECLARE_MESSAGE_MAP()
 public:
 	virtual BOOL OnInitDialog();
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnBnClickedSongAdd();
+	afx_msg void OnBnClickedSongInsert();		// // //
 	afx_msg void OnBnClickedSongRemove();
 	afx_msg void OnBnClickedSongUp();
 	afx_msg void OnBnClickedSongDown();
 	afx_msg void OnEnChangeSongname();
-	afx_msg void OnClickSongList(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnBnClickedSongImport();
-	afx_msg void OnCbnSelchangeExpansion();
+	
 	afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
 	afx_msg void OnLvnItemchangedSonglist(NMHDR *pNMHDR, LRESULT *pResult);
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
+	afx_msg void OnBnClickedExpansionVRC6();		// // //
+	afx_msg void OnBnClickedExpansionVRC7();
+	afx_msg void OnBnClickedExpansionFDS();
+	afx_msg void OnBnClickedExpansionMMC5();
+	afx_msg void OnBnClickedExpansionS5B();
+	afx_msg void OnBnClickedExpansionN163();
+	void setN163NChannels(int nchan);
+	void updateN163GUI(bool renderText=true);
+	void N163OffsetSlider(int pos);
+	afx_msg void OnEnChangeEditN163Offset();
+
+	afx_msg void OnCbnSelchangeComboLinearpitch();
 };

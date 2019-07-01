@@ -21,6 +21,7 @@
 #pragma once
 
 class CInstrumentEditPanel;
+class CInstrumentManager;		// // //
 
 // CInstrumentEditDlg dialog
 
@@ -34,8 +35,11 @@ public:
 
 	void ChangeNoteState(int Note);
 	void SetCurrentInstrument(int Index);
+	float GetRefreshRate() const;		// // //
+	void SetRefreshRate(float Rate);		// // //
 	bool IsOpened() const;
 	void EndDialog(int nResult);
+	void SetInstrumentManager(CInstrumentManager *pManager);		// // //
 
 // Dialog Data
 	enum { IDD = IDD_INSTRUMENT };
@@ -53,8 +57,6 @@ protected:
 	// Constants
 	static const int PANEL_COUNT = 2;
 
-	static const int KEYBOARD_TOP;
-	static const int KEYBOARD_LEFT;
 	static const int KEYBOARD_WIDTH;
 	static const int KEYBOARD_HEIGHT;
 
@@ -68,11 +70,14 @@ protected:
 	// Variables for windows
 	CInstrumentEditPanel *m_pPanels[PANEL_COUNT];
 	CInstrumentEditPanel *m_pFocusPanel;
+	CInstrumentManager *m_pInstManager;		// // //
+	CRect m_KeyboardRect;		// // //
 
 	bool m_bOpened;
 	int m_iSelectedInstType;
 	int m_iPanels;
 	int	m_iInstrument;
+	float m_fRefreshRate;		// // //
 
 	DECLARE_MESSAGE_MAP()
 public:

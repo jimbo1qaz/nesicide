@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -27,42 +29,27 @@
 class CChannelHandlerMMC5 : public CChannelHandler {
 public:
 	CChannelHandlerMMC5();
-	virtual void ProcessChannel();
-	virtual void ResetChannel();
+	void	ResetChannel() override;
+	void	RefreshChannel() override;
+	int getDutyMax() const override;
+protected:
+	static const char MAX_DUTY;
+
+	void	HandleNoteData(stChanNote *pNoteData, int EffColumns) override;
+	bool	HandleEffect(effect_t EffNum, unsigned char EffParam) override;		// // //
+	void	HandleEmptyNote() override;
+	void	HandleCut() override;
+	void	HandleRelease() override;
+	bool	CreateInstHandler(inst_type_t Type) override;		// // //
+	int		ConvertDuty(int Duty) const override;		// // //
+	void	ClearRegisters() override;
+	CString	GetCustomEffectString() const override;		// // //
 
 protected:
-	virtual void HandleNoteData(stChanNote *pNoteData, int EffColumns);
-	virtual void HandleCustomEffects(int EffNum, int EffParam);
-	virtual bool HandleInstrument(int Instrument, bool Trigger, bool NewInstrument);
-	virtual void HandleEmptyNote();
-	virtual void HandleCut();
-	virtual void HandleRelease();
-	virtual void HandleNote(int Note, int Octave);
-
-protected:
-	static const int SEQUENCES = 5;
-	static const int SEQ_TYPES[];
-protected:
-	int m_iPostEffect;
-	int m_iPostEffectParam;
-	int m_iInitVolume;
-	bool m_bManualVolume;
-};
-
-// Square 1
-class CMMC5Square1Chan : public CChannelHandlerMMC5 {
-public:
-	CMMC5Square1Chan() : CChannelHandlerMMC5() {};
-	void RefreshChannel();
-protected:
-	void ClearRegisters();
-};
-
-// Square 2
-class CMMC5Square2Chan : public CChannelHandlerMMC5 {
-public:
-	CMMC5Square2Chan() : CChannelHandlerMMC5() {};
-	void RefreshChannel();
-protected:
-	void ClearRegisters();
+	// // //
+	bool m_bHardwareEnvelope;	// // // (constant volume flag, bit 4)
+	bool m_bEnvelopeLoop;		// // // (halt length counter flag, bit 5 / triangle bit 7)
+	bool m_bResetEnvelope;		// // //
+	int  m_iLengthCounter;		// // //
+	int	 m_iLastPeriod;			// // // moved to subclass
 };

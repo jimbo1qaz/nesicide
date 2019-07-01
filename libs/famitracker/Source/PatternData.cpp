@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -19,24 +21,33 @@
 */
 
 #include "stdafx.h"
-#include "FamiTrackerDoc.h"
+#include "FamiTrackerTypes.h"		// // //
 #include "PatternData.h"
+#include <algorithm>		// // // std::swap
+
+// Defaults when creating new modules
+const unsigned CPatternData::DEFAULT_ROW_COUNT	= 64;
+const CString CPatternData::DEFAULT_TITLE = _T("New song");		// // //
+const stHighlight CPatternData::DEFAULT_HIGHLIGHT = {4, 16, 0};		// // //
 
 // This class contains pattern data
 // A list of these objects exists inside the document one for each song
 
-CPatternData::CPatternData(unsigned int PatternLength, unsigned int Speed, unsigned int Tempo) :
+CPatternData::CPatternData(unsigned int PatternLength) :		// // //
+	m_sTrackName(DEFAULT_TITLE),		// // //
 	m_iPatternLength(PatternLength),
 	m_iFrameCount(1),
-	m_iSongSpeed(Speed),
-	m_iSongTempo(Tempo),
-	m_iRowHighlight1(CFamiTrackerDoc::DEFAULT_FIRST_HIGHLIGHT),
-	m_iRowHighlight2(CFamiTrackerDoc::DEFAULT_SECOND_HIGHLIGHT)
+	m_iSongSpeed(DEFAULT_SPEED),
+	m_iSongTempo(DEFAULT_TEMPO_NTSC),
+	m_bUseGroove(false),		// // //
+	m_vRowHighlight(DEFAULT_HIGHLIGHT),		// // //
+	m_iFrameList(),		// // //
+	m_pPatternData(),
+	m_iEffectColumns()
 {
-	// Clear memory
-	memset(m_iFrameList, 0, sizeof(char) * MAX_FRAMES * MAX_CHANNELS);
-	memset(m_pPatternData, 0, sizeof(stChanNote*) * MAX_CHANNELS * MAX_PATTERN);
-	memset(m_iEffectColumns, 0, sizeof(char) * MAX_CHANNELS);
+	// // // Pre-allocate pattern 0 for all channels
+	for (int i = 0; i < MAX_CHANNELS; ++i)
+		AllocatePattern(i, 0);
 }
 
 CPatternData::~CPatternData()
@@ -51,17 +62,12 @@ CPatternData::~CPatternData()
 
 bool CPatternData::IsCellFree(unsigned int Channel, unsigned int Pattern, unsigned int Row) const
 {
-	stChanNote *pNote = GetPatternData(Channel, Pattern, Row);
+	const stChanNote *pNote = GetPatternData(Channel, Pattern, Row);
 
-	if (pNote == NULL)
-		return true;
-
-	bool IsFree = pNote->Note == NONE && 
-		pNote->EffNumber[0] == 0 && pNote->EffNumber[1] == 0 && 
-		pNote->EffNumber[2] == 0 && pNote->EffNumber[3] == 0 && 
+	return !pNote || pNote->Note == NONE &&		// // //
+		pNote->EffNumber[0] == EF_NONE && pNote->EffNumber[1] == EF_NONE &&
+		pNote->EffNumber[2] == EF_NONE && pNote->EffNumber[3] == EF_NONE &&
 		pNote->Vol == MAX_VOLUME && pNote->Instrument == MAX_INSTRUMENTS;
-
-	return IsFree;
 }
 
 bool CPatternData::IsPatternEmpty(unsigned int Channel, unsigned int Pattern) const
@@ -94,7 +100,7 @@ stChanNote *CPatternData::GetPatternData(unsigned int Channel, unsigned int Patt
 {
 	// Private method, may return NULL
 	if (!m_pPatternData[Channel][Pattern])
-		return NULL;
+		return nullptr;
 
 	return m_pPatternData[Channel][Pattern] + Row;
 }
@@ -113,18 +119,9 @@ void CPatternData::AllocatePattern(unsigned int Channel, unsigned int Pattern)
 	m_pPatternData[Channel][Pattern] = new stChanNote[MAX_PATTERN_LENGTH];
 
 	// Clear memory
-	for (int i = 0; i < MAX_PATTERN_LENGTH; ++i) {
-		stChanNote *pNote = m_pPatternData[Channel][Pattern] + i;
-		pNote->Note		  = 0;
-		pNote->Octave	  = 0;
-		pNote->Instrument = MAX_INSTRUMENTS;
-		pNote->Vol		  = MAX_VOLUME;
-
-		for (int n = 0; n < MAX_EFFECT_COLUMNS; ++n) {
-			pNote->EffNumber[n] = 0;
-			pNote->EffParam[n] = 0;
-		}
-	}
+	stChanNote Blank { };		// // //
+	for (int i = 0; i < MAX_PATTERN_LENGTH; ++i)
+		memcpy(m_pPatternData[Channel][Pattern] + i, &Blank, sizeof(stChanNote));
 }
 
 void CPatternData::ClearEverything()
@@ -146,9 +143,77 @@ void CPatternData::ClearEverything()
 void CPatternData::ClearPattern(unsigned int Channel, unsigned int Pattern)
 {
 	// Deletes a specified pattern in a channel
-	if (m_pPatternData[Channel][Pattern] != NULL) {
-		SAFE_RELEASE_ARRAY(m_pPatternData[Channel][Pattern]);
-	}
+	SAFE_RELEASE_ARRAY(m_pPatternData[Channel][Pattern]);
+}
+
+CString CPatternData::GetTitle() const
+{
+	return m_sTrackName;
+}
+
+unsigned int CPatternData::GetPatternLength() const
+{
+	return m_iPatternLength;
+}
+
+unsigned int CPatternData::GetFrameCount() const
+{
+	return m_iFrameCount;
+}
+
+unsigned int CPatternData::GetSongSpeed() const
+{
+	return m_iSongSpeed;
+}
+
+unsigned int CPatternData::GetSongTempo() const
+{
+	return m_iSongTempo;
+}
+
+int CPatternData::GetEffectColumnCount(int Channel) const
+{
+	return m_iEffectColumns[Channel];
+}
+
+bool CPatternData::GetSongGroove() const		// // //
+{
+	return m_bUseGroove;
+}
+
+void CPatternData::SetTitle(CString str)
+{
+	m_sTrackName = str;
+}
+
+void CPatternData::SetPatternLength(unsigned int Length)
+{
+	m_iPatternLength = Length;
+}
+
+void CPatternData::SetFrameCount(unsigned int Count)
+{
+	m_iFrameCount = Count;
+}
+
+void CPatternData::SetSongSpeed(unsigned int Speed)
+{
+	m_iSongSpeed = Speed;
+}
+
+void CPatternData::SetSongTempo(unsigned int Tempo)
+{
+	m_iSongTempo = Tempo;
+}
+
+void CPatternData::SetEffectColumnCount(int Channel, int Count)
+{
+	m_iEffectColumns[Channel] = Count;
+}
+
+void CPatternData::SetSongGroove(bool Groove)		// // //
+{
+	m_bUseGroove = Groove;
 }
 
 unsigned int CPatternData::GetFramePattern(unsigned int Frame, unsigned int Channel) const
@@ -161,18 +226,22 @@ void CPatternData::SetFramePattern(unsigned int Frame, unsigned int Channel, uns
 	m_iFrameList[Frame][Channel] = Pattern;
 }
 
-void CPatternData::SetHighlight(unsigned int First, unsigned int Second)
+void CPatternData::SetHighlight(const stHighlight Hl)		// // //
 {
-	m_iRowHighlight1 = First;
-	m_iRowHighlight2 = Second;
+	m_vRowHighlight = Hl;
 }
 
-unsigned int CPatternData::GetSecondRowHighlight() const
+stHighlight CPatternData::GetRowHighlight() const
 {
-	return m_iRowHighlight1;
+	return m_vRowHighlight;
 }
 
-unsigned int CPatternData::GetFirstRowHighlight() const
+void CPatternData::SwapChannels(unsigned int First, unsigned int Second)		// // //
 {
-	return m_iRowHighlight2;
+	for (int i = 0; i < MAX_FRAMES; i++) {
+		std::swap(m_iFrameList[i][First], m_iFrameList[i][Second]);
+	}
+	for (int i = 0; i < MAX_PATTERN; i++) {
+		std::swap(m_pPatternData[First][i], m_pPatternData[Second][i]);
+	}
 }

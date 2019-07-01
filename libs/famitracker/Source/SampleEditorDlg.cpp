@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2016 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,7 +22,9 @@
 
 #include "stdafx.h"
 #include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
+#include "DSample.h"
+#include "FamiTrackerTypes.h"
+#include "APU/Types.h"
 #include "SoundGen.h"
 #include "SampleEditorView.h"
 #include "SampleEditorDlg.h"
@@ -28,6 +32,12 @@
 //
 // The DPCM sample editor
 //
+
+static UINT indicators[] = {		// // //
+	ID_INDICATOR_DPCM_SEGMENT,
+	ID_INDICATOR_DPCM_SIZE,
+	ID_INDICATOR_DPCM_ENDPOS,
+};
 
 enum {
 	TMR_PLAY_CURSOR, 
@@ -39,11 +49,9 @@ enum {
 IMPLEMENT_DYNAMIC(CSampleEditorDlg, CDialog)
 
 CSampleEditorDlg::CSampleEditorDlg(CWnd* pParent /*=NULL*/, CDSample *pSample)
-	: CDialog(CSampleEditorDlg::IDD, pParent), m_pSampleEditorView(NULL)
+	: CDialog(CSampleEditorDlg::IDD, pParent), m_pSampleEditorView(NULL),
+	m_pSample(pSample)		// // //
 {
-	// Create a copy of the sample
-	m_pSample = new CDSample(*pSample);
-	m_pOriginalSample = pSample;
 	m_pSoundGen = theApp.GetSoundGenerator();
 }
 
@@ -53,6 +61,11 @@ CSampleEditorDlg::~CSampleEditorDlg()
 	SAFE_RELEASE(m_pSample);
 }
 
+CDSample *CSampleEditorDlg::GetDSample() const		// // //
+{
+	return m_pSample;
+}
+
 void CSampleEditorDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
@@ -60,16 +73,12 @@ void CSampleEditorDlg::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CSampleEditorDlg, CDialog)
 	ON_WM_SIZE()
-//ON_BN_CLICKED(IDC_PLAY, &CSampleEditorDlg::OnBnClickedPlay)
-   ON_BN_CLICKED(IDC_PLAY, OnBnClickedPlay)
+	ON_BN_CLICKED(IDC_PLAY, &CSampleEditorDlg::OnBnClickedPlay)
 	ON_WM_TIMER()
-//ON_BN_CLICKED(IDC_DELETE, &CSampleEditorDlg::OnBnClickedDelete)
-//ON_BN_CLICKED(IDC_DELTASTART, &CSampleEditorDlg::OnBnClickedDeltastart)
-   ON_BN_CLICKED(IDC_DELETE, OnBnClickedDelete)
-   ON_BN_CLICKED(IDC_DELTASTART, OnBnClickedDeltastart)
+	ON_BN_CLICKED(IDC_DELETE, &CSampleEditorDlg::OnBnClickedDelete)
+	ON_BN_CLICKED(IDC_DELTASTART, &CSampleEditorDlg::OnBnClickedDeltastart)
 	ON_WM_KEYDOWN()
-//ON_BN_CLICKED(IDC_TILT, &CSampleEditorDlg::OnBnClickedTilt)
-   ON_BN_CLICKED(IDC_TILT, OnBnClickedTilt)
+	ON_BN_CLICKED(IDC_TILT, &CSampleEditorDlg::OnBnClickedTilt)
 	ON_WM_HSCROLL()
 	ON_WM_GETMINMAXINFO()
 END_MESSAGE_MAP()
@@ -81,14 +90,20 @@ BOOL CSampleEditorDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 
+	if (!m_wndInfoStatusBar.Create(this) ||
+		!m_wndInfoStatusBar.SetIndicators(indicators, sizeof(indicators) / sizeof(*indicators)))		// // // 050B
+		return FALSE;
+	m_wndInfoStatusBar.SetPaneInfo(0, ID_INDICATOR_DPCM_SEGMENT, SBPS_STRETCH, 0);
+	m_wndInfoStatusBar.SetPaneInfo(1, ID_INDICATOR_DPCM_SIZE, SBPS_NORMAL, 150);
+	m_wndInfoStatusBar.SetPaneInfo(2, ID_INDICATOR_DPCM_ENDPOS, SBPS_NORMAL, 150);
+	RepositionBars(AFX_IDW_CONTROLBAR_FIRST, AFX_IDW_CONTROLBAR_LAST, ID_INDICATOR_DPCM_SEGMENT);
+
 	m_pSampleEditorView = new CSampleEditorView();
 	m_pSampleEditorView->SubclassDlgItem(IDC_SAMPLE, this);
 
 	CSliderCtrl *pitch = static_cast<CSliderCtrl*>(GetDlgItem(IDC_PITCH));
 	pitch->SetRange(0, 15);
 	pitch->SetPos(15);
-
-	MoveControls();
 
 	// A timer for the flashing start cursor
 	SetTimer(TMR_START_CURSOR, 500, NULL);
@@ -107,107 +122,13 @@ BOOL CSampleEditorDlg::OnInitDialog()
 
 void CSampleEditorDlg::OnSize(UINT nType, int cx, int cy)
 {
+	RepositionBars(AFX_IDW_CONTROLBAR_FIRST, AFX_IDW_CONTROLBAR_LAST, ID_INDICATOR_DPCM_SEGMENT);
 	CDialog::OnSize(nType, cx, cy);
-	MoveControls();
-}
-
-void CSampleEditorDlg::MoveControls()
-{
-	CRect rect;
-	GetClientRect(&rect);
-
-	if (m_pSampleEditorView) {
-		rect.top++;
-		rect.left++;
-		rect.bottom -= 60;
-		rect.right -= 2;
-		m_pSampleEditorView->MoveWindow(rect);
-		m_pSampleEditorView->Invalidate();
-	}
-
-	CWnd *control;
-	CRect controlRect;
-
-	GetClientRect(&rect);
-
-	if (control = GetDlgItem(IDC_PLAY)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(10, rect.bottom - 30);
-		control->MoveWindow(controlRect);
-	}
-
-	if (control = GetDlgItem(IDC_POS)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(5, rect.bottom - 53);
-		controlRect.InflateRect(0, 0, 2, 2);
-		control->MoveWindow(controlRect);
-	}
-
-	if (control = GetDlgItem(IDC_INFO)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(170, rect.bottom - 53);
-		controlRect.InflateRect(0, 0, 2, 2);
-		controlRect.right = rect.right - 190;
-		//controlRect.right = rect.right - 90;
-		control->MoveWindow(controlRect);
-	}
-
-	if (control = GetDlgItem(IDC_ZOOM)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(rect.right - 180, rect.bottom - 53);
-		control->MoveWindow(controlRect);
-	}
-
-	if (control = GetDlgItem(IDC_STATIC_PITCH)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(93, rect.bottom - 27);
-		control->MoveWindow(controlRect);
-	}
-
-	if (control = GetDlgItem(IDC_PITCH)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(145, rect.bottom - 30);
-		control->MoveWindow(controlRect);
-	}
-
-	if (control = GetDlgItem(IDC_DELETE)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(270, rect.bottom - 30);
-		control->MoveWindow(controlRect);
-	}
-
-	if (control = GetDlgItem(IDC_TILT)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(350, rect.bottom - 30);
-		control->MoveWindow(controlRect);
-	}
-
-	if (control = GetDlgItem(IDC_DELTASTART)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(440, rect.bottom - 25);
-		control->MoveWindow(controlRect);
-	}
-
-	if (control = GetDlgItem(IDCANCEL)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(rect.right - controlRect.right - 10, rect.bottom - 30);
-		control->MoveWindow(controlRect);
-	}
-
-	if (control = GetDlgItem(IDOK)) {
-		control->GetClientRect(&controlRect);
-		controlRect.MoveToXY(rect.right - controlRect.right - 10, rect.bottom - 55);
-		control->MoveWindow(controlRect);
-	}
-
-	Invalidate();
-	RedrawWindow();
 }
 
 void CSampleEditorDlg::OnBnClickedPlay()
 {
-	if (m_pSample->GetSize() == 0)
-		return;
+	if (!m_pSample) return;
 
 	int Pitch = static_cast<CSliderCtrl*>(GetDlgItem(IDC_PITCH))->GetPos();
 	m_pSoundGen->WriteAPU(0x4011, IsDlgButtonChecked(IDC_DELTASTART) ? 64 : 0);
@@ -271,7 +192,7 @@ void CSampleEditorDlg::OnBnClickedDelete()
 	if (EndSample >= m_pSample->GetSize())
 		EndSample = m_pSample->GetSize() - 1;
 
-//	TRACE(_T("Removing selected part from sample, start: %i, end %i (diff: %i)\n"), StartSample, EndSample, EndSample - StartSample);
+	TRACE(_T("Removing selected part from sample, start: %i, end %i (diff: %i)\n"), StartSample, EndSample, EndSample - StartSample);
 
 	// Remove the selected part
 	memcpy(m_pSample->GetData() + StartSample, m_pSample->GetData() + EndSample, m_pSample->GetSize() - EndSample);
@@ -327,7 +248,7 @@ void CSampleEditorDlg::UpdateSampleView()
 	m_pSampleEditorView->RedrawWindow();
 
 	CSliderCtrl *pZoom = static_cast<CSliderCtrl*>(GetDlgItem(IDC_ZOOM));
-	pZoom->SetRange(0, 10);
+	pZoom->SetRange(0, 20);		// // //
 }
 
 void CSampleEditorDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
@@ -348,17 +269,12 @@ void CSampleEditorDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		case VK_LEFT:
 			m_pSampleEditorView->OnLeft();
 			break;
-		case 0x50:
+		case 'P':
 			OnBnClickedPlay();
 			break;
 	}
 
 	CDialog::OnKeyDown(nChar, nRepCnt, nFlags);
-}
-
-void CSampleEditorDlg::CopySample(CDSample *pTarget)
-{
-	pTarget->Allocate(m_pSample->GetSize(), m_pSample->GetData());
 }
 
 void CSampleEditorDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
@@ -369,9 +285,12 @@ void CSampleEditorDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar
 	text.Format(_T("Pitch (%i)"), Pitch);
 	SetDlgItemText(IDC_STATIC_PITCH, text);
 
-	float Zoom = float(static_cast<CSliderCtrl*>(GetDlgItem(IDC_ZOOM))->GetPos()) * 0.1f;
+	auto pZoom = static_cast<CSliderCtrl*>(GetDlgItem(IDC_ZOOM));		// // //
+	float Zoom = static_cast<float>(pZoom->GetPos()) / pZoom->GetRangeMax();
 	m_pSampleEditorView->SetZoom(1.0f - Zoom);
 	m_pSampleEditorView->Invalidate();
+	text.Format(_T("Zoom (%.2fx)"), 1. / m_pSampleEditorView->GetZoom());		// // //
+	SetDlgItemText(IDC_STATIC_DPCM_ZOOM, text);
 
 	CDialog::OnHScroll(nSBCode, nPos, pScrollBar);
 }
@@ -396,6 +315,11 @@ void CSampleEditorDlg::SelectionChanged()
 		GetDlgItem(IDC_DELETE)->EnableWindow(FALSE);
 		GetDlgItem(IDC_TILT)->EnableWindow(FALSE);
 	}
+}
+
+void CSampleEditorDlg::UpdateStatus(int Index, LPCTSTR Text)		// // //
+{
+	m_wndInfoStatusBar.SetPaneText(Index, Text);
 }
 
 void CSampleEditorDlg::OnGetMinMaxInfo(MINMAXINFO* lpMMI)

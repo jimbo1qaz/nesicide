@@ -20,9 +20,9 @@
 
 #pragma once
 
-#include "SampleEditorView.h"
-
 // CSampleEditorDlg dialog
+
+class CSoundGen;
 
 class CSampleEditorDlg : public CDialog
 {
@@ -31,9 +31,10 @@ class CSampleEditorDlg : public CDialog
 public:
 	CSampleEditorDlg(CWnd* pParent = NULL, CDSample *pSample = NULL);   // standard constructor
 	virtual ~CSampleEditorDlg();
+	CDSample *GetDSample() const;
 
-	void CopySample(CDSample *pTarget);
 	void SelectionChanged();
+	void UpdateStatus(int Index, LPCTSTR Text);		// // //
 
 // Dialog Data
 	enum { IDD = IDD_SAMPLE_EDITOR };
@@ -41,13 +42,13 @@ public:
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
-	void MoveControls();
 	void UpdateSampleView();
 
 	CDSample		  *m_pSample;
-	CDSample		  *m_pOriginalSample;
 	CSampleEditorView *m_pSampleEditorView;
 	CSoundGen		  *m_pSoundGen;
+
+	CStatusBar		  m_wndInfoStatusBar;		// // // 050B
 
 	DECLARE_MESSAGE_MAP()
 public:

@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -51,6 +53,7 @@ protected:
 	static LPCTSTR DPCMS_FILTER[2];
 	static LPCTSTR PRG_FILTER[2];
 	static LPCTSTR ASM_FILTER[2];
+	static LPCTSTR NSFE_FILTER[2];		// // //
 
 #ifdef _DEBUG
 	CString m_strFile;
@@ -63,6 +66,7 @@ protected:
 	void CreateBIN();
 	void CreatePRG();
 	void CreateASM();
+	void CreateNSFe();		// // //
 	void CreateCustom( CString name );
 
 	DECLARE_MESSAGE_MAP()

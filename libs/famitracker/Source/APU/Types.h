@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,15 +22,15 @@
 
 #pragma once
 
-#include "../Common.h"
+#include <cstdint>
 
-const uint8 SNDCHIP_NONE  = 0;
-const uint8 SNDCHIP_VRC6  = 1;			// Konami VRCVI
-const uint8 SNDCHIP_VRC7  = 2;			// Konami VRCVII
-const uint8 SNDCHIP_FDS	  = 4;			// Famicom Disk Sound
-const uint8 SNDCHIP_MMC5  = 8;			// Nintendo MMC5
-const uint8 SNDCHIP_N163  = 16;			// Namco N-106
-const uint8 SNDCHIP_S5B	  = 32;			// Sunsoft 5B
+const uint8_t SNDCHIP_NONE = 0;
+const uint8_t SNDCHIP_VRC6 = 1;			// Konami VRCVI
+const uint8_t SNDCHIP_VRC7 = 2;			// Konami VRCVII
+const uint8_t SNDCHIP_FDS  = 4;			// Famicom Disk Sound
+const uint8_t SNDCHIP_MMC5 = 8;			// Nintendo MMC5
+const uint8_t SNDCHIP_N163 = 16;		// Namco N-106
+const uint8_t SNDCHIP_S5B  = 32;		// Sunsoft 5B
 
 enum chan_id_t {
 	CHANID_SQUARE1,
@@ -45,14 +47,14 @@ enum chan_id_t {
 	CHANID_MMC5_SQUARE2,
 	CHANID_MMC5_VOICE,
 
-	CHANID_N163_CHAN1,
-	CHANID_N163_CHAN2,
-	CHANID_N163_CHAN3,
-	CHANID_N163_CHAN4,
-	CHANID_N163_CHAN5,
-	CHANID_N163_CHAN6,
-	CHANID_N163_CHAN7,
-	CHANID_N163_CHAN8,
+	CHANID_N163_CH1,		// // //
+	CHANID_N163_CH2,
+	CHANID_N163_CH3,
+	CHANID_N163_CH4,
+	CHANID_N163_CH5,
+	CHANID_N163_CH6,
+	CHANID_N163_CH7,
+	CHANID_N163_CH8,
 
 	CHANID_FDS,
 

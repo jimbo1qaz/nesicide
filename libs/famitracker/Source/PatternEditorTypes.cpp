@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -19,16 +21,18 @@
 */
 
 #include "stdafx.h"
+#include "PatternEditorTypes.h"
 #include "FamiTrackerDoc.h"
-#include "PatternEditor.h"
+#include <utility>
 
 // CCursorPos /////////////////////////////////////////////////////////////////////
 
-CCursorPos::CCursorPos() : m_iRow(0), m_iChannel(0), m_iColumn(0) 
+CCursorPos::CCursorPos() : m_iRow(0), m_iChannel(0), m_iColumn(C_NOTE), m_iFrame(0)		// // //
 {
 }
 
-CCursorPos::CCursorPos(int Row, int Channel, int Column) : m_iRow(Row), m_iChannel(Channel), m_iColumn(Column) 
+CCursorPos::CCursorPos(int Row, int Channel, cursor_column_t Column, int Frame) :		// // //
+	m_iRow(Row), m_iChannel(Channel), m_iColumn(Column), m_iFrame(Frame)
 {
 }
 
@@ -38,43 +42,75 @@ const CCursorPos& CCursorPos::operator=(const CCursorPos &pos)
 	m_iRow = pos.m_iRow;
 	m_iColumn = pos.m_iColumn;
 	m_iChannel = pos.m_iChannel;
+	m_iFrame = pos.m_iFrame;		// // //
 	return *this;
 }
 
-bool CCursorPos::operator !=(const CCursorPos &other) const
+bool CCursorPos::operator!=(const CCursorPos &other) const
 {
 	// Unequality check
-	return (m_iRow != other.m_iRow) || (m_iChannel != other.m_iChannel) || (m_iColumn != other.m_iColumn);
+	return (m_iRow != other.m_iRow) || (m_iChannel != other.m_iChannel)		// // //
+		|| (m_iColumn != other.m_iColumn) || (m_iFrame != other.m_iFrame);
 }
 
-bool CCursorPos::IsValid(int RowCount, int ChannelCount) const
+bool CCursorPos::operator<(const CCursorPos &other) const		// // //
+{
+	return m_iFrame < other.m_iFrame || (m_iFrame == other.m_iFrame && m_iRow < other.m_iRow);
+}
+
+bool CCursorPos::operator<=(const CCursorPos &other) const		// // //
+{
+	return !(other < *this);
+}
+
+bool CCursorPos::IsValid(int RowCount, int ChannelCount) const		// // //
 {
 	// Check if a valid pattern position
+	//if (m_iFrame < -FrameCount || m_iFrame >= 2 * FrameCount)		// // //
+	//	return false;
 	if (m_iChannel < 0 || m_iChannel >= ChannelCount)
 		return false;
 	if (m_iRow < 0 || m_iRow >= RowCount)
 		return false;
-	if (m_iColumn < 0)
+	if (m_iColumn < C_NOTE || m_iColumn > C_EFF4_PARAM2)		// // //
 		return false;
 
 	return true;
+}
+
+void CCursorPos::fixInvalid(CFamiTrackerDoc const & document) {
+	auto channel_count = document.GetChannelCount();
+	if (this->m_iChannel >= channel_count) {
+		this->m_iChannel = channel_count;
+		this->m_iColumn = C_EFF4_PARAM2;
+	}
 }
 
 // CSelection /////////////////////////////////////////////////////////////////////
 
 int CSelection::GetRowStart() const 
 {
+	if (m_cpEnd.m_iFrame > m_cpStart.m_iFrame)		// // //
+		return m_cpStart.m_iRow;
+	if (m_cpEnd.m_iFrame < m_cpStart.m_iFrame)
+		return m_cpEnd.m_iRow;
+
 	return (m_cpEnd.m_iRow > m_cpStart.m_iRow ?  m_cpStart.m_iRow : m_cpEnd.m_iRow);
 }
 
 int CSelection::GetRowEnd() const 
 {
+	if (m_cpEnd.m_iFrame > m_cpStart.m_iFrame)		// // //
+		return m_cpEnd.m_iRow;
+	if (m_cpEnd.m_iFrame < m_cpStart.m_iFrame)
+		return m_cpStart.m_iRow;
+
 	return (m_cpEnd.m_iRow > m_cpStart.m_iRow ? m_cpEnd.m_iRow : m_cpStart.m_iRow);
 }
 
-int CSelection::GetColStart() const 
+cursor_column_t CSelection::GetColStart() const 
 {
-	int Col = 0;
+	cursor_column_t Col = C_NOTE;
 	if (m_cpStart.m_iChannel == m_cpEnd.m_iChannel)
 		Col = (m_cpEnd.m_iColumn > m_cpStart.m_iColumn ? m_cpStart.m_iColumn : m_cpEnd.m_iColumn); 
 	else if (m_cpEnd.m_iChannel > m_cpStart.m_iChannel)
@@ -82,18 +118,18 @@ int CSelection::GetColStart() const
 	else 
 		Col = m_cpEnd.m_iColumn;
 	switch (Col) {
-		case 2: Col = 1; break;
-		case 5: case 6: Col = 4; break;
-		case 8: case 9: Col = 7; break;
-		case 11: case 12: Col = 10; break;
-		case 14: case 15: Col = 13; break;
+		case C_INSTRUMENT2: Col = C_INSTRUMENT1; break;
+		case C_EFF1_PARAM1: case C_EFF1_PARAM2: Col = C_EFF1_NUM; break;
+		case C_EFF2_PARAM1: case C_EFF2_PARAM2: Col = C_EFF2_NUM; break;
+		case C_EFF3_PARAM1: case C_EFF3_PARAM2: Col = C_EFF3_NUM; break;
+		case C_EFF4_PARAM1: case C_EFF4_PARAM2: Col = C_EFF4_NUM; break;
 	}
 	return Col;
 }
 
-int CSelection::GetColEnd() const 
+cursor_column_t CSelection::GetColEnd() const 
 {
-	int Col = 0;
+	cursor_column_t Col = C_NOTE;
 	if (m_cpStart.m_iChannel == m_cpEnd.m_iChannel)
 		Col = (m_cpEnd.m_iColumn > m_cpStart.m_iColumn ? m_cpEnd.m_iColumn : m_cpStart.m_iColumn); 
 	else if (m_cpEnd.m_iChannel > m_cpStart.m_iChannel)
@@ -101,113 +137,85 @@ int CSelection::GetColEnd() const
 	else
 		Col = m_cpStart.m_iColumn;
 	switch (Col) {
-		case 1: Col = 2; break;					// Instrument
-		case 4: case 5: Col = 6; break;			// Eff 1
-		case 7: case 8: Col = 9; break;			// Eff 2
-		case 10: case 11: Col = 12; break;		// Eff 3
-		case 13: case 14: Col = 15; break;		// Eff 4
+		case C_INSTRUMENT1: Col = C_INSTRUMENT2; break;						// Instrument
+		case C_EFF1_NUM: case C_EFF1_PARAM1: Col = C_EFF1_PARAM2; break;	// Eff 1
+		case C_EFF2_NUM: case C_EFF2_PARAM1: Col = C_EFF2_PARAM2; break;	// Eff 2
+		case C_EFF3_NUM: case C_EFF3_PARAM1: Col = C_EFF3_PARAM2; break;	// Eff 3
+		case C_EFF4_NUM: case C_EFF4_PARAM1: Col = C_EFF4_PARAM2; break;	// Eff 4
 	}
 	return Col;	
 }
 
 int CSelection::GetChanStart() const 
 {
-	return (m_cpEnd.m_iChannel > m_cpStart.m_iChannel) ? m_cpStart.m_iChannel : m_cpEnd.m_iChannel; 
+	return (m_cpEnd.m_iChannel > m_cpStart.m_iChannel) ? m_cpStart.m_iChannel : m_cpEnd.m_iChannel;
 }
 
 int CSelection::GetChanEnd() const 
 {
-	return (m_cpEnd.m_iChannel > m_cpStart.m_iChannel) ? m_cpEnd.m_iChannel : m_cpStart.m_iChannel; 
+	return (m_cpEnd.m_iChannel > m_cpStart.m_iChannel) ? m_cpEnd.m_iChannel : m_cpStart.m_iChannel;
 }
 
-bool CSelection::IsWithin(const CCursorPos &pos) const 
+int CSelection::GetFrameStart() const		// // //
 {
-	if (pos.m_iRow >= GetRowStart() && pos.m_iRow <= GetRowEnd()) {
-		if (pos.m_iChannel == GetChanStart() && pos.m_iChannel == GetChanEnd()) {
-			return (pos.m_iColumn >= GetColStart() && pos.m_iColumn <= GetColEnd());
-		}
-		else if (pos.m_iChannel == GetChanStart() && pos.m_iChannel != GetChanEnd()) {
-			return (pos.m_iColumn >= GetColStart());
-		}
-		else if (pos.m_iChannel == GetChanEnd() && pos.m_iChannel != GetChanStart()) {
-			return (pos.m_iColumn <= GetColEnd());
-		}
-		else if (pos.m_iChannel >= GetChanStart() && pos.m_iChannel < GetChanEnd()) {
-			return true;
-		}
-	}
-	return false;
+	return (m_cpEnd.m_iFrame > m_cpStart.m_iFrame) ? m_cpStart.m_iFrame : m_cpEnd.m_iFrame;
 }
 
-bool CSelection::IsSingleChannel() const 
+int CSelection::GetFrameEnd() const		// // //
 {
-	return (m_cpStart.m_iChannel == m_cpEnd.m_iChannel);
+	return (m_cpEnd.m_iFrame > m_cpStart.m_iFrame) ? m_cpEnd.m_iFrame : m_cpStart.m_iFrame;
 }
 
 bool CSelection::IsSameStartPoint(const CSelection &selection) const
 {
 	return GetChanStart() == selection.GetChanStart() &&
 		GetRowStart() == selection.GetRowStart() &&
-		GetColStart() == selection.GetColStart();
+		GetColStart() == selection.GetColStart() &&
+		GetFrameStart() == selection.GetFrameStart();		// // //
 }
 
-bool CSelection::IsColumnSelected(int Column, int Channel) const
+bool CSelection::IsColumnSelected(column_t Column, int Channel) const
 {
-	int SelColStart = GetColStart();
-	int SelColEnd	= GetColEnd();
+	column_t SelStart = GetSelectColumn(GetColStart());		// // //
+	column_t SelEnd = GetSelectColumn(GetColEnd());
 
-	if (Channel > GetChanStart() && Channel < GetChanEnd())
-		return true;
-
-	// 0 = Note (0)
-	// 1, 2 = Instrument (1)
-	// 3 = Volume (2)
-	// 4, 5, 6 = Effect 1 (3)
-	// 7, 8, 9 = Effect 1 (4)
-	// 10, 11, 12 = Effect 1 (5)
-	// 13, 14, 15 = Effect 1 (6)
-
-	int SelStart = CPatternEditor::GetSelectColumn(SelColStart);
-	int SelEnd = CPatternEditor::GetSelectColumn(SelColEnd);
-	
-	if (Channel == GetChanStart() && Channel == GetChanEnd()) {
-		if (Column >= SelStart && Column <= SelEnd)
-			return true;
-	}
-	else if (Channel == GetChanStart()) {
-		if (Column >= SelStart)
-			return true;
-	}
-	else if (Channel == GetChanEnd()) {
-		if (Column <= SelEnd)
-			return true;
-	}
-
-	return false;
+	return (Channel > GetChanStart() || (Channel == GetChanStart() && Column >= SelStart))		// // //
+		&& (Channel < GetChanEnd() || (Channel == GetChanEnd() && Column <= SelEnd));
 }
 
-void CSelection::Clear()
+void CSelection::Normalize(CCursorPos &Begin, CCursorPos &End) const		// // //
 {
-	m_cpStart = CCursorPos();
-	m_cpEnd = CCursorPos();
+	CCursorPos Temp {GetRowStart(), GetChanStart(), GetColStart(), GetFrameStart()};
+	std::swap(End, CCursorPos {GetRowEnd(), GetChanEnd(), GetColEnd(), GetFrameEnd()});
+	std::swap(Begin, Temp);
 }
 
-void CSelection::SetStart(const CCursorPos &pos) 
+CSelection CSelection::GetNormalized() const
 {
-	m_cpStart = pos;
-}
-
-void CSelection::SetEnd(const CCursorPos &pos) 
-{
-	m_cpEnd = pos;
-}
-
-bool CSelection::operator !=(const CSelection &other) const
-{
-	return (m_cpStart != other.m_cpStart) || (m_cpEnd != other.m_cpEnd);
+	CSelection Sel;
+	Normalize(Sel.m_cpStart, Sel.m_cpEnd);
+	return Sel;
 }
 
 // CPatternClipData ////////////////////////////////////////////////////////////
+
+CPatternClipData::CPatternClipData()
+{
+	memset(&ClipInfo, 0, sizeof(ClipInfo));
+}
+
+CPatternClipData::CPatternClipData(int Channels, int Rows) :
+	pPattern(new stChanNote[Channels * Rows]), Size(Channels * Rows)
+{
+	memset(&ClipInfo, 0, sizeof(ClipInfo));
+	ClipInfo.Channels = Channels;		// // //
+	ClipInfo.Rows = Rows;
+}
+
+CPatternClipData::~CPatternClipData()
+{
+	SAFE_RELEASE_ARRAY(pPattern);
+}
 
 SIZE_T CPatternClipData::GetAllocSize() const
 {
@@ -265,21 +273,132 @@ const stChanNote *CPatternClipData::GetPattern(int Channel, int Row) const
 	return pPattern + (Channel * ClipInfo.Rows + Row);
 }
 
-// CPatternEditorLayout ////////////////////////////////////////////////////////
-/*
-CPatternEditorLayout::CPatternEditorLayout()
+// // // CPatternIterator //////////////////////////////////////////////////////
+
+CPatternIterator::CPatternIterator(const CPatternIterator &it) :
+	m_iTrack(it.m_iTrack), m_pDocument(it.m_pDocument), CCursorPos(static_cast<const CCursorPos &>(it))
 {
 }
 
-void CPatternEditorLayout::SetSize(int Width, int Height)
+CPatternIterator::CPatternIterator(CFamiTrackerDoc *pDoc, int Track, const CCursorPos &Pos) :
+	m_iTrack(Track), m_pDocument(pDoc), CCursorPos(Pos)
 {
-//	m_iWinWidth = width;
-//	m_iWinHeight = height - ::GetSystemMetrics(SM_CYHSCROLL);
+	Warp();
 }
 
-void CPatternEditorLayout::CalculateLayout()
+std::pair<CPatternIterator, CPatternIterator> CPatternIterator::FromCursor(const CCursorPos &Pos, CFamiTrackerDoc *const pDoc, int Track)
 {
-	// Calculate pattern layout. Must be called when layout or window size has changed
-
+	return std::make_pair(
+		CPatternIterator {pDoc, Track, Pos},
+		CPatternIterator {pDoc, Track, Pos}
+	);
 }
-*/
+
+std::pair<CPatternIterator, CPatternIterator> CPatternIterator::FromSelection(const CSelection &Sel, CFamiTrackerDoc *const pDoc, int Track)
+{
+	CCursorPos it, end;
+	Sel.Normalize(it, end);
+	return std::make_pair(
+		CPatternIterator {pDoc, Track, it},
+		CPatternIterator {pDoc, Track, end}
+	);
+}
+
+void CPatternIterator::Get(int Channel, stChanNote *pNote) const
+{
+	int Frame = m_iFrame % m_pDocument->GetFrameCount(m_iTrack);
+	if (Frame < 0) Frame += m_pDocument->GetFrameCount(m_iTrack);
+	m_pDocument->GetNoteData(m_iTrack, Frame, Channel, m_iRow, pNote);
+}
+
+void CPatternIterator::Set(int Channel, const stChanNote *pNote)
+{
+	int Frame = m_iFrame % m_pDocument->GetFrameCount(m_iTrack);
+	if (Frame < 0) Frame += m_pDocument->GetFrameCount(m_iTrack);
+	m_pDocument->SetNoteData(m_iTrack, Frame, Channel, m_iRow, pNote);
+}
+
+void CPatternIterator::Step() // resolves skip effects
+{
+	stChanNote Note;
+
+	for (int i = m_pDocument->GetChannelCount() - 1; i >= 0; --i) {
+		Get(i, &Note);
+		for (int c = m_pDocument->GetEffColumns(m_iTrack, i); c >= 0; --c) {
+			if (Note.EffNumber[c] == EF_JUMP) {
+				m_iFrame = Note.EffParam[c];
+				if (m_iFrame >= static_cast<int>(m_pDocument->GetFrameCount(m_iTrack)))
+					m_iFrame = m_pDocument->GetFrameCount(m_iTrack) - 1;
+				m_iRow = 0;
+				return;
+			}
+		}
+	}
+	for (int i = m_pDocument->GetChannelCount() - 1; i >= 0; i--) {
+		Get(i, &Note);
+		for (int c = m_pDocument->GetEffColumns(m_iTrack, i); c >= 0; --c) {
+			if (Note.EffNumber[c] == EF_SKIP) {
+				++m_iFrame;
+				m_iRow = 0;
+				return;
+			}
+		}
+	}
+	++m_iRow;
+	Warp();
+}
+
+CPatternIterator& CPatternIterator::operator+=(const int Rows)
+{
+	m_iRow += Rows;
+	Warp();
+	return *this;
+}
+
+CPatternIterator& CPatternIterator::operator-=(const int Rows)
+{
+	return operator+=(-Rows);
+}
+
+CPatternIterator& CPatternIterator::operator++()
+{
+	return operator+=(1);
+}
+
+CPatternIterator CPatternIterator::operator++(int)
+{
+	CPatternIterator tmp(*this);
+	operator+=(1);
+	return tmp;
+}
+
+CPatternIterator& CPatternIterator::operator--()
+{
+	return operator+=(-1);
+}
+
+CPatternIterator CPatternIterator::operator--(int)
+{
+	CPatternIterator tmp(*this);
+	operator+=(-1);
+	return tmp;
+}
+
+bool CPatternIterator::operator==(const CPatternIterator &other) const
+{
+	return m_iFrame == other.m_iFrame && m_iRow == other.m_iRow;
+}
+
+void CPatternIterator::Warp()
+{
+	while (true) {
+		const int Length = m_pDocument->GetCurrentPatternLength(m_iTrack, m_iFrame);
+		if (m_iRow >= Length) {
+			m_iRow -= Length;
+			m_iFrame++;
+		}
+		else break;
+	}
+	while (m_iRow < 0)
+		m_iRow += m_pDocument->GetCurrentPatternLength(m_iTrack, --m_iFrame);
+}

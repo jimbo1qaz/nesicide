@@ -18,52 +18,32 @@
 ** must bear this legend.
 */
 
-#include "stdafx.h"
-#include "FamiTracker.h"
-#include "VisualizerWnd.h"
 #include "VisualizerSpectrum.h"
+#include "FamiTracker.h"
 #include "Graphics.h"
-#include "FFT/Fft.h"
 
 /*
  * Displays a spectrum analyzer
  *
  */
 
-CVisualizerSpectrum::CVisualizerSpectrum() :
-	m_pBlitBuffer(NULL),
-	m_pFftObject(NULL)
+CVisualizerSpectrum::CVisualizerSpectrum(int Size) :		// // //
+	m_iBarSize(Size)
 {
-}
-
-CVisualizerSpectrum::~CVisualizerSpectrum()
-{
-	SAFE_RELEASE_ARRAY(m_pBlitBuffer);
-	SAFE_RELEASE(m_pFftObject);
 }
 
 void CVisualizerSpectrum::Create(int Width, int Height)
 {
 	CVisualizerBase::Create(Width, Height);
 
-	SAFE_RELEASE_ARRAY(m_pBlitBuffer);
-
-	m_pBlitBuffer = new COLORREF[Width * Height];
-	memset(m_pBlitBuffer, BG_COLOR, Width * Height * sizeof(COLORREF));
-
-	// Calculate window function (Hann)
-	float fraction = 6.283185f / (FFT_POINTS - 1);
-	for (int i = FFT_POINTS; i--;)
-		m_fWindow[i] = 0.5f * (1.0f - cosf(float(i * fraction)));
+	std::fill(m_pBlitBuffer.get(), m_pBlitBuffer.get() + Width * Height, BG_COLOR);		// // //
 }
 
 void CVisualizerSpectrum::SetSampleRate(int SampleRate)
 {
-	SAFE_RELEASE(m_pFftObject);
+	fft_buffer_ = FftBuffer<FFT_POINTS> { };		// // //
 
-	m_pFftObject = new Fft(FFT_POINTS, SampleRate);
-
-	memset(m_fFftPoint, 0, sizeof(float) * FFT_POINTS);
+	m_fFftPoint.fill(0.f);		// // //
 
 	m_iSampleCount = 0;
 	m_iFillPos = 0;
@@ -71,25 +51,22 @@ void CVisualizerSpectrum::SetSampleRate(int SampleRate)
 
 void CVisualizerSpectrum::Transform(short *pSamples, unsigned int Count)
 {
-	ASSERT(m_pFftObject != NULL);
-
-	for (int i = Count; i--;)
-		pSamples[i] = short(pSamples[i] * m_fWindow[i]);
-	
-	m_pFftObject->CopyIn(FFT_POINTS, pSamples);
-	m_pFftObject->Transform();
+	fft_buffer_.CopyIn(pSamples, Count);
+	fft_buffer_.Transform();
 }
 
 void CVisualizerSpectrum::SetSampleData(short *pSamples, unsigned int iCount)
 {
 	CVisualizerBase::SetSampleData(pSamples, iCount);
 
-	int size, offset = 0;
+	Transform(pSamples, iCount);
+	/*
+	int offset = 0;
 
 	if (m_iFillPos > 0) {
-		size = FFT_POINTS - m_iFillPos;
-		memcpy(m_pSampleBuffer + m_iFillPos, pSamples, size * sizeof(short));
-		Transform(m_pSampleBuffer, FFT_POINTS);
+		const int size = std::min((int)iCount, FFT_POINTS - m_iFillPos);
+		std::copy_n(pSamples, size, m_pSampleBuffer.begin() + m_iFillPos);
+		Transform(m_pSampleBuffer.data(), FFT_POINTS);
 		offset += size;
 		iCount -= size;
 	}
@@ -101,50 +78,48 @@ void CVisualizerSpectrum::SetSampleData(short *pSamples, unsigned int iCount)
 	}
 
 	// Copy rest
-	size = iCount;
-	memcpy(m_pSampleBuffer, pSamples + offset, size * sizeof(short));
-	m_iFillPos = size;
+	std::copy_n(pSamples + offset, iCount, m_pSampleBuffer.begin());
+	m_iFillPos = iCount;
+	*/
 }
 
 void CVisualizerSpectrum::Draw()
 {
-	ASSERT(m_pFftObject != NULL);
-
-	static const int BAR_SIZE = 4;
 	static const float SCALING = 250.0f;
-	static const int OFFSET = 1;
+	static const int OFFSET = 0;
 	static const float DECAY = 3.0f;
 
-	float Step = 0.20f * (float(FFT_POINTS) / float(m_iWidth)) * BAR_SIZE;
+	float Step = 0.2f * (float(FFT_POINTS) / float(m_iWidth)) * m_iBarSize;		// // //
 	float Pos = 2;	// Add a small offset to remove note on/off actions
 
 	int LastStep = 0;
 
-	for (int i = 0; i < m_iWidth / BAR_SIZE; i++) {
+	for (int i = 0; i < m_iWidth / m_iBarSize; i++) {		// // //
 		int iStep = int(Pos + 0.5f);
 		
 		float level = 0;
 		int steps = (iStep - LastStep) + 1;
 		for (int j = 0; j < steps; ++j)
-			level += float(m_pFftObject->GetIntensity(LastStep + j)) / SCALING;
+			level += float(fft_buffer_.GetIntensity(LastStep + j)) / SCALING;
 		level /= steps;
-		LastStep = iStep;
 		
 		// linear -> db
-		level = (20 * logf(level / 4.0f)) * 0.8f;
+		level = (20 * std::log10(level));// *0.8f;
 
 		if (level < 0.0f)
 			level = 0.0f;
 		if (level > float(m_iHeight))
 			level = float(m_iHeight);
 
-		if (level >= m_fFftPoint[iStep])
-			m_fFftPoint[iStep] = level;
-		else 
-			m_fFftPoint[iStep] -= DECAY;
+		if (iStep != LastStep) {
+			if (level >= m_fFftPoint[iStep])
+				m_fFftPoint[iStep] = level;
+			else
+				m_fFftPoint[iStep] -= DECAY;
 
-		if (m_fFftPoint[iStep] < 1.0f)
-			m_fFftPoint[iStep] = 0.0f;
+			if (m_fFftPoint[iStep] < 1.0f)
+				m_fFftPoint[iStep] = 0.0f;
+		}
 
 		level = m_fFftPoint[iStep];
 
@@ -152,24 +127,16 @@ void CVisualizerSpectrum::Draw()
 			COLORREF Color = BLEND(0x6060FF, 0xFFFFFF, (y * 100) / int(level + 1));
 			if (y == 0)
 				Color = DIM(Color, 90);
-			if (y & 1)
+			if (m_iBarSize > 1 && (y & 1))		// // //
 				Color = DIM(Color, 40);
-			for (int x = 0; x < BAR_SIZE; ++x) {
-				if (x == BAR_SIZE - 1)
+			for (int x = 0; x < m_iBarSize; ++x) {		// // //
+				if (m_iBarSize > 1 && x == m_iBarSize - 1)
 					Color = DIM(Color, 50);
-				if (y < level)
-					m_pBlitBuffer[(m_iHeight - y - 1) * m_iWidth + i * BAR_SIZE + x + OFFSET] = Color;
-				else
-					m_pBlitBuffer[(m_iHeight - y - 1) * m_iWidth + i * BAR_SIZE + x + OFFSET] = BG_COLOR;
+				m_pBlitBuffer[(m_iHeight - 1 - y) * m_iWidth + i * m_iBarSize + x + OFFSET] = y < level ? Color : BG_COLOR;
 			}
 		}	
-
+		
+		LastStep = iStep;
 		Pos += Step;
 	}
 }
-
-void CVisualizerSpectrum::Display(CDC *pDC, bool bPaintMsg)
-{
-	StretchDIBits(pDC->m_hDC, 0, 0, m_iWidth, m_iHeight, 0, 0, m_iWidth, m_iHeight, m_pBlitBuffer, &m_bmi, DIB_RGB_COLORS, SRCCOPY);
-}
-

@@ -39,40 +39,16 @@ CCustomExporter& CCustomExporters::GetCurrentExporter( void ) const
 
 void CCustomExporters::FindCustomExporters( CString PluginPath )
 {
-   CFileFind finder;
-   
-   CString path;
-   BOOL bWorking;
+	CFileFind finder;
 
-#if defined(Q_OS_WIN32)
-   // Windows
-   path = PluginPath + _T("\\ftmx_*.dll");
-   bWorking = finder.FindFile( path );
-   while (bWorking)
-	{
-		bWorking = finder.FindNextFile();
-		CString fileName = finder.GetFileName();
-		CString filePath = finder.GetFilePath();
-
-		CCustomExporter customExporter;
-
-		if( customExporter.load( filePath ) )
-		{
-			m_customExporters.Add( customExporter );
-		}
-
-		//AfxMessageBox(finder.GetFileName());
-	}
-#elif defined(Q_OS_MAC)
-   // Mac OSX
-   path = PluginPath + _T("\\*.dylib");
-	bWorking = finder.FindFile( path );
+	CString path = PluginPath + _T("\\*.dll");
+	BOOL bWorking = finder.FindFile( path );
 	while (bWorking)
 	{
 		bWorking = finder.FindNextFile();
 		CString fileName = finder.GetFileName();
 		CString filePath = finder.GetFilePath();
-
+		
 		CCustomExporter customExporter;
 
 		if( customExporter.load( filePath ) )
@@ -82,41 +58,4 @@ void CCustomExporters::FindCustomExporters( CString PluginPath )
 
 		//AfxMessageBox(finder.GetFileName());
 	}
-   path = PluginPath + _T("\\*.bundle");
-	bWorking = finder.FindFile( path );
-	while (bWorking)
-	{
-		bWorking = finder.FindNextFile();
-		CString fileName = finder.GetFileName();
-		CString filePath = finder.GetFilePath();
-
-		CCustomExporter customExporter;
-
-		if( customExporter.load( filePath ) )
-		{
-			m_customExporters.Add( customExporter );
-		}
-
-		//AfxMessageBox(finder.GetFileName());
-	}
-#else
-   // Linux
-   path = PluginPath + _T("\\*.so");
-	bWorking = finder.FindFile( path );
-	while (bWorking)
-	{
-		bWorking = finder.FindNextFile();
-		CString fileName = finder.GetFileName();
-		CString filePath = finder.GetFilePath();
-
-		CCustomExporter customExporter;
-
-		if( customExporter.load( filePath ) )
-		{
-			m_customExporters.Add( customExporter );
-		}
-
-		//AfxMessageBox(finder.GetFileName());
-	}
-#endif
 }

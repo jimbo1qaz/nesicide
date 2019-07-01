@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -21,6 +23,9 @@
 #include <vector>
 #include "stdafx.h"
 #include "FamiTrackerDoc.h"
+#include "SeqInstrument.h"		// // //
+#include "Instrument2A03.h"		// // //
+#include "InstrumentFDS.h"		// // //
 #include "PatternCompiler.h"
 #include "TrackerChannel.h"
 #include "Compiler.h"
@@ -53,6 +58,7 @@
 // Command table
 enum command_t {
 	CMD_INSTRUMENT,
+	CMD_HOLD,		// // // 050B
 	CMD_SET_DURATION,
 	CMD_RESET_DURATION,
 	CMD_EFF_SPEED,
@@ -81,14 +87,29 @@ enum command_t {
 	CMD_EFF_NOTE_CUT,
 	CMD_EFF_RETRIGGER,
 	CMD_EFF_DPCM_PITCH,
+	CMD_EFF_NOTE_RELEASE,		// // //
+	CMD_EFF_LINEAR_COUNTER,		// // //
+	CMD_EFF_GROOVE,				// // //
+	CMD_EFF_DELAYED_VOLUME,		// // //
+	CMD_EFF_TRANSPOSE,			// // //
+
+	CMD_EFF_VRC7_PATCH,			// // // 050B
+	CMD_EFF_VRC7_PORT,			// // // 050B
+	CMD_EFF_VRC7_WRITE,			// // // 050B
+
 	CMD_EFF_FDS_MOD_DEPTH,
 	CMD_EFF_FDS_MOD_RATE_HI,
-	CMD_EFF_FDS_MOD_RATE_LO
-};
+	CMD_EFF_FDS_MOD_RATE_LO,
+	CMD_EFF_FDS_VOLUME,			// // //
+	CMD_EFF_FDS_MOD_BIAS,		// // //
 
-/*
-const unsigned char CMD_EFF_VRC7_PATCH = CMD_EFF_FDS_MOD_DEPTH;	// TODO: hack, fix this
-*/
+	CMD_EFF_N163_WAVE_BUFFER,	// // //
+
+	CMD_EFF_S5B_ENV_TYPE,		// // //
+	CMD_EFF_S5B_ENV_RATE_HI,	// // //
+	CMD_EFF_S5B_ENV_RATE_LO,	// // //
+	CMD_EFF_S5B_NOISE,			// // // 050B
+};
 
 const unsigned char CMD_LOOP_POINT = 26;	// Currently unused
 
@@ -141,8 +162,10 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 		int ChanID = pTrackerChannel->GetID();
 		int ChipID = pTrackerChannel->GetChip();
 
-		if (ChanNote.Instrument != MAX_INSTRUMENTS && Note != HALT && Note != NONE && Note != RELEASE) {
-			if (!pTrackerChannel->IsInstrumentCompatible(ChanNote.Instrument, m_pDocument)) {
+		if (ChanNote.Instrument != MAX_INSTRUMENTS && ChanNote.Instrument != HOLD_INSTRUMENT &&
+			Note != HALT && Note != NONE && Note != RELEASE) {		// // //
+			if (!pTrackerChannel->IsInstrumentCompatible(ChanNote.Instrument,
+				m_pDocument->GetInstrumentType(ChanNote.Instrument))) {		// // //
 				CString str;
 				str.Format(_T("Error: Missing or incompatible instrument (on row %i, channel %i, pattern %i)\n"), i, Channel, Pattern);
 				Print(str);
@@ -160,12 +183,12 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 					if (ChanNote.EffNumber[k] == EF_SKIP) {
 						WriteData(Command(CMD_EFF_SKIP));
 						WriteData(ChanNote.EffParam[k] + 1);
-						ChanNote.EffNumber[k] = 0;
+						ChanNote.EffNumber[k] = EF_NONE;
 					}
 					else if (ChanNote.EffNumber[k] == EF_JUMP) {
 						WriteData(Command(CMD_EFF_JUMP));
 						WriteData(ChanNote.EffParam[k] + 1);
-						ChanNote.EffNumber[k] = 0;
+						ChanNote.EffNumber[k] = EF_NONE;
 					}
 				}
 				Action = true;
@@ -177,7 +200,7 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 #ifdef OPTIMIZE_DURATIONS
 
 		// Determine length of space between notes
-		SpaceInfo = ScanNoteLengths(Track, i, Pattern, Channel);
+		ScanNoteLengths(SpaceInfo, Track, i, Pattern, Channel);		// // //
 
 		if (SpaceInfo.SpaceCount > 2) {
 			if (SpaceInfo.SpaceSize != m_iCurrentDefaultDuration && SpaceInfo.SpaceCount != 0xFF) {
@@ -208,39 +231,44 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 		}
 		else 
 */
-		if (Instrument != LastInstrument && Instrument < 0x40 && Note != HALT && Note != RELEASE) {
-
-			LastInstrument = Instrument;
-			// Write instrument change command
-			//if (Channel < InstrChannels) {
-			if (ChanID != CHANID_DPCM) {		// Skip DPCM
-				WriteDuration();
+		if (Note != HALT && Note != RELEASE) {		// // //
+			if (Instrument != LastInstrument && Instrument < MAX_INSTRUMENTS) {
+				LastInstrument = Instrument;
+				// Write instrument change command
+				//if (Channel < InstrChannels) {
+				if (ChanID != CHANID_DPCM) {		// Skip DPCM
+					WriteDuration();
 #ifdef PACKED_INST_CHANGE
-				if (Instrument < 0x10) {
-					WriteData(0xE0 | Instrument);
-				}
-				else {
+					if (Instrument < 0x10)
+						WriteData(0xE0 | Instrument);
+					else {
+						WriteData(Command(CMD_INSTRUMENT));
+						WriteData(Instrument << 1);
+					}
+#else
 					WriteData(Command(CMD_INSTRUMENT));
 					WriteData(Instrument << 1);
-				}
-#else
-				WriteData(Command(CMD_INSTRUMENT));
-				WriteData(Instrument << 1);
 #endif /* PACKED_INST_CHANGE */
-				Action = true;
+					Action = true;
+				}
+				else {
+					DPCMInst = ChanNote.Instrument;
+				}
 			}
-			else {
-				DPCMInst = ChanNote.Instrument;
-			}
-		}
-#ifdef OPTIMIZE_DURATIONS
-		else if (Instrument == LastInstrument && Instrument < 0x40) {
-			if (ChanID != CHANID_DPCM) {
+			if (Instrument == HOLD_INSTRUMENT && ChanID != CHANID_DPCM) {		// // // 050B
 				WriteDuration();
+				WriteData(Command(CMD_HOLD));
 				Action = true;
 			}
-		}
+#ifdef OPTIMIZE_DURATIONS
+			if (Instrument == LastInstrument && Instrument < MAX_INSTRUMENTS) {		// // //
+				if (ChanID != CHANID_DPCM) {
+					WriteDuration();
+					Action = true;
+				}
+			}
 #endif /* OPTIMIZE_DURATIONS */
+		}
 
 		if (Note == 0) {
 			NESNote = 0xFF;
@@ -251,20 +279,17 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 		else if (Note == RELEASE) {
 			NESNote = 0x7F - 2;
 		}
+		else if (Note == ECHO) {		// // //
+			NESNote = 0x6F + Octave;
+		}
 		else {
 			if (ChanID == CHANID_DPCM) {
 				// 2A03 DPCM
 				int LookUp = FindSample(DPCMInst, Octave, Note);
 				if (LookUp > 0) {
 					NESNote = LookUp - 1;
-					CInstrument2A03 *pInstrument = static_cast<CInstrument2A03*>(m_pDocument->GetInstrument(DPCMInst));
-					if (pInstrument != NULL) {
-						if (pInstrument->GetType() == INST_2A03) {
-							int Sample = pInstrument->GetSample(Octave, Note - 1) - 1;
-							m_bDSamplesAccessed[Sample] = true;
-						}
-						pInstrument->Release();
-					}
+					if (auto pInstrument = std::dynamic_pointer_cast<CInstrument2A03>(m_pDocument->GetInstrument(DPCMInst)))
+						m_bDSamplesAccessed[pInstrument->GetSampleIndex(Octave, Note - 1) - 1] = true;
 					// TODO: Print errors if incompatible or non-existing instrument is found
 				}
 				else {
@@ -276,12 +301,12 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 			}
 			else if (ChanID == CHANID_NOISE) {
 				// 2A03 Noise
-				NESNote = (Note - 1) + (Octave * 12);
+				NESNote = (Note - 1) + (Octave * NOTE_RANGE);
 				NESNote = (NESNote & 0x0F) | 0x10;
 			}
 			else
 				// All other channels
-				NESNote = (Note - 1) + (Octave * 12);
+				NESNote = (Note - 1) + (Octave * NOTE_RANGE);
 		}
 
 		for (int j = 0; j < EffColumns; ++j) {
@@ -296,7 +321,10 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 
 			switch (Effect) {
 				case EF_SPEED:
-					WriteData((EffParam >= m_pDocument->GetSpeedSplitPoint()) ? Command(CMD_EFF_TEMPO) : Command(CMD_EFF_SPEED));
+					if (EffParam >= m_pDocument->GetSpeedSplitPoint() && m_pDocument->GetSongTempo(Track))		// // //
+						WriteData(Command(CMD_EFF_TEMPO));
+					else
+						WriteData(Command(CMD_EFF_SPEED));
 					WriteData(EffParam ? EffParam : 1); // NSF halts if 0 is exported
 					break;
 				case EF_JUMP:
@@ -311,11 +339,13 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 					WriteData(Command(CMD_EFF_HALT));
 					WriteData(EffParam);
 					break;
-				case EF_VOLUME:
-					// TODO: remove this
-					if (Channel < 5) {
+				case EF_VOLUME:		// // //
+					switch (ChanID) {
+					case CHANID_SQUARE1: case CHANID_SQUARE2: case CHANID_TRIANGLE: case CHANID_NOISE:
+					case CHANID_MMC5_SQUARE1: case CHANID_MMC5_SQUARE2:
 						WriteData(Command(CMD_EFF_VOLUME));
-						WriteData(EffParam);
+						if ((EffParam <= 0x1F) || (EffParam >= 0xE0 && EffParam <= 0xE3))
+							WriteData(EffParam & 0x9F);
 					}
 					break;
 				case EF_PORTAMENTO:
@@ -333,10 +363,16 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 						if (EffParam == 0)
 							WriteData(Command(CMD_EFF_CLEAR));
 						else {
-							if (ChipID == SNDCHIP_FDS || ChipID == SNDCHIP_VRC7 || ChipID == SNDCHIP_N163)
-								WriteData(Command(CMD_EFF_PORTADOWN));	// Pitch is inverted for these chips
-							else
-								WriteData(Command(CMD_EFF_PORTAUP));
+							switch (ChipID) {		// // //
+							case SNDCHIP_NONE: case SNDCHIP_VRC6: case SNDCHIP_MMC5: case SNDCHIP_S5B:
+								if (!m_pDocument->GetLinearPitch()) {
+									WriteData(Command(CMD_EFF_PORTAUP));
+									break;
+								}
+							default:
+								WriteData(Command(CMD_EFF_PORTADOWN));
+								break;
+							}
 							WriteData(EffParam);
 						}
 					}
@@ -346,10 +382,16 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 						if (EffParam == 0)
 							WriteData(Command(CMD_EFF_CLEAR));
 						else {
-							if (ChipID == SNDCHIP_FDS || ChipID == SNDCHIP_VRC7 || ChipID == SNDCHIP_N163)
+							switch (ChipID) {		// // //
+							case SNDCHIP_NONE: case SNDCHIP_VRC6: case SNDCHIP_MMC5: case SNDCHIP_S5B:
+								if (!m_pDocument->GetLinearPitch()) {
+									WriteData(Command(CMD_EFF_PORTADOWN));
+									break;
+								}
+							default:
 								WriteData(Command(CMD_EFF_PORTAUP));
-							else
-								WriteData(Command(CMD_EFF_PORTADOWN));
+								break;
+							}
 							WriteData(EffParam);
 						}
 					}
@@ -403,13 +445,13 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 							WriteData(Command(CMD_EFF_RESET_PITCH));
 						else {
 							switch (ChipID) {
-								case SNDCHIP_VRC7:
-								case SNDCHIP_FDS:
-								case SNDCHIP_N163:
-									EffParam = (char)(256 - (int)EffParam);
-									if (EffParam == 0)
-										EffParam = 0xFF;
-									break;
+							case SNDCHIP_NONE: case SNDCHIP_VRC6: case SNDCHIP_MMC5: case SNDCHIP_S5B:		// // //
+								if (!m_pDocument->GetLinearPitch()) break;
+							default:
+								EffParam = (char)(256 - (int)EffParam);
+								if (EffParam == 0)
+									EffParam = 0xFF;
+								break;
 							}
 							WriteData(Command(CMD_EFF_PITCH));
 							WriteData(EffParam);
@@ -423,9 +465,13 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 					}
 					break;
 				case EF_DUTY_CYCLE:
-					if (ChipID == SNDCHIP_VRC7) {
-//						WriteData(CMD_EFF_VRC7_PATCH);
-//						WriteData(EffParam << 4);
+					if (ChipID == SNDCHIP_VRC7) {		// // // 050B
+						WriteData(Command(CMD_EFF_VRC7_PATCH));
+						WriteData(EffParam << 4);
+					}
+					else if (ChipID == SNDCHIP_S5B) {
+						WriteData(Command(CMD_EFF_DUTY));
+						WriteData((EffParam << 6) | ((EffParam & 0x04) << 3));
 					}
 					else if (ChanID != CHANID_TRIANGLE && ChanID != CHANID_DPCM) {	// Not triangle and dpcm
 						WriteData(Command(CMD_EFF_DUTY));
@@ -457,8 +503,14 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 					}
 					break;
 				case EF_NOTE_CUT:
-					WriteData(Command(CMD_EFF_NOTE_CUT));
-					WriteData(EffParam + 1);
+					if (EffParam >= 0x80 && ChanID == CHANID_TRIANGLE) {		// // //
+						WriteData(Command(CMD_EFF_LINEAR_COUNTER));
+						WriteData(EffParam - 0x80);
+					}
+					else if (EffParam < 0x80) {
+						WriteData(Command(CMD_EFF_NOTE_CUT));
+						WriteData(EffParam);
+					}
 					break;
 				case EF_RETRIGGER:
 					if (ChanID == CHANID_DPCM) {
@@ -472,6 +524,48 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 						WriteData(EffParam);
 					}
 					break;
+				case EF_NOTE_RELEASE:		// // //
+					if (EffParam < 0x80) {
+						WriteData(Command(CMD_EFF_NOTE_RELEASE));
+						WriteData(EffParam);
+					}
+					break;
+				case EF_GROOVE:		// // //
+					if (EffParam < MAX_GROOVE) {
+						WriteData(Command(CMD_EFF_GROOVE));
+
+						int Pos = 1;
+						for (int i = 0; i < EffParam; i++)
+							if (m_pDocument->GetGroove(i) != NULL)
+								Pos += m_pDocument->GetGroove(i)->GetSize() + 2;
+						WriteData(Pos);
+					}
+					break;
+				case EF_DELAYED_VOLUME:		// // //
+					if (ChanID != CHANID_DPCM && (EffParam >> 4) && (EffParam & 0x0F)) {
+						WriteData(Command(CMD_EFF_DELAYED_VOLUME));
+						WriteData(EffParam);
+					}
+					break;
+				case EF_TRANSPOSE:			// // //
+					if (ChanID != CHANID_DPCM) {
+						WriteData(Command(CMD_EFF_TRANSPOSE));
+						WriteData(EffParam);
+					}
+					break;
+				// // // VRC7
+				case EF_VRC7_PORT:
+					if (ChipID == SNDCHIP_VRC7) {
+						WriteData(Command(CMD_EFF_VRC7_PORT));
+						WriteData(EffParam & 0x07);
+					}
+					break;
+				case EF_VRC7_WRITE:
+					if (ChipID == SNDCHIP_VRC7) {
+						WriteData(Command(CMD_EFF_VRC7_WRITE));
+						WriteData(EffParam);
+					}
+					break;
 				// FDS
 				case EF_FDS_MOD_DEPTH:
 					if (ChanID == CHANID_FDS) {
@@ -482,13 +576,57 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 				case EF_FDS_MOD_SPEED_HI:
 					if (ChanID == CHANID_FDS) {
 						WriteData(Command(CMD_EFF_FDS_MOD_RATE_HI));
-						WriteData(EffParam & 0x0F);
+						WriteData(EffParam);		// // //
 					}
 					break;
 				case EF_FDS_MOD_SPEED_LO:
 					if (ChanID == CHANID_FDS) {
 						WriteData(Command(CMD_EFF_FDS_MOD_RATE_LO));
 						WriteData(EffParam);
+					}
+					break;
+				case EF_FDS_MOD_BIAS:		// // //
+					if (ChanID == CHANID_FDS) {
+						WriteData(Command(CMD_EFF_FDS_MOD_BIAS));
+						WriteData(EffParam);
+					}
+					break;
+				case EF_FDS_VOLUME:		// // //
+					if (ChanID == CHANID_FDS) {
+						WriteData(Command(CMD_EFF_FDS_VOLUME));
+						WriteData(EffParam == 0xE0 ? 0x80 : (EffParam ^ 0x40));
+					}
+					break;
+				// // // Sunsoft 5B
+				case EF_SUNSOFT_ENV_TYPE:
+					if (ChipID == SNDCHIP_S5B) {
+						WriteData(Command(CMD_EFF_S5B_ENV_TYPE));
+						WriteData(EffParam);
+					}
+					break;
+				case EF_SUNSOFT_ENV_HI:
+					if (ChipID == SNDCHIP_S5B) {
+						WriteData(Command(CMD_EFF_S5B_ENV_RATE_HI));
+						WriteData(EffParam);
+					}
+					break;
+				case EF_SUNSOFT_ENV_LO:
+					if (ChipID == SNDCHIP_S5B) {
+						WriteData(Command(CMD_EFF_S5B_ENV_RATE_LO));
+						WriteData(EffParam);
+					}
+					break;
+				case EF_SUNSOFT_NOISE:		// // // 050B
+					if (ChipID == SNDCHIP_S5B) {
+						WriteData(Command(CMD_EFF_S5B_NOISE));
+						WriteData(EffParam & 0x1F);
+					}
+					break;
+				// // // N163
+				case EF_N163_WAVE_BUFFER:
+					if (ChipID == SNDCHIP_N163 && EffParam <= 0x7F) {
+						WriteData(Command(CMD_EFF_N163_WAVE_BUFFER));
+						WriteData(EffParam == 0x7F ? 0x80 : EffParam);
 					}
 					break;
 			}
@@ -523,6 +661,17 @@ void CPatternCompiler::CompileData(int Track, int Pattern, int Channel)
 
 unsigned char CPatternCompiler::Command(int cmd) const
 {
+	int Chip = m_pDocument->GetExpansionChip();		// // //
+	bool bMultichip = (Chip & (Chip - 1)) != 0;
+
+	if (!bMultichip) {		// // // truncate values if some chips do not exist
+		if (!m_pDocument->ExpansionEnabled(SNDCHIP_N163) && cmd > CMD_EFF_N163_WAVE_BUFFER) cmd -= sizeof(N163_EFFECTS);
+		// MMC5
+		if (!m_pDocument->ExpansionEnabled(SNDCHIP_FDS) && cmd > CMD_EFF_FDS_MOD_BIAS) cmd -= sizeof(FDS_EFFECTS);
+		if (!m_pDocument->ExpansionEnabled(SNDCHIP_VRC7) && cmd > CMD_EFF_VRC7_WRITE) cmd -= sizeof(VRC7_EFFECTS) + 1;
+		// VRC6
+	}
+
 	return (cmd << 1) | 0x80;
 }
 
@@ -530,6 +679,8 @@ unsigned int CPatternCompiler::FindInstrument(int Instrument) const
 {
 	if (Instrument == MAX_INSTRUMENTS)
 		return MAX_INSTRUMENTS;
+	if (Instrument == HOLD_INSTRUMENT)		// // // 050B
+		return HOLD_INSTRUMENT;
 
 	for (int i = 0; i < MAX_INSTRUMENTS; i++) {
 		if (m_pInstrumentList[i] == Instrument)
@@ -544,11 +695,10 @@ unsigned int CPatternCompiler::FindSample(int Instrument, int Octave, int Key) c
 	return (*m_pDPCMList)[Instrument][Octave][Key - 1];
 }
 
-CPatternCompiler::stSpacingInfo CPatternCompiler::ScanNoteLengths(int Track, unsigned int StartRow, int Pattern, int Channel)
+void CPatternCompiler::ScanNoteLengths(stSpacingInfo &Info, int Track, unsigned int StartRow, int Pattern, int Channel)
 {
 	stChanNote NoteData;
 	int StartSpace = -1, Space = 0, SpaceCount = 0;
-	stSpacingInfo Info;
 
 	Info.SpaceCount = 0;
 	Info.SpaceSize = 0;
@@ -559,33 +709,30 @@ CPatternCompiler::stSpacingInfo CPatternCompiler::ScanNoteLengths(int Track, uns
 
 		if (NoteData.Note > 0)
 			NoteUsed = true;
-		if (NoteData.Instrument < MAX_INSTRUMENTS)
+		else if (NoteData.Instrument < MAX_INSTRUMENTS || NoteData.Instrument == HOLD_INSTRUMENT)		// // //
 			NoteUsed = true;
-		if (NoteData.Vol < 0x10)
+		else if (NoteData.Vol < MAX_VOLUME)
 			NoteUsed = true;
-		for (unsigned j = 0; j < (m_pDocument->GetEffColumns(Track, Channel) + 1); ++j) {
+		else for (unsigned j = 0, Count = m_pDocument->GetEffColumns(Track, Channel); j <= Count; ++j)
 			if (NoteData.EffNumber[j] != EF_NONE)
 				NoteUsed = true;
-		}
 
 		if (i == StartRow && NoteUsed == false) {
 			Info.SpaceCount = 0xFF;
 			Info.SpaceSize = StartSpace;
-			return Info;
+			return;
 		}
 
 		if (i > StartRow) {
 			if (NoteUsed) {
 				if (StartSpace == -1)
 					StartSpace = Space;
+				else if (StartSpace == Space)
+					++SpaceCount;
 				else {
-					if (StartSpace == Space)
-						SpaceCount++;
-					else {
-						Info.SpaceCount = SpaceCount;
-						Info.SpaceSize = StartSpace;
-						return Info;
-					}
+					Info.SpaceCount = SpaceCount;
+					Info.SpaceSize = StartSpace;
+					return;
 				}
 				Space = 0;
 			}
@@ -600,8 +747,6 @@ CPatternCompiler::stSpacingInfo CPatternCompiler::ScanNoteLengths(int Track, uns
 
 	Info.SpaceCount = SpaceCount;
 	Info.SpaceSize = StartSpace;
-
-	return Info;
 }
 
 void CPatternCompiler::WriteData(unsigned char Value)

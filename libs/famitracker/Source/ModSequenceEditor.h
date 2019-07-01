@@ -20,6 +20,8 @@
 
 #pragma once
 
+class CInstrumentFDS;		// // //
+
 class CModSequenceEditor : public CWnd
 {
 public:
@@ -28,13 +30,13 @@ public:
 	DECLARE_DYNAMIC(CModSequenceEditor)
 
 public:
-	void SetInstrument(CInstrumentFDS *pInst);
+	void SetInstrument(std::shared_ptr<CInstrumentFDS> pInst);
 
 private:
 	void EditSequence(CPoint point);
 
 private:
-	CInstrumentFDS *m_pInstrument;
+	std::shared_ptr<CInstrumentFDS> m_pInstrument;
 
 protected:
 	DECLARE_MESSAGE_MAP()

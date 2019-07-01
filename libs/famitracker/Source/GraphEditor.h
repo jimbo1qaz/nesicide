@@ -37,8 +37,10 @@ public:
 	DECLARE_DYNAMIC(CGraphEditor)
 
 protected:
-	int GetItemWidth() const;
 	virtual void Initialize();
+	int GetItemWidth() const;
+	virtual int GetItemTop() const = 0;		// // //
+	virtual int GetItemBottom() const;		// // //
 	virtual int GetItemHeight() const = 0;
 	virtual void HighlightItem(CPoint point) = 0;
 	virtual void ModifyItem(CPoint point, bool Redraw);
@@ -54,6 +56,7 @@ protected:
 	void DrawBackground(CDC *pDC, int Lines, bool DrawMarks, int MarkOffset) const;
 	void DrawLoopPoint(CDC *pDC, int StepWidth) const;
 	void DrawReleasePoint(CDC *pDC, int StepWidth) const;
+	void DrawLoopRelease(CDC *pDC, int StepWidth) const;		// // //
 	void DrawLine(CDC *pDC) const;
 
 	void DrawRect(CDC *pDC, int x, int y, int w, int h) const;
@@ -73,7 +76,7 @@ protected:
 
 protected:
 	CWnd *m_pParentWnd;
-	CSequence *m_pSequence;
+	CSequence *const m_pSequence;
 	CFont *m_pSmallFont;
 	CRect m_GraphRect;
 	CRect m_BottomRect;
@@ -100,7 +103,7 @@ public:
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg void OnRButtonDown(UINT nFlags, CPoint point);
 	afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
-    afx_msg void OnTimer(UINT_PTR nIDEvent);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	BOOL CreateEx(DWORD dwExStyle, LPCTSTR lpszClassName, LPCTSTR lpszWindowName, DWORD dwStyle, const RECT& rect, CWnd* pParentWnd, UINT nID, LPVOID lpParam = NULL);
 	afx_msg void OnSetFocus(CWnd* pOldWnd);
 	afx_msg void OnKillFocus(CWnd* pNewWnd);
@@ -117,6 +120,9 @@ public:
 	void HighlightItem(CPoint point);
 	void ModifyItem(CPoint point, bool Redraw);
 	int GetItemHeight() const;
+	int GetItemTop() const override;		// // //
+
+	void SetMaxItems(int Levels);		// // //
 };
 
 // Arpeggio graph editor
@@ -126,7 +132,6 @@ public:
 	DECLARE_DYNAMIC(CArpeggioGraphEditor)
 	CArpeggioGraphEditor(CSequence *pSequence);
 	virtual ~CArpeggioGraphEditor();
-	CString GetNoteString(int Value);
 	void ChangeSetting();
 private:
 	int GetItemValue(int pos);
@@ -143,6 +148,7 @@ protected:
 	void ModifyItem(CPoint point, bool Redraw);
 	void HighlightItem(CPoint point);
 	int GetItemHeight() const;
+	int GetItemTop() const override;		// // //
 	
 	DECLARE_MESSAGE_MAP()
 public:
@@ -160,12 +166,15 @@ public:
 	void ModifyItem(CPoint point, bool Redraw);
 	void HighlightItem(CPoint point);
 	int GetItemHeight() const;
+	int GetItemTop() const override;		// // //
 };
 
 // Sunsoft noise editor
 class CNoiseEditor : public CGraphEditor
 {
 private:
+	static const int BUTTON_HEIGHT = 9;		// // //
+	static const int BUTTON_MARGIN = 26;		// // //
 	int m_iItems;
 	int m_iLastIndex;
 protected:
@@ -176,4 +185,6 @@ public:
 	void ModifyItem(CPoint point, bool Redraw);
 	void HighlightItem(CPoint point);
 	int GetItemHeight() const;
+	int GetItemTop() const override;		// // //
+	int GetItemBottom() const override;		// // //
 };

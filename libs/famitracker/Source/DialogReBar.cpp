@@ -19,10 +19,10 @@
 */
 
 #include "stdafx.h"
+#include "res/resource.h"
 #include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
 #include "DialogReBar.h"
-#include "MainFrm.h"
+#include "CustomControls.h"		// // //
 
 // COctaveDlgBar dialog
 
@@ -53,13 +53,13 @@ BOOL CDialogReBar::OnEraseBkgnd(CDC* pDC)
 	}
 
 	CWnd* pParent = GetParent();
-    ASSERT_VALID(pParent);
-    CPoint pt(0, 0);
-    MapWindowPoints(pParent, &pt, 1);
-    pt = pDC->OffsetWindowOrg(pt.x, pt.y);
-    LRESULT lResult = pParent->SendMessage(WM_ERASEBKGND, (WPARAM)pDC->m_hDC, 0L);
-    pDC->SetWindowOrg(pt.x, pt.y);
-    return (BOOL)lResult;
+	ASSERT_VALID(pParent);
+	CPoint pt(0, 0);
+	MapWindowPoints(pParent, &pt, 1);
+	pt = pDC->OffsetWindowOrg(pt.x, pt.y);
+	LRESULT lResult = pParent->SendMessage(WM_ERASEBKGND, (WPARAM)pDC->m_hDC, 0L);
+	pDC->SetWindowOrg(pt.x, pt.y);
+	return (BOOL)lResult;
 }
 
 void CDialogReBar::OnMove(int x, int y)
@@ -71,23 +71,10 @@ HBRUSH CDialogReBar::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
 	HBRUSH hbr = CDialogBar::OnCtlColor(pDC, pWnd, nCtlColor);
 
-	if (nCtlColor == CTLCOLOR_STATIC && theApp.IsThemeActive()) {
+	if (nCtlColor == CTLCOLOR_STATIC && theApp.IsThemeActive() && !dynamic_cast<CLockedEdit*>(pWnd)) {
 		pDC->SetBkMode(TRANSPARENT);
 		return (HBRUSH)GetStockObject(NULL_BRUSH);
 	}
 
 	return hbr;
-}
-
-BOOL CDialogReBar::Create(CWnd* pParentWnd, UINT nIDTemplate, UINT nStyle, UINT nID)
-{
-	const int RANGE_MAX = 32;	// Max value of highlight
-
-	if (!CDialogBar::Create(pParentWnd, nIDTemplate, nStyle, nID))
-		return FALSE;
-
-	static_cast<CSpinButtonCtrl*>(GetDlgItem(IDC_HIGHLIGHTSPIN1))->SetRange(0, RANGE_MAX);
-	static_cast<CSpinButtonCtrl*>(GetDlgItem(IDC_HIGHLIGHTSPIN2))->SetRange(0, RANGE_MAX);
-
-	return TRUE;
 }

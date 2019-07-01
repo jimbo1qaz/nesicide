@@ -18,7 +18,6 @@
 ** must bear this legend.
 */
 
-#include "cqtmfc.h"
 #include "WaveFile.h"
 
 bool CWaveFile::OpenFile(LPTSTR Filename, int SampleRate, int SampleSize, int Channels)
@@ -94,7 +93,7 @@ void CWaveFile::WriteWave(char *Data, int Size)
 	int cT;
 	
 	for (cT = 0; cT < Size; cT++) {
-        if (mmioinfoOut.pchNext == mmioinfoOut.pchEndWrite) { 
+		if (mmioinfoOut.pchNext == mmioinfoOut.pchEndWrite) { 
 			mmioinfoOut.dwFlags |= MMIO_DIRTY; 
 			mmioAdvance(hmmioOut, &mmioinfoOut, MMIO_WRITE);
 		}

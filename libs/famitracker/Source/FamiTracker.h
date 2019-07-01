@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2016 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,34 +22,25 @@
 
 #pragma once
 
-#include "SoundGen.h"
 
 // FamiTracker.h : main header file for the FamiTracker application
 
-#include "version.h"
+#include <thread>		// // //
 
 // Support DLL translations
 #define SUPPORT_TRANSLATIONS
 
-//#define LIMIT(v, max, min) if (v > max) v = max; else if (v < min) v = min;
-#define LIMIT(v, max, min) v = ((v > max) ? max : ((v < min) ? min : v));//  if (v > max) v = max; else if (v < min) v = min;
+#ifndef __AFXWIN_H__
+	#error include 'stdafx.h' before including this file for PCH
+#endif
 
-//#ifndef __AFXWIN_H__
-//	#error include 'stdafx.h' before including this file for PCH
-//#endif
-
-#include "resource.h"       // main symbols
+#include "res/resource.h"       // main symbols
 
 // Inter-process commands
 enum {
 	IPC_LOAD = 1,	
 	IPC_LOAD_PLAY
 };
-
-#ifdef RELEASE_BUILD
-// Always disable export test for release builds
-#undef EXPORT_TEST
-#endif /* RELEASE_BUILD */
 
 // Custom command line reader
 class CFTCommandLineInfo : public CCommandLineInfo
@@ -59,10 +52,6 @@ public:
 	bool m_bLog;
 	bool m_bExport;
 	bool m_bPlay;
-#ifdef EXPORT_TEST
-	bool m_bVerifyExport;
-	CString m_strVerifyFile;
-#endif
 	CString m_strExportFile;
 	CString m_strExportLogFile;
 	CString m_strExportDPCMFile;
@@ -78,6 +67,31 @@ class CCustomExporters;
 
 class CMutex;
 
+enum play_mode_t;	// Defined in soundgen.h
+
+/*!
+	\brief A MFC document template supporting both .0cc and .ftm file extensions.
+*/
+class CDocTemplate0CC : public CSingleDocTemplate
+{
+public:
+	CDocTemplate0CC(UINT nIDResource, CRuntimeClass* pDocClass, CRuntimeClass* pFrameClass, CRuntimeClass* pViewClass);
+	BOOL GetDocString(CString& rString, enum DocStringIndex i) const;
+	CDocTemplate::Confidence MatchDocType(const char* pszPathName, CDocument*& rpDocMatch);
+};
+
+/*!
+	\brief A MFC document manager allowing both .0cc and .ftm file extensions to be displayed while
+	opening or saving documents.
+	\details This class also saves the FTM path of the last load/save operation to the registry.
+*/
+class CDocManager0CC : public CDocManager
+{
+public:
+	virtual BOOL DoPromptFileName(CString& fileName, UINT nIDSTitle,
+								  DWORD lFlags, BOOL bOpenFileDialog, CDocTemplate* pTemplate);
+};
+
 // CFamiTrackerApp:
 // See FamiTracker.cpp for the implementation of this class
 //
@@ -92,7 +106,9 @@ public:
 	// Public functions
 	//
 public:
+	void			CheckNewVersion(bool StartUp);		// // //
 	void			LoadSoundConfig();
+	void			UpdateMenuShortcuts();		// // //
 	void			ReloadColorScheme();
 	int				GetCPUUsage() const;
 	bool			IsThemeActive() const;
@@ -113,17 +129,11 @@ public:
 	// Get-functions
 	CAccelerator	*GetAccelerator() const		{ ASSERT(m_pAccel); return m_pAccel; }
 	CSoundGen		*GetSoundGenerator() const	{ ASSERT(m_pSoundGenerator); return m_pSoundGenerator; }
-   CMIDI			*GetMIDI() const			{ ASSERT(m_pMIDI); return m_pMIDI; }
+	CMIDI			*GetMIDI() const			{ ASSERT(m_pMIDI); return m_pMIDI; }
 	CSettings		*GetSettings() const		{ ASSERT(m_pSettings); return m_pSettings; }
 	CChannelMap		*GetChannelMap() const		{ ASSERT(m_pChannelMap); return m_pChannelMap; }
 	
 	CCustomExporters *GetCustomExporters() const;
-
-#ifdef EXPORT_TEST
-	void			VerifyExport() const;
-	void			VerifyExport(LPCTSTR File) const;
-	bool			IsExportTest() const;
-#endif /* EXPORT_TEST */
 
 	//
 	// Private functions
@@ -134,16 +144,14 @@ private:
 	bool CheckSingleInstance(CFTCommandLineInfo &cmdInfo);
 	void RegisterSingleInstance();
 	void UnregisterSingleInstance();
-	void CheckNewVersion();
 	void LoadLocalization();
-
-protected:
-	BOOL DoPromptFileName(CString& fileName, CString& filePath, UINT nIDSTitle, DWORD lFlags, BOOL bOpenFileDialog, CDocTemplate* pTemplate);
 
 	// Private variables and objects
 private:
+	static const int MAX_RECENT_FILES = 8;		// // //
+
 	// Objects
-   CMIDI			*m_pMIDI;
+	CMIDI			*m_pMIDI;
 	CAccelerator	*m_pAccel;					// Keyboard accelerator
 	CSoundGen		*m_pSoundGenerator;			// Sound synth & player
 	CSettings		*m_pSettings;				// Program settings
@@ -157,9 +165,10 @@ private:
 
 	bool			m_bThemeActive;
 
-#ifdef EXPORT_TEST
-	bool			m_bExportTesting;
-#endif
+	std::thread		m_thVersionCheck;			// // //
+	CString			m_pVersionMessage, m_pVersionURL;
+	UINT			m_iVersionStyle;
+	bool			m_bVersionReady;
 
 #ifdef SUPPORT_TRANSLATIONS
 	HINSTANCE		m_hInstResDLL;
@@ -173,10 +182,13 @@ public:
 	// Implementation
 	DECLARE_MESSAGE_MAP()
 public:
+	afx_msg BOOL OnIdle(LONG lCount);		// // //
 	afx_msg void OnAppAbout();
 	afx_msg void OnFileOpen();
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	afx_msg void OnTestExport();
+	void OnRecentFilesClear();		// // //
+	void OnUpdateRecentFiles(CCmdUI *pCmdUI);		// // //
 };
 
 extern CFamiTrackerApp theApp;

@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -24,52 +26,30 @@
 // Default font
 const static TCHAR *FONT_FACE = _T("Verdana");
 const static int FONT_SIZE	  = 12;
+const static int FONT_RATIO = 100;
 
 // Static colors
-struct _STATIC_COLOR_SCHEME {
-	COLORREF CHANNEL_NORMAL;	// Normal channel name
-	COLORREF CHANNEL_MUTED;	// Muted channel name
-	COLORREF FRAME_LIGHT;	// 3D frame
-	COLORREF FRAME_DARK;	// 3D frame
-};
+const struct {
+	static const COLORREF CHANNEL_NORMAL	= 0x00202020;	// Normal channel name
+	static const COLORREF CHANNEL_MUTED		= 0x002020E0;	// Muted channel name
+	static const COLORREF FRAME_LIGHT		= 0x00FFFFFF;	// 3D frame
+	static const COLORREF FRAME_DARK		= 0x00808080;	// 3D frame
+} STATIC_COLOR_SCHEME;
 
-const struct _STATIC_COLOR_SCHEME STATIC_COLOR_SCHEME = 
-{
-   0x00202020,	// Normal channel name
-	0x002020E0,	// Muted channel name
-	0x00FFFFFF,	// 3D frame
-	0x00808080	// 3D frame
-};
-
-// Blend levels
-struct _SHADE_LEVEL {
-	int SEPARATOR;	// Channel separators
-	int EMPTY_BG;	// Empty background
-	int UNFOCUSED;	// Unfocused cursor
-	int FOCUSED;	// Focused cursor
-	int SELECT;	// Selection box
-	int SELECT_EDGE;	// Edge of selection box
-	int UNUSED;	// Empty pattern
-	int PREVIEW;	// Pattern preview
-	int TEXT_SHADOW;
-	int HOVER;
-	int EDIT_MODE;
-};
-
-const struct _SHADE_LEVEL SHADE_LEVEL = 
-{
-   75,	// Channel separators
-	70,	// Empty background
-	50,	// Unfocused cursor
-	80,	// Focused cursor
-	80,	// Selection box
-	70,	// Edge of selection box
-	30,	// Empty pattern
-	50,	// Pattern preview
-	20,
-	80,
-	80
-};
+// Blending levels
+const struct {
+	static const int SEPARATOR		= 75;	// Channel separators
+	static const int EMPTY_BG		= 70;	// Empty background
+	static const int UNFOCUSED		= 50;	// Unfocused cursor
+	static const int FOCUSED		= 80;	// Focused cursor
+	static const int SELECT			= 80;	// Selection box
+	static const int SELECT_EDGE	= 70;	// Edge of selection box
+	static const int UNUSED			= 30;	// Empty pattern
+	static const int PREVIEW		= 50;	// Pattern preview
+	static const int TEXT_SHADOW	= 20;
+	static const int HOVER			= 80;
+	static const int EDIT_MODE		= 80;
+} SHADE_LEVEL;
 
 // Custom colors
 struct COLOR_SCHEME {
@@ -85,8 +65,12 @@ struct COLOR_SCHEME {
 	const COLORREF	TEXT_EFFECT;
 	const COLORREF	SELECTION;
 	const COLORREF	CURSOR;
+	const COLORREF	ROW_NORMAL;		// // //
+	const COLORREF	ROW_EDIT;		// // //
+	const COLORREF	ROW_PLAYING;		// // //
 	const TCHAR		*FONT_FACE;
 	const int		FONT_SIZE;
+	const int FONT_PERCENT = 100;
 };
 
 // Default
@@ -103,6 +87,9 @@ const COLOR_SCHEME DEFAULT_COLOR_SCHEME = {
 	0x008080FF,			// Effect color
 	0x00F27D86,			// Selection color
 	0x00808080,			// Cursor color
+	0x00A02030,			// // // Current row
+	0x00302080,			// // // Current row (edit mode)
+	0x00400050,			// // // Current row (playing)
 	_T("Verdana"),		// Font
 	12					// Font size
 };
@@ -121,6 +108,9 @@ const COLOR_SCHEME MONOCHROME_COLOR_SCHEME = {
 	0x008080FF,			// Effect color
 	0x00454550,			// Selection color
 	0x00908080,			// Cursor color
+	0x00A02030,			// // // Current row
+	0x00302080,			// // // Current row (edit mode)
+	0x00400050,			// // // Current row (playing)
 	_T("Fixedsys"),		// Font
 	12					// Font size
 };
@@ -139,6 +129,9 @@ const COLOR_SCHEME RENOISE_COLOR_SCHEME = {
 	0x008080FF,			// Effect color
 	0x00FF8080,			// Selection color
 	0x00707070,			// Cursor color
+	0x00A02030,			// // // Current row
+	0x00302080,			// // // Current row (edit mode)
+	0x00400050,			// // // Current row (playing)
 	_T("Fixedsys"),		// Font
 	12					// Font size
 };
@@ -157,6 +150,42 @@ const COLOR_SCHEME WHITE_COLOR_SCHEME = {
 	0x00000000,			// Effect color
 	0x00FF8080,			// Selection color
 	0x00D0A0A0,			// Cursor color
+	0x00A02030,			// // // Current row
+	0x00302080,			// // // Current row (edit mode)
+	0x00400050,			// // // Current row (playing)
 	_T("Courier"),		// Font
 	12					// Font size
 };
+
+// // // Saturday
+const COLOR_SCHEME SATURDAY_COLOR_SCHEME = {
+	_T("Saturday"),		// Name
+	0x00080004,			// Background color
+	0x0030141C,			// Highlighted background color
+	0x00401828,			// Highlighted background color 2
+	0x00F0C0D8,			// Normal text color
+	0x0080E0F0,			// Highlighted text color
+	0x00E0FFFF,			// Highlighted text color 2
+	0x00F088C0,			// Instrument color
+	0x00F0C0D8,			// Volume color
+	0x00F088C0,			// Effect color
+	0x00602040,			// Selection color
+	0x00508090,			// Cursor color
+	0x00D01030,			// // // Current row
+	0x000030C0,			// // // Current row (edit mode)
+	0x00500070,			// // // Current row (playing)
+	_T("Courier"),		// Font
+	11					// Font size
+};
+
+
+// honestly belongs in CPatternEditor. ConfigAppearance should use
+// CPatternEditor to draw the preview.
+// Maybe CPatternEditor and CFrameEditor should use/mixin a Grid class.
+
+const int _PERCENT = 100;
+
+inline int calculateFontSize(const int rowHeight, const int fontPercent) {
+	return (rowHeight * fontPercent + _PERCENT / 2) / _PERCENT;
+}
+

@@ -1,3 +1,5 @@
+#define NO_WARN_MBCS_MFC_DEPRECATION		// // // MBCS
+#include <afx.h>
 #include "CustomExporterInterfaces.h"
 #include "CustomExporter_C_Interface.h"
 
@@ -28,9 +30,10 @@ void GetInterface(FamitrackerDocInterface* iface)
 
 	//instrument functions
 	iface->GetInstrumentCount = GetInstrumentCount;
-    iface->Get2A03Instrument = Get2A03Instrument;
+	iface->Get2A03Instrument = Get2A03Instrument;
+	iface->GetSeqInstrument = GetSeqInstrument;		// // //
 
-    iface->GetSeqEnable = GetSeqEnable;
+	iface->GetSeqEnable = GetSeqEnable;
 	iface->GetSeqIndex = GetSeqIndex;
 
 	//effect functions
@@ -168,26 +171,36 @@ Instrument2A03Handle Get2A03Instrument(int Instrument)
 	return static_cast<Instrument2A03Handle>(_doc->Get2A03Instrument(Instrument));
 }
 
-int GetSeqEnable(Instrument2A03Handle instrument, int Index)
+SeqInstrumentHandle GetSeqInstrument(int Instrument)		// // //
+{
+	if (NULL == _doc)
+	{
+		return NULL;
+	}
+
+	return static_cast<SeqInstrumentHandle>(_doc->GetSeqInstrument(Instrument));
+}
+
+int GetSeqEnable(SeqInstrumentHandle instrument, int Index)		// // //
 {
 	if (NULL == instrument)
 	{
 		return 0;
 	}
 
-	CInstrument2A03Interface const* instrumentInterface = static_cast<CInstrument2A03Interface const*>(instrument);
+	CSeqInstrumentInterface const* instrumentInterface = static_cast<CSeqInstrumentInterface const*>(instrument);
 	
 	return instrumentInterface->GetSeqEnable(Index);
 }
 
-int GetSeqIndex(Instrument2A03Handle instrument, int Index)
+int GetSeqIndex(SeqInstrumentHandle instrument, int Index)		// // //
 {
 	if (NULL == instrument)
 	{
 		return 0;
 	}
 
-	CInstrument2A03Interface const* instrumentInterface = static_cast<CInstrument2A03Interface const*>(instrument);
+	CSeqInstrumentInterface const* instrumentInterface = static_cast<CSeqInstrumentInterface const*>(instrument);
 
 	return instrumentInterface->GetSeqIndex(Index);
 }

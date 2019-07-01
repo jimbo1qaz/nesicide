@@ -51,12 +51,12 @@ unsigned int CFamiTrackerDocWrapper::GetSongSpeed() const
 
 CSequenceInterface const *CFamiTrackerDocWrapper::GetSequence(unsigned int Index, int Type) const
 {
-	return m_pDocument->GetSequence(Index, Type);
+	return m_pDocument->GetSequence(INST_2A03, Index, Type);		// // //
 }
 
 int CFamiTrackerDocWrapper::GetSequenceCount(int Type) const
 {
-	return m_pDocument->GetSequenceCount(Type);
+	return m_pDocument->GetSequenceCount(INST_2A03, Type);		// // //
 }
 
 int CFamiTrackerDocWrapper::GetInstrumentCount() const
@@ -66,9 +66,12 @@ int CFamiTrackerDocWrapper::GetInstrumentCount() const
 
 CInstrument2A03Interface const *CFamiTrackerDocWrapper::Get2A03Instrument(int Instrument) const
 {
-	CInstrument *pInstrument = m_pDocument->GetInstrument(Instrument);
-	pInstrument->Release(); // Prevent memory leak, no instrument will be removed during export
-	return dynamic_cast<CInstrument2A03Interface const *>(pInstrument);
+	return std::dynamic_pointer_cast<const CInstrument2A03Interface>(m_pDocument->GetInstrument(Instrument)).get();
+}
+
+CSeqInstrumentInterface const *CFamiTrackerDocWrapper::GetSeqInstrument(int Instrument) const		// // //
+{
+	return std::dynamic_pointer_cast<const CSeqInstrumentInterface>(m_pDocument->GetInstrument(Instrument)).get();
 }
 
 unsigned int CFamiTrackerDocWrapper::GetNoteEffectType(unsigned int Frame, unsigned int Channel, unsigned int Row, int Index) const
@@ -92,15 +95,20 @@ int CFamiTrackerDocWrapper::GetSampleCount() const
 
 void CFamiTrackerDocWrapper::GetSampleName(unsigned int Index, char *Name) const
 {
-	strncpy(Name, m_pDocument->GetSample(Index)->GetName(), CDSample::MAX_NAME_SIZE);
+	if (const CDSample *pSamp = m_pDocument->GetSample(Index))		// // //
+		strncpy(Name, pSamp->GetName(), CDSample::MAX_NAME_SIZE);
 }
 
 int CFamiTrackerDocWrapper::GetSampleSize(unsigned int Sample) const
 {
-	return m_pDocument->GetSample(Sample)->GetSize();
+	const CDSample *pSamp = m_pDocument->GetSample(Sample);		// // //
+	if (!pSamp) return 0;
+	return pSamp->GetSize();
 }
 
 char CFamiTrackerDocWrapper::GetSampleData(unsigned int Sample, unsigned int Offset) const
 {
-	return *(m_pDocument->GetSample(Sample)->GetData() + Offset);
+	const CDSample *pSamp = m_pDocument->GetSample(Sample);		// // //
+	if (!pSamp) return 0;
+	return *(pSamp->GetData() + Offset);
 }

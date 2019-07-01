@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,8 +22,8 @@
 
 #include "stdafx.h"
 #include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
-#include "FamiTrackerView.h"
+#include "FamiTrackerTypes.h"
+#include "APU\Types.h"
 #include "SoundGen.h"
 #include "WavProgressDlg.h"
 
@@ -46,8 +48,7 @@ void CWavProgressDlg::DoDataExchange(CDataExchange* pDX)
 
 
 BEGIN_MESSAGE_MAP(CWavProgressDlg, CDialog)
-//ON_BN_CLICKED(IDC_CANCEL, &CWavProgressDlg::OnBnClickedCancel)
-   ON_BN_CLICKED(IDC_CANCEL, OnBnClickedCancel)
+	ON_BN_CLICKED(IDC_CANCEL, &CWavProgressDlg::OnBnClickedCancel)
 	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
@@ -65,7 +66,7 @@ void CWavProgressDlg::OnBnClickedCancel()
 	EndDialog(0);
 }
 
-void CWavProgressDlg::BeginRender(const CString &File, render_end_t LengthType, int LengthParam, int Track)
+void CWavProgressDlg::BeginRender(CString &File, render_end_t LengthType, int LengthParam, int Track)
 {
 	m_iSongEndType = LengthType;
 	m_iSongEndParam = LengthParam;
@@ -81,7 +82,7 @@ BOOL CWavProgressDlg::OnInitDialog()
 	CDialog::OnInitDialog();
 
 	static_cast<CProgressCtrl*>(GetDlgItem(IDC_PROGRESS_BAR))->SetRange(0, 100);
-	CFamiTrackerView *pView = CFamiTrackerView::GetView();
+	CView *pView = static_cast<CFrameWnd*>(AfxGetMainWnd())->GetActiveView();		// // //
 	CSoundGen *pSoundGen = theApp.GetSoundGenerator();
 
 	pView->Invalidate();
@@ -127,9 +128,9 @@ void CWavProgressDlg::OnTimer(UINT_PTR nIDEvent)
 		if (Frame > FramesToRender)
 			Frame = FramesToRender;
 		PercentDone = (Row * 100) / RowCount;
-		str1.Format(_T("%i / %i"), Frame, FramesToRender);
+		str1.Format(_T("%i / %i"), Row, FramesToRender);		// // //
 		str2.Format(_T("%i%%"), PercentDone, Row, RowCount);
-		AfxFormatString2(Text, IDS_WAVE_PROGRESS_FRAME_FORMAT, str1, str2);
+		AfxFormatString2(Text, IDS_WAVE_PROGRESS_ROW_FORMAT, str1, str2);		// // //
 		break;
 	case SONG_TIME_LIMIT:
 		int TotalSec = m_iSongEndParam % 60;

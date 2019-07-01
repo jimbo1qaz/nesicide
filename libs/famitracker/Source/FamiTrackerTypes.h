@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,11 +22,8 @@
 
 #pragma once
 
-#include "DSample.h"
-
-#define MIDI_NOTE(octave, note)		((octave) * 12 + (note) - 1)
-#define GET_OCTAVE(midi_note)		((midi_note) / 12)
-#define GET_NOTE(midi_note)			((midi_note) % 12 + 1)
+#include "APU/Types.h"		// // //
+#include <array>
 
 /*
  * Here are the constants that defines the limits in the tracker
@@ -35,17 +34,21 @@
 // Maximum number of instruments to use
 const int MAX_INSTRUMENTS = 64;
 
+// Hold instrument index
+const int HOLD_INSTRUMENT = 0xFF;		// // // 050B
+// TODO: check if this conflicts with INVALID_INSTRUMENT
+
 // Maximum number of sequence lists
 const int MAX_SEQUENCES	= 128;
 
 // Maximum number of items in each sequence
-const int MAX_SEQUENCE_ITEMS = /*128*/ 253;		// TODO: need to check if this exports correctly
+const int MAX_SEQUENCE_ITEMS = /*128*/ 252;		// TODO: need to check if this exports correctly
 
 // Maximum number of patterns per channel
-const int MAX_PATTERN = 128;
+const int MAX_PATTERN = 256;		// // //
 
 // Maximum number of frames
-const int MAX_FRAMES = 128;
+const int MAX_FRAMES = 256;		// // //
 
 // Maximum length of patterns (in rows). 256 is max in NSF
 const int MAX_PATTERN_LENGTH = 256;
@@ -74,9 +77,15 @@ const int MAX_TEMPO	= 255;
 // Min speed
 const int MIN_SPEED = 1;
 
-// Number of avaliable channels (max) TODO: should not be used anymore!
+// // // Maximum number of grooves
+const int MAX_GROOVE = 32;
+
+// // // Maximum number of entries in the echo buffer
+const int ECHO_BUFFER_LENGTH = 3;
+
+// Number of available channels (max) TODO: should not be used anymore!
 // instead, check the channelsavailable variable and allocate dynamically
-const int MAX_CHANNELS	 = 5 + 3 + 2 + 6 + 1 + 8 + 3;		
+const int MAX_CHANNELS	 = 5 + 3 + 2 + 6 + 1 + 8 + 3;
 
 const int CHANNELS_DEFAULT = 5;
 const int CHANNELS_VRC6	   = 3;
@@ -84,6 +93,7 @@ const int CHANNELS_VRC7	   = 6;
 
 const int OCTAVE_RANGE = 8;
 const int NOTE_RANGE   = 12;
+const int NOTE_COUNT   = OCTAVE_RANGE * NOTE_RANGE;	// // // mvoed from SoundGen.h
 
 const int INVALID_INSTRUMENT = -1;
 
@@ -102,131 +112,169 @@ enum sequence_t {
 	SEQ_COUNT
 };
 
-// New sequence types
-/*
-enum {
-	SEQ_VOLUME,
-	SEQ_ARPEGGIO,
-	SEQ_PITCH,
-	SEQ_HIPITCH,		// TODO: remove this eventually
-	SEQ_DUTYCYCLE,
-	SEQ_SUNSOFT_NOISE,
-
-	SEQ_COUNT
-};
-*/
-//const int SEQ_SUNSOFT_NOISE = SEQ_DUTYCYCLE + 1;
 
 // Channel effects
-enum effect_t {
+enum effect_t : unsigned char {
 	EF_NONE = 0,
-	EF_SPEED,
-	EF_JUMP,
-	EF_SKIP,
-	EF_HALT,
-	EF_VOLUME,
-	EF_PORTAMENTO,
-	EF_PORTAOFF,				// unused!!
-	EF_SWEEPUP,
-	EF_SWEEPDOWN,
-	EF_ARPEGGIO,
-	EF_VIBRATO,
-	EF_TREMOLO,
-	EF_PITCH,
-	EF_DELAY,
-	EF_DAC,
-	EF_PORTA_UP,
-	EF_PORTA_DOWN,
-	EF_DUTY_CYCLE,
-	EF_SAMPLE_OFFSET,
-	EF_SLIDE_UP,
-	EF_SLIDE_DOWN,
-	EF_VOLUME_SLIDE,
-	EF_NOTE_CUT,
-	EF_RETRIGGER,
-	EF_DELAYED_VOLUME,			// Unimplemented
-	EF_FDS_MOD_DEPTH,
-	EF_FDS_MOD_SPEED_HI,
-	EF_FDS_MOD_SPEED_LO,
-	EF_DPCM_PITCH,
-	EF_SUNSOFT_ENV_LO,
-	EF_SUNSOFT_ENV_HI,
-	EF_SUNSOFT_ENV_TYPE,
-//	EF_TARGET_VOLUME_SLIDE, 
-/*
-	EF_VRC7_MODULATOR,
-	EF_VRC7_CARRIER,
-	EF_VRC7_LEVELS,
-*/
+	EF_SPEED,           	// Speed
+	EF_JUMP,            	// Jump
+	EF_SKIP,            	// Skip
+	EF_HALT,            	// Halt
+	EF_VOLUME,          	// Volume
+	EF_PORTAMENTO,      	// Porta on
+	EF_PORTAOFF,        	// Porta off		// unused
+	EF_SWEEPUP,         	// Sweep up
+	EF_SWEEPDOWN,       	// Sweep down
+	EF_ARPEGGIO,        	// Arpeggio
+	EF_VIBRATO,         	// Vibrato
+	EF_TREMOLO,         	// Tremolo
+	EF_PITCH,           	// Pitch
+	EF_DELAY,           	// Note delay
+	EF_DAC,             	// DAC setting
+	EF_PORTA_UP,        	// Portamento up
+	EF_PORTA_DOWN,      	// Portamento down
+	EF_DUTY_CYCLE,      	// Duty cycle
+	EF_SAMPLE_OFFSET,   	// Sample offset
+	EF_SLIDE_UP,        	// Slide up
+	EF_SLIDE_DOWN,      	// Slide down
+	EF_VOLUME_SLIDE,    	// Volume slide
+	EF_NOTE_CUT,        	// Note cut
+	EF_RETRIGGER,       	// DPCM retrigger
+	EF_DELAYED_VOLUME,  	// // // Delayed channel volume
+	EF_FDS_MOD_DEPTH,   	// FDS modulation depth
+	EF_FDS_MOD_SPEED_HI,	// FDS modulation speed hi
+	EF_FDS_MOD_SPEED_LO,	// FDS modulation speed lo
+	EF_DPCM_PITCH,      	// DPCM Pitch
+	EF_SUNSOFT_ENV_TYPE,	// Sunsoft envelope type
+	EF_SUNSOFT_ENV_HI,  	// Sunsoft envelope high
+	EF_SUNSOFT_ENV_LO,  	// Sunsoft envelope low
+	EF_SUNSOFT_NOISE,   	// // // 050B Sunsoft noise period
+	EF_VRC7_PORT,       	// // // 050B VRC7 custom patch port
+	EF_VRC7_WRITE,      	// // // 050B VRC7 custom patch write
+	EF_NOTE_RELEASE,    	// // // Delayed release
+	EF_GROOVE,          	// // // Groove
+	EF_TRANSPOSE,       	// // // Delayed transpose
+	EF_N163_WAVE_BUFFER,	// // // N163 wave buffer
+	EF_FDS_VOLUME,      	// // // FDS volume envelope
+	EF_FDS_MOD_BIAS,    	// // // FDS auto-FM bias
+
+	// jimbo1qaz
+	EF_PHASE_RESET,			// 
+
 	EF_COUNT
 };
 
-// DPCM  effects
-//const int EF_DPCM_PITCH = EF_SWEEPUP;		// DPCM pitch, 'H'
+// Note: Order must be preserved.
+// Global/2A03 effects should be listed before expansion-specific effects
+// sharing the same character.
 
-//const int EF_VRC7_PATCH = EF_DUTY_CYCLE;	// VRC7 patch setting, 'V'
+// const effect_t VRC6_EFFECTS[] = {};
+const effect_t VRC7_EFFECTS[] = {EF_VRC7_PORT, EF_VRC7_WRITE};
+const effect_t FDS_EFFECTS[] = {EF_FDS_MOD_DEPTH, EF_FDS_MOD_SPEED_HI, EF_FDS_MOD_SPEED_LO, EF_FDS_VOLUME, EF_FDS_MOD_BIAS};
+// const effect_t MMC5_EFFECTS[] = {};
+const effect_t N163_EFFECTS[] = {EF_N163_WAVE_BUFFER};
+const effect_t S5B_EFFECTS[] = {EF_SUNSOFT_ENV_TYPE, EF_SUNSOFT_ENV_HI, EF_SUNSOFT_ENV_LO, EF_SUNSOFT_NOISE};
 
-// FDS effects
-//const int EF_FDS_MOD_DEPTH = EF_SWEEPUP;	// FDS modulation depth, 'H'
-
-//const int EF_RETRIGGER = EF_SWEEPDOWN;
+// Effect checking = bool CTrackerChannel::IsEffectCompatible
 
 // Channel effect letters
 const char EFF_CHAR[] = {
-	'F',	// Speed
-	'B',	// Jump 
-	'D',	// Skip 
-	'C',	// Halt
-	'E',	// Volume
-	'3',	// Porta on
-	 0,		// Porta off		// unused
-	'H',	// Sweep up
-	'I',	// Sweep down
-	'0',	// Arpeggio
-	'4',	// Vibrato
-	'7',	// Tremolo
-	'P',	// Pitch
-	'G',	// Note delay
-	'Z',	// DAC setting
-	'1',	// Portamento up
-	'2',	// Portamento down
-	'V',	// Duty cycle
-	'Y',	// Sample offset
-	'Q',	// Slide up
-	'R',	// Slide down
-	'A',	// Volume slide
-	'S',	// Note cut
-	'X',	// DPCM retrigger						 
-	 0,		// (TODO, delayed volume)
-	'H',	// FDS modulation depth
-	'I',	// FDS modulation speed hi
-	'J',	// FDS modulation speed lo
-	'W',	// DPCM Pitch
-	'H',	// Sunsoft envelope low
-	'I',	// Sunsoft envelope high
-	'J',	// Sunsoft envelope type
-	//'9'	// Targeted volume slide
-	/*
-	'H',	// VRC7 modulator
-	'I',	// VRC7 carrier
-	'J',	// VRC7 modulator/feedback level
-	*/
+	'\xff',	// EF_NONE,
+	'F',   	// EF_SPEED,
+	'B',   	// EF_JUMP,
+	'D',   	// EF_SKIP,
+	'C',   	// EF_HALT,
+	'E',   	// EF_VOLUME,
+	'3',   	// EF_PORTAMENTO,
+	'\xff',	// EF_PORTAOFF,
+	'H',   	// EF_SWEEPUP,
+	'I',   	// EF_SWEEPDOWN,
+	'0',   	// EF_ARPEGGIO,
+	'4',   	// EF_VIBRATO,
+	'7',   	// EF_TREMOLO,
+	'P',   	// EF_PITCH,
+	'G',   	// EF_DELAY,
+	'Z',   	// EF_DAC,
+	'1',   	// EF_PORTA_UP,
+	'2',   	// EF_PORTA_DOWN,
+	'V',   	// EF_DUTY_CYCLE,
+	'Y',   	// EF_SAMPLE_OFFSET,
+	'Q',   	// EF_SLIDE_UP,
+	'R',   	// EF_SLIDE_DOWN,
+	'A',   	// EF_VOLUME_SLIDE,
+	'S',   	// EF_NOTE_CUT,
+	'X',   	// EF_RETRIGGER,
+	'M',   	// EF_DELAYED_VOLUME,
+	'H',   	// EF_FDS_MOD_DEPTH,
+	'I',   	// EF_FDS_MOD_SPEED_HI,
+	'J',   	// EF_FDS_MOD_SPEED_LO,
+	'W',   	// EF_DPCM_PITCH,
+	'H',   	// EF_SUNSOFT_ENV_TYPE,
+	'I',   	// EF_SUNSOFT_ENV_HI,
+	'J',   	// EF_SUNSOFT_ENV_LO,
+	'W',   	// EF_SUNSOFT_NOISE,
+	'H',   	// EF_VRC7_PORT,
+	'I',   	// EF_VRC7_WRITE,
+	'L',   	// EF_NOTE_RELEASE,
+	'O',   	// EF_GROOVE,
+	'T',   	// EF_TRANSPOSE,
+	'Z',   	// EF_N163_WAVE_BUFFER,
+	'E',   	// EF_FDS_VOLUME,
+	'Z',   	// EF_FDS_MOD_BIAS,
+
+	// jimbo1qaz
+	'=',	// EF_PHASE_RESET
 };
 
+struct Effect {
+	char eff_char;
+	int initial = 0x00;
+	int uiDefault = 0x00;
+};
 
-enum note_t {
+const extern std::array<Effect, EF_COUNT> effects;
+
+effect_t GetEffectFromChar(char ch, int Chip, bool *bValid = nullptr);		// // //
+
+enum note_t : unsigned char {
 	NONE = 0,	// No note
-	C, Cs, D, Ds, E, F, Fs, G, Gs, A, As, B,
+	NOTE_C,  NOTE_Cs, NOTE_D,  NOTE_Ds, NOTE_E,  NOTE_F,		// // // renamed
+	NOTE_Fs, NOTE_G,  NOTE_Gs, NOTE_A,  NOTE_As, NOTE_B,
 	RELEASE,	// Release, begin note release sequence
 	HALT,		// Halt, stops note
+	ECHO,		// // // Echo buffer access, octave determines position
 };
+
+// // // special echo buffer constants
+const char ECHO_BUFFER_NONE = '\xFF';
+const char ECHO_BUFFER_HALT = '\x7F';
+const char ECHO_BUFFER_ECHO = '\x80';
 
 enum machine_t {
 	NTSC,
 	PAL
 };
 
-enum vibrato_t {
+enum vibrato_t : unsigned char {
 	VIBRATO_OLD = 0,
 	VIBRATO_NEW,
 };
+
+inline int MIDI_NOTE(int octave, int note)		// // //
+{
+	return octave * NOTE_RANGE + note - 1;
+}
+
+inline int GET_OCTAVE(int midi_note)
+{
+	int x = midi_note / NOTE_RANGE;
+	if (midi_note < 0 && !(midi_note % NOTE_RANGE)) --x;
+	return x;
+}
+
+inline int GET_NOTE(int midi_note)
+{
+	int x = midi_note % NOTE_RANGE;
+	if (x < 0) x += NOTE_RANGE;
+	return ++x;
+}

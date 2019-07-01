@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -23,10 +25,17 @@
 
 // CSettings command target
 
-enum EDIT_STYLES {
-	EDIT_STYLE1 = 0,		// FT2
-	EDIT_STYLE2 = 1,		// ModPlug
-	EDIT_STYLE3 = 2			// IT
+enum EDIT_STYLES {		// // // renamed
+	EDIT_STYLE_FT2 = 0,		// FT2
+	EDIT_STYLE_MPT = 1,		// ModPlug
+	EDIT_STYLE_IT = 2,		// IT
+};
+
+enum module_error_level_t {		// // //
+	MODULE_ERROR_NONE,		/*!< No error checking at all (warning) */
+	MODULE_ERROR_DEFAULT,	/*!< Usual error checking */
+	MODULE_ERROR_OFFICIAL,	/*!< Special bounds checking according to the official build */
+	MODULE_ERROR_STRICT,	/*!< Extra validation for some values */
 };
 
 enum WIN_STATES {
@@ -37,11 +46,19 @@ enum WIN_STATES {
 enum PATHS {
 	PATH_FTM,
 	PATH_FTI,
-	PATH_NSF,
 	PATH_DMC,
-	PATH_WAV,
+	PATH_WAV_IMPORT,
+	PATH_COUNT,
 
-	PATH_COUNT
+	PATH_NSF = PATH_FTM,
+	PATH_EXPORT = PATH_FTM
+};
+
+// // // helper class for loading settings from official famitracker
+struct stOldSettingContext
+{
+	stOldSettingContext();
+	~stOldSettingContext();
 };
 
 // Base class for settings, pure virtual
@@ -52,10 +69,13 @@ public:
 	virtual void Load() = 0;
 	virtual void Save() = 0;
 	virtual void Default() = 0;
+	virtual void UpdateDefault(LPCTSTR pSection, LPCTSTR pEntry);		// // /
 	LPCTSTR GetSection() const { return m_pSection; };
 protected:
 	LPCTSTR m_pSection;
 	LPCTSTR m_pEntry;
+	LPCTSTR m_pSectionSecond = nullptr;		// // //
+	LPCTSTR m_pEntrySecond = nullptr;		// // //
 };
 
 // Templated setting class
@@ -86,9 +106,6 @@ public:
 	void	DeleteSettings();
 	void	SetWindowPos(int Left, int Top, int Right, int Bottom, int State);
 
-	void	StoreSetting(CString Section, CString Name, int Value) const;
-	int		LoadSetting(CString Section, CString Name, int Default) const;
-
 	CString GetPath(unsigned int PathType) const;
 	void	SetPath(CString PathName, unsigned int PathType);
 
@@ -110,16 +127,24 @@ public:
 		bool	bNoDPCMReset;
 		bool	bNoStepMove;
 		int		iPageStepSize;
-		CString	strFont;
-		bool	bPatternColor;
 		bool	bPullUpDelete;
 		bool	bBackups;
-		int		iFontSize;
 		bool	bSingleInstance;
 		bool	bPreviewFullRow;
-		bool	bDisplayFlats;
 		bool	bDblClickSelect;
+		bool	bWrapPatternValue;		// // //
+		bool	bCutVolume;
+		bool	bFDSOldVolume;
+		bool	bOverflowPaste;
+		bool	bShowSkippedRows;
+		bool	bHexKeypad;
+		bool	bMultiFrameSel;
+		bool	bCheckVersion;		// // //
 	} General;
+
+	struct {
+		int		iErrorLevel;
+	} Version;		// // //
 
 	struct {
 		int		iDevice;
@@ -154,6 +179,17 @@ public:
 		int		iColPatternEffect;
 		int		iColSelection;
 		int		iColCursor;
+		int		iColCurrentRowNormal;		// // //
+		int		iColCurrentRowEdit;
+		int		iColCurrentRowPlaying;
+
+		CString	strFont;		// // //
+		CString	strFrameFont;		// // // 050B
+		int		rowHeight;
+		int		fontPercent;	// Font height (pixels), as a percentage of row height
+
+		bool	bPatternColor;
+		bool	bDisplayFlats;
 	} Appearance;
 
 	struct {
@@ -169,12 +205,21 @@ public:
 		int		iKeyNoteRelease;
 		int		iKeyClear;
 		int		iKeyRepeat;
+		int		iKeyEchoBuffer;		// // //
 	} Keys;
+
+	struct {
+		bool	bAverageBPM;
+		bool	bRegisterState;
+	} Display;		// // // 050B
 
 	// Other
 	int SampleWinState;
 	int FrameEditPos;
+	int ControlPanelPos;		// // // 050B
 	bool FollowMode;
+	bool MeterDecayRate;		// // // 050B
+	bool m_bNamcoMixing;		// // //
 
 	struct {
 		int		iLevelAPU1;
@@ -190,8 +235,8 @@ public:
 	CString InstrumentMenuPath;
 
 private:
-	template<class T> void AddSetting(LPCTSTR pSection, LPCTSTR pEntry, T tDefault, T* pVariable);
-	void AddSetting(CSettingBase *pSetting);
+	template<class T>
+	CSettingBase *AddSetting(LPCTSTR pSection, LPCTSTR pEntry, T tDefault, T *pVariable);		// // //
 	void SetupSettings();
 
 private:

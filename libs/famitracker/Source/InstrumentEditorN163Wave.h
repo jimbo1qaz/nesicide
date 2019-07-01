@@ -24,6 +24,9 @@
 
 // CInstrumentEditorN163Wave dialog
 
+class CWaveformGenerator;		// // //
+class CInstrumentN163;		// // //
+
 class CInstrumentEditorN163Wave : public CInstrumentEditPanel
 {
 	DECLARE_DYNAMIC(CInstrumentEditorN163Wave)
@@ -35,7 +38,8 @@ public:
 	virtual TCHAR *GetTitle() const { return _T("Wave"); };
 
 	// Public
-	virtual void SelectInstrument(int Instrument);
+	virtual void SelectInstrument(std::shared_ptr<CInstrument> pInst);
+	virtual void SelectWave(int Index);		// // //
 
 // Dialog Data
 	enum { IDD = IDD_INSTRUMENT_N163_WAVE };
@@ -43,13 +47,21 @@ public:
 protected:
 	virtual void OnKeyReturn();
 
-	void ParseString(LPCTSTR pString);
+	void ParseManyStrings(std::string pString);
+	void ParseString(std::string pString, int waveIndex = -1);
 	void FillPosBox(int size);
+	void PopulateWaveBox();		// // //
+	void UpdateWaveBox(int Index);		// // //
+	void CreateWaveImage(char *const Pos, int Index) const;		// // //
+
+	void GenerateWaves(CWaveformGenerator *pWaveGen);		// // // test
 
 protected:
-	CInstrumentN163	*m_pInstrument;
+	std::shared_ptr<CInstrumentN163> m_pInstrument;
 	CWaveEditorN163	*m_pWaveEditor;
 	int m_iWaveIndex;
+	CImageList m_WaveImage;		// // //
+	CListCtrl *m_pWaveListCtrl;		// // //
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
@@ -57,6 +69,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	virtual BOOL OnInitDialog();
+	virtual BOOL PreTranslateMessage(MSG* pMsg);		// // //
 	afx_msg void OnPresetSine();
 	afx_msg void OnPresetTriangle();
 	afx_msg void OnPresetPulse50();
@@ -69,6 +82,7 @@ public:
 	afx_msg void OnWavePosChange();
 	afx_msg void OnWavePosSelChange();
 //	afx_msg void OnPositionClicked();
-	afx_msg void OnWavesChange();
-	afx_msg void OnIndexChange();
+	afx_msg void OnLvnItemchangedN163Waves(NMHDR *pNMHDR, LRESULT *pResult);		// // //
+	afx_msg void OnBnClickedN163Add();
+	afx_msg void OnBnClickedN163Delete();
 };

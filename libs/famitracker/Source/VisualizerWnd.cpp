@@ -18,43 +18,12 @@
 ** must bear this legend.
 */
 
-#include "stdafx.h"
-#include "FamiTracker.h"
 #include "VisualizerWnd.h"
+#include "FamiTracker.h"
 #include "Settings.h"
 #include "VisualizerScope.h"
 #include "VisualizerSpectrum.h"
 #include "VisualizerStatic.h"
-#include "resource.h"
-
-/*
- * Class CVisualizerBase
- *
- */
-
-void CVisualizerBase::Create(int Width, int Height)
-{
-	memset(&m_bmi, 0, sizeof(BITMAPINFO));
-	m_bmi.bmiHeader.biSize	   = sizeof(BITMAPINFOHEADER);
-	m_bmi.bmiHeader.biBitCount = 32;
-	m_bmi.bmiHeader.biHeight   = -Height;
-	m_bmi.bmiHeader.biWidth	   = Width;
-	m_bmi.bmiHeader.biPlanes   = 1;
-
-	m_iWidth = Width;
-	m_iHeight = Height;
-}
-
-void CVisualizerBase::SetSampleData(short *pSamples, unsigned int iCount)
-{
-	m_pSamples = pSamples;
-	m_iSampleCount = iCount;
-}
-
-/*
- * Class CVisualizerWnd
- *
- */
 
 // Thread entry helper
 
@@ -85,13 +54,14 @@ CVisualizerWnd::CVisualizerWnd() :
 {
 	m_pStates[0] = new CVisualizerScope(false);
 	m_pStates[1] = new CVisualizerScope(true);
-	m_pStates[2] = new CVisualizerSpectrum();
-	m_pStates[3] = new CVisualizerStatic();
+	m_pStates[2] = new CVisualizerSpectrum(4);		// // //
+	m_pStates[3] = new CVisualizerSpectrum(1);
+	m_pStates[4] = new CVisualizerStatic();
 }
 
 CVisualizerWnd::~CVisualizerWnd()
 {
-	for (int i = 0; i < 4; ++i) {
+	for (int i = 0; i < STATE_COUNT; ++i) {		// // //
 		SAFE_RELEASE(m_pStates[i]);
 	}
 
@@ -125,11 +95,9 @@ void CVisualizerWnd::NextState()
 
 void CVisualizerWnd::SetSampleRate(int SampleRate)
 {
-	for (int i = 0; i < 4; ++i) {
-		if (m_pStates[i] != NULL) {
-			m_pStates[i]->SetSampleRate(SampleRate);
-		}
-	}
+	for (auto &state : m_pStates)		// // //
+		if (state)
+			state->SetSampleRate(SampleRate);
 }
 
 void CVisualizerWnd::FlushSamples(short *pSamples, int Count)
@@ -163,10 +131,10 @@ void CVisualizerWnd::ReportAudioProblem()
 
 UINT CVisualizerWnd::ThreadProc()
 {
-   UINT_PTR nThreadID = (UINT_PTR)AfxGetThread()->m_nThreadID;
+	DWORD nThreadID = AfxGetThread()->m_nThreadID;
 	m_bThreadRunning = true;
 
-	TRACE1("Visualizer: Started thread (0x%04x)\n", nThreadID);
+	TRACE("Visualizer: Started thread (0x%04x)\n", nThreadID);
 
 	while (::WaitForSingleObject(m_hNewSamples, INFINITE) == WAIT_OBJECT_0 && m_bThreadRunning) {
 
@@ -198,7 +166,7 @@ UINT CVisualizerWnd::ThreadProc()
 		m_csBuffer.Unlock();
 	}
 
-	TRACE1("Visualizer: Closed thread (0x%04x)\n", nThreadID);
+	TRACE("Visualizer: Closed thread (0x%04x)\n", nThreadID);
 
 	return 0;
 }
@@ -272,7 +240,13 @@ void CVisualizerWnd::OnRButtonUp(UINT nFlags, CPoint point)
 	menuPoint.x = rect.left + point.x;
 	menuPoint.y = rect.top + point.y;
 
-	UINT menuIds[] = {ID_POPUP_SAMPLESCOPE1, ID_POPUP_SAMPLESCOPE2, ID_POPUP_SPECTRUMANALYZER, ID_POPUP_NOTHING};
+	static const UINT menuIds[] = {
+		ID_POPUP_SAMPLESCOPE1,
+		ID_POPUP_SAMPLESCOPE2,
+		ID_POPUP_SPECTRUMANALYZER,
+		ID_POPUP_SPECTRUMANALYZER2,		// // //
+		ID_POPUP_NOTHING
+	};
 
 	pPopupMenu->CheckMenuItem(menuIds[m_iCurrentState], MF_BYCOMMAND | MF_CHECKED);
 
@@ -280,20 +254,11 @@ void CVisualizerWnd::OnRButtonUp(UINT nFlags, CPoint point)
 
 	m_csBuffer.Lock();
 
-	switch (Result) {
-		case ID_POPUP_SAMPLESCOPE1:
-			m_iCurrentState = 0;
+	for (size_t i = 0; i < sizeof(menuIds) / sizeof(UINT); i++)		// // //
+		if (Result == menuIds[i]) {
+			m_iCurrentState = i;
 			break;
-		case ID_POPUP_SAMPLESCOPE2:
-			m_iCurrentState = 1;
-			break;
-		case ID_POPUP_SPECTRUMANALYZER:
-			m_iCurrentState = 2;
-			break;
-		case ID_POPUP_NOTHING:
-			m_iCurrentState = 3;
-			break;
-	}
+		}
 
 	m_csBuffer.Unlock();
 
@@ -312,15 +277,15 @@ void CVisualizerWnd::OnDestroy()
 		m_bThreadRunning = false;
 		::SetEvent(m_hNewSamples);
 
-		TRACE0("Visualizer: Joining thread...\n");
+		TRACE("Visualizer: Joining thread...\n");
 		if (::WaitForSingleObject(hThread, 5000) == WAIT_OBJECT_0) {
 			::CloseHandle(m_hNewSamples);
 			m_hNewSamples = NULL;
 			m_pWorkerThread = NULL;
-			TRACE0("Visualizer: Thread has finished.\n");
+			TRACE("Visualizer: Thread has finished.\n");
 		}
 		else {
-			TRACE0("Visualizer: Could not shutdown worker thread\n");
+			TRACE("Visualizer: Could not shutdown worker thread\n");
 		}
 	}
 

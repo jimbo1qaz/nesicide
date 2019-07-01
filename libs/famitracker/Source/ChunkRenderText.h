@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -25,6 +27,7 @@
 //
 
 class CChunkRenderText;
+class CDSample;		// // //
 
 typedef void (CChunkRenderText::*renderFunc_t)(CChunk *pChunk, CFile *pFile);
 
@@ -39,6 +42,28 @@ public:
 	CChunkRenderText(CFile *pFile);
 	void StoreChunks(const std::vector<CChunk*> &Chunks);
 	void StoreSamples(const std::vector<const CDSample*> &Samples);
+
+	// Labels
+	// // // moved from CCompiler
+	static const char LABEL_SONG_LIST[];
+	static const char LABEL_INSTRUMENT_LIST[];
+	static const char LABEL_SAMPLES_LIST[];
+	static const char LABEL_SAMPLES[];
+	static const char LABEL_GROOVE_LIST[];		// // //
+	static const char LABEL_GROOVE[];		// // //
+	static const char LABEL_WAVETABLE[];
+	static const char LABEL_SAMPLE[];
+	static const char LABEL_WAVES[];
+	static const char LABEL_SEQ_2A03[];
+	static const char LABEL_SEQ_VRC6[];
+	static const char LABEL_SEQ_FDS[];
+	static const char LABEL_SEQ_N163[];
+	static const char LABEL_SEQ_S5B[];		// // //
+	static const char LABEL_INSTRUMENT[];
+	static const char LABEL_SONG[];
+	static const char LABEL_SONG_FRAMES[];
+	static const char LABEL_SONG_FRAME[];
+	static const char LABEL_PATTERN[];
 
 private:
 	static const stChunkRenderFunc RENDER_FUNCTIONS[];
@@ -56,6 +81,8 @@ private:
 	void StoreSequenceChunk(CChunk *pChunk, CFile *pFile);
 	void StoreSampleListChunk(CChunk *pChunk, CFile *pFile);
 	void StoreSamplePointersChunk(CChunk *pChunk, CFile *pFile);
+	void StoreGrooveListChunk(CChunk *pChunk, CFile *pFile);		// // //
+	void StoreGrooveChunk(CChunk *pChunk, CFile *pFile);		// // //
 	void StoreSongListChunk(CChunk *pChunk, CFile *pFile);
 	void StoreSongChunk(CChunk *pChunk, CFile *pFile);
 	void StoreFrameListChunk(CChunk *pChunk, CFile *pFile);
@@ -71,6 +98,8 @@ private:
 	CStringArray m_sequenceStrings;
 	CStringArray m_sampleListStrings;
 	CStringArray m_samplePointersStrings;
+	CStringArray m_grooveListStrings;		// // //
+	CStringArray m_grooveStrings;		// // //
 	CStringArray m_songListStrings;
 	CStringArray m_songStrings;
 	CStringArray m_songDataStrings;

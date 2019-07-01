@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,7 +22,6 @@
 
 #include "stdafx.h"
 #include "Sequence.h"
-#include "DocumentFile.h"
 
 CSequence::CSequence()
 {
@@ -32,16 +33,24 @@ void CSequence::Clear()
 	m_iItemCount = 0;
 	m_iLoopPoint = -1;
 	m_iReleasePoint = -1;
-	m_iSetting = 0;
+	m_iSetting = SETTING_DEFAULT;		// // //
 
 	memset(m_cValues, 0, sizeof(char) * MAX_SEQUENCE_ITEMS);
 
 	m_iPlaying = -1;
 }
 
+bool CSequence::operator==(const CSequence &other)		// // //
+{
+	return m_iItemCount == other.m_iItemCount &&
+		m_iLoopPoint == other.m_iLoopPoint &&
+		m_iReleasePoint == other.m_iReleasePoint &&
+		m_iSetting == other.m_iSetting &&
+		memcmp(m_cValues, other.m_cValues, m_iItemCount * sizeof(*m_cValues)) == 0;
+}
+
 void CSequence::SetItem(int Index, signed char Value)
 {
-	ASSERT(Index <= MAX_SEQUENCE_ITEMS);
 	m_cValues[Index] = Value;
 }
 
@@ -60,27 +69,24 @@ void CSequence::SetItemCount(unsigned int Count)
 void CSequence::SetLoopPoint(unsigned int Point)
 {
 	m_iLoopPoint = Point;
-	// Loop point cannot be beyond release point (at the moment)
-	if (m_iLoopPoint >= m_iReleasePoint)
+	if (m_iLoopPoint > m_iItemCount)		// // //
 		m_iLoopPoint = -1;
 }
 
 void CSequence::SetReleasePoint(unsigned int Point)
 {
 	m_iReleasePoint = Point;
-	// Loop point cannot be beyond release point (at the moment)
-	if (m_iLoopPoint >= m_iReleasePoint)
-		m_iLoopPoint = -1;
+	if (m_iReleasePoint > m_iItemCount)		// // //
+		m_iReleasePoint = -1;
 }
 
-void CSequence::SetSetting(unsigned int Setting)
+void CSequence::SetSetting(seq_setting_t Setting)		// // //
 {
 	m_iSetting = Setting;
 }
 
 signed char CSequence::GetItem(int Index) const
 {
-	ASSERT(Index <= MAX_SEQUENCE_ITEMS);
 	return m_cValues[Index];
 }
 
@@ -99,7 +105,7 @@ unsigned int CSequence::GetReleasePoint() const
 	return m_iReleasePoint;
 }
 
-unsigned int CSequence::GetSetting() const
+unsigned int CSequence::GetSetting() const		// // //
 {
 	return m_iSetting;
 }

@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2017 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -18,11 +20,72 @@
 ** must bear this legend.
 */
 
-#include "stdafx.h"
-#include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
 #include "ConfigGeneral.h"
+#include "FamiTracker.h"
 #include "Settings.h"
+
+// parallel arrays are evil. burn this with fire. each config option must be added to:
+
+// ConfigGeneral.h SETTINGS_BOOL_COUNT
+// CConfigGeneral::CONFIG_STR[]
+// CConfigGeneral::CONFIG_DESC[]
+// CConfigGeneral.m_asdf
+	// CConfigGeneral::OnInitDialog() twice
+	// CConfigGeneral::OnLvnItemchangedConfigList(...)
+	// CConfigGeneral::OnApply()
+
+// CSettings.etc.asdf
+	// CSettings::SetupSettings(): SETTING_BOOL(...)
+
+const CString CConfigGeneral::CONFIG_STR[] = {		// // //
+	_T("Wrap cursor"),
+	_T("Wrap across frames"),
+	_T("Free cursor edit"),
+	_T("Preview wave-files"),
+	_T("Key repeat"),
+	_T("Show row numbers in hex"),
+	_T("Preview next/previous frames"),
+	_T("Don't reset DPCM on note stop"),
+	_T("Ignore Step when moving"),
+	_T("Delete-key pulls up rows"),
+	_T("Backup unmodified files"),
+	_T("Single instance"),
+	_T("Preview full row"),
+	_T("Don't select on double-click"),
+	_T("Warp pattern values"),
+	_T("Cut sub-volume"),
+	_T("Use old FDS volume table"),
+	_T("Overflow paste mode"),
+	_T("Show skipped rows"),
+	_T("Hexadecimal keypad"),
+	_T("Multi-frame selection"),
+	_T("Check version on startup"),
+};
+
+const CString CConfigGeneral::CONFIG_DESC[] = {		// // //
+	_T("Wrap around the cursor when reaching top or bottom in the pattern editor."),
+	_T("Move to next or previous frame when reaching top or bottom in the pattern editor."),
+	_T("Unlock the cursor from the center of the pattern editor."),
+	_T("Preview wave and DPCM files in the open file dialog when loading samples to the module."),
+	_T("Enable key repetition in the pattern editor."),
+	_T("Display row numbers and the frame count on the status bar in hexadecimal."),
+	_T("Preview next and previous frames in the pattern editor."),
+	_T("Prevent resetting the DPCM channel after previewing any DPCM sample."),
+	_T("Ignore the pattern step setting when moving the cursor, only use it when inserting notes."),
+	_T("Make delete key pull up rows rather than only deleting the value, as if by Shift+Delete."),
+	_T("Create backup copy of unmodified file, when you open and save a module."),
+	_T("Only allow one single instance of the " APP_NAME " application."),
+	_T("Preview all channels when inserting notes in the pattern editor."),
+	_T("Do not select the whole channel when double-clicking in the pattern editor."),
+	_T("When using Shift + Mouse Wheel to modify a pattern value, allow the parameter to wrap around its limit values."),
+	_T("Always silent volume values below 1 due to Axy or 7xy effects."),
+	_T("Use the existing volume table for the FDS channel which has higher precision than in exported NSFs."),
+	_T("Move pasted pattern data outside the rows of the current frame to subsequent frames."),
+	_T("Display rows that are truncated by Bxx, Cxx, or Dxx effects."),
+	_T("Use the extra keys on the keypad as hexadecimal digits in the pattern editor."),
+	_T("Allow pattern selections to span across multiple frames."),
+	_T("Check for new " APP_NAME " versions on startup if an internet connection could be established."),
+};
 
 // CConfigGeneral dialog
 
@@ -43,25 +106,11 @@ void CConfigGeneral::DoDataExchange(CDataExchange* pDX)
 
 
 BEGIN_MESSAGE_MAP(CConfigGeneral, CPropertyPage)
-	ON_BN_CLICKED(IDC_OPT_WRAPCURSOR, OnBnClickedOptWrapcursor)
-	ON_BN_CLICKED(IDC_OPT_WRAPFRAMES, OnBnClickedOptWrapFrames)
-	ON_BN_CLICKED(IDC_OPT_FREECURSOR, OnBnClickedOptFreecursor)
-	ON_BN_CLICKED(IDC_OPT_WAVEPREVIEW, OnBnClickedOptWavepreview)
-	ON_BN_CLICKED(IDC_OPT_KEYREPEAT, OnBnClickedOptKeyrepeat)
-	ON_BN_CLICKED(IDC_STYLE1, OnBnClickedStyle1)
-	ON_BN_CLICKED(IDC_STYLE2, OnBnClickedStyle2)
-	ON_BN_CLICKED(IDC_STYLE3, OnBnClickedStyle3)
-	ON_BN_CLICKED(IDC_OPT_HEXROW, OnBnClickedOptHexadecimal)
-	ON_BN_CLICKED(IDC_OPT_FRAMEPREVIEW, OnBnClickedOptFramepreview)
-	ON_BN_CLICKED(IDC_OPT_NODPCMRESET, OnBnClickedOptNodpcmreset)
 	ON_CBN_EDITUPDATE(IDC_PAGELENGTH, OnCbnEditupdatePagelength)
 	ON_CBN_SELENDOK(IDC_PAGELENGTH, OnCbnSelendokPagelength)
-	ON_BN_CLICKED(IDC_OPT_NOSTEPMOVE, OnBnClickedOptNostepmove)
-	ON_BN_CLICKED(IDC_OPT_PULLUPDELETE, OnBnClickedOptPullupdelete)
-	ON_BN_CLICKED(IDC_OPT_BACKUPS, OnBnClickedOptBackups)
-	ON_BN_CLICKED(IDC_OPT_SINGLEINSTANCE, OnBnClickedOptSingleInstance)
-	ON_BN_CLICKED(IDC_OPT_PREVIEWFULLROW, OnBnClickedOptPreviewFullRow)
-	ON_BN_CLICKED(IDC_OPT_DOUBLECLICK, OnBnClickedOptDisableDoubleClick)
+	ON_CBN_SELCHANGE(IDC_COMBO_STYLE, OnCbnSelchangeComboStyle)
+	ON_WM_LBUTTONDOWN()
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_CONFIG_LIST, OnLvnItemchangedConfigList)
 END_MESSAGE_MAP()
 
 
@@ -69,61 +118,15 @@ END_MESSAGE_MAP()
 
 BOOL CConfigGeneral::OnSetActive()
 {
-	CheckDlgButton(IDC_OPT_WRAPCURSOR, m_bWrapCursor);
-	CheckDlgButton(IDC_OPT_WRAPFRAMES, m_bWrapFrames);
-	CheckDlgButton(IDC_OPT_FREECURSOR, m_bFreeCursorEdit);
-	CheckDlgButton(IDC_OPT_WAVEPREVIEW, m_bPreviewWAV);
-	CheckDlgButton(IDC_OPT_KEYREPEAT, m_bKeyRepeat);
-	CheckDlgButton(IDC_OPT_HEXROW, m_bRowInHex);
-	CheckDlgButton(IDC_OPT_FRAMEPREVIEW, m_bFramePreview);
-	CheckDlgButton(IDC_OPT_NODPCMRESET, m_bNoDPCMReset);
-	CheckDlgButton(IDC_OPT_NOSTEPMOVE, m_bNoStepMove);
-	CheckDlgButton(IDC_STYLE1, m_iEditStyle == EDIT_STYLE1);
-	CheckDlgButton(IDC_STYLE2, m_iEditStyle == EDIT_STYLE2);
-	CheckDlgButton(IDC_STYLE3, m_iEditStyle == EDIT_STYLE3);
-	CheckDlgButton(IDC_OPT_PULLUPDELETE, m_bPullUpDelete);
-	CheckDlgButton(IDC_OPT_BACKUPS, m_bBackups);
-	CheckDlgButton(IDC_OPT_SINGLEINSTANCE, m_bSingleInstance);
-	CheckDlgButton(IDC_OPT_PREVIEWFULLROW, m_bPreviewFullRow);
-	CheckDlgButton(IDC_OPT_DOUBLECLICK, m_bDisableDblClick);
-	
 	SetDlgItemInt(IDC_PAGELENGTH, m_iPageStepSize, FALSE);
+	static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_STYLE))->SetCurSel(m_iEditStyle);		// // //
+
 	return CPropertyPage::OnSetActive();
 }
 
 void CConfigGeneral::OnOK()
 {
 	CPropertyPage::OnOK();
-}
-
-void CConfigGeneral::OnBnClickedOptWrapcursor()
-{
-	m_bWrapCursor = IsDlgButtonChecked(IDC_OPT_WRAPCURSOR) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptWrapFrames()
-{
-	m_bWrapFrames = IsDlgButtonChecked(IDC_OPT_WRAPFRAMES) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptFreecursor()
-{
-	m_bFreeCursorEdit = IsDlgButtonChecked(IDC_OPT_FREECURSOR) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptWavepreview()
-{
-	m_bPreviewWAV = IsDlgButtonChecked(IDC_OPT_WAVEPREVIEW) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptKeyrepeat()
-{
-	m_bKeyRepeat = IsDlgButtonChecked(IDC_OPT_KEYREPEAT) != 0;
-	SetModified();
 }
 
 BOOL CConfigGeneral::OnApply()
@@ -135,8 +138,11 @@ BOOL CConfigGeneral::OnApply()
 	
 	if (Trans == FALSE)
 		m_iPageStepSize = 4;
-	else if (m_iPageStepSize > MAX_PATTERN_LENGTH)
-		m_iPageStepSize = MAX_PATTERN_LENGTH;
+	else if (m_iPageStepSize > 256 /*MAX_PATTERN_LENGTH*/)
+		m_iPageStepSize = 256 /*MAX_PATTERN_LENGTH*/;
+
+	if (m_bCheckVersion && !theApp.GetSettings()->General.bCheckVersion)		// // //
+		theApp.CheckNewVersion(false);
 
 	theApp.GetSettings()->General.bWrapCursor		= m_bWrapCursor;
 	theApp.GetSettings()->General.bWrapFrames		= m_bWrapFrames;
@@ -154,11 +160,21 @@ BOOL CConfigGeneral::OnApply()
 	theApp.GetSettings()->General.bSingleInstance	= m_bSingleInstance;
 	theApp.GetSettings()->General.bPreviewFullRow	= m_bPreviewFullRow;
 	theApp.GetSettings()->General.bDblClickSelect	= m_bDisableDblClick;
+	// // //
+	theApp.GetSettings()->General.bWrapPatternValue	= m_bWrapPatternValue;
+	theApp.GetSettings()->General.bCutVolume		= m_bCutVolume;
+	theApp.GetSettings()->General.bFDSOldVolume		= m_bFDSOldVolume;
+	theApp.GetSettings()->General.bOverflowPaste	= m_bOverflowPaste;
+	theApp.GetSettings()->General.bShowSkippedRows	= m_bShowSkippedRows;
+	theApp.GetSettings()->General.bHexKeypad		= m_bHexKeypad;
+	theApp.GetSettings()->General.bMultiFrameSel	= m_bMultiFrameSel;
+	theApp.GetSettings()->General.bCheckVersion		= m_bCheckVersion;
 
 	theApp.GetSettings()->Keys.iKeyNoteCut			= m_iKeyNoteCut;
 	theApp.GetSettings()->Keys.iKeyNoteRelease		= m_iKeyNoteRelease;
 	theApp.GetSettings()->Keys.iKeyClear			= m_iKeyClear;
 	theApp.GetSettings()->Keys.iKeyRepeat			= m_iKeyRepeat;
+	theApp.GetSettings()->Keys.iKeyEchoBuffer		= m_iKeyEchoBuffer;		// // //
 
 	return CPropertyPage::OnApply();
 }
@@ -185,11 +201,21 @@ BOOL CConfigGeneral::OnInitDialog()
 	m_bSingleInstance	= theApp.GetSettings()->General.bSingleInstance;
 	m_bPreviewFullRow	= theApp.GetSettings()->General.bPreviewFullRow;
 	m_bDisableDblClick	= theApp.GetSettings()->General.bDblClickSelect;
+	// // //
+	m_bWrapPatternValue = theApp.GetSettings()->General.bWrapPatternValue;
+	m_bCutVolume		= theApp.GetSettings()->General.bCutVolume;
+	m_bFDSOldVolume		= theApp.GetSettings()->General.bFDSOldVolume;
+	m_bOverflowPaste	= theApp.GetSettings()->General.bOverflowPaste;
+	m_bShowSkippedRows	= theApp.GetSettings()->General.bShowSkippedRows;
+	m_bHexKeypad		= theApp.GetSettings()->General.bHexKeypad;
+	m_bMultiFrameSel	= theApp.GetSettings()->General.bMultiFrameSel;
+	m_bCheckVersion		= theApp.GetSettings()->General.bCheckVersion;
 
 	m_iKeyNoteCut		= theApp.GetSettings()->Keys.iKeyNoteCut; 
 	m_iKeyNoteRelease	= theApp.GetSettings()->Keys.iKeyNoteRelease; 
 	m_iKeyClear			= theApp.GetSettings()->Keys.iKeyClear; 
 	m_iKeyRepeat		= theApp.GetSettings()->Keys.iKeyRepeat;
+	m_iKeyEchoBuffer	= theApp.GetSettings()->Keys.iKeyEchoBuffer;		// // //
 
 	GetKeyNameText(MapVirtualKey(m_iKeyNoteCut, MAPVK_VK_TO_VSC) << 16, Text, 64);
 	SetDlgItemText(IDC_KEY_NOTE_CUT, Text);
@@ -199,6 +225,8 @@ BOOL CConfigGeneral::OnInitDialog()
 	SetDlgItemText(IDC_KEY_CLEAR, Text);
 	GetKeyNameText(MapVirtualKey(m_iKeyRepeat, MAPVK_VK_TO_VSC) << 16, Text, 64);
 	SetDlgItemText(IDC_KEY_REPEAT, Text);
+	GetKeyNameText(MapVirtualKey(m_iKeyEchoBuffer, MAPVK_VK_TO_VSC) << 16, Text, 64);		// // //
+	SetDlgItemText(IDC_KEY_ECHO_BUFFER, Text);
 
 	EnableToolTips(TRUE);
 
@@ -216,80 +244,48 @@ BOOL CConfigGeneral::OnInitDialog()
 		pWndChild = pWndChild->GetWindow(GW_HWNDNEXT);
 	}
 
+	const bool CONFIG_BOOL[SETTINGS_BOOL_COUNT] = {		// // //
+		m_bWrapCursor,
+		m_bWrapFrames,
+		m_bFreeCursorEdit,
+		m_bPreviewWAV,
+		m_bKeyRepeat,
+		m_bRowInHex,
+		m_bFramePreview,
+		m_bNoDPCMReset,
+		m_bNoStepMove,
+		m_bPullUpDelete,
+		m_bBackups,
+		m_bSingleInstance,
+		m_bPreviewFullRow,
+		m_bDisableDblClick,
+		m_bWrapPatternValue,
+		m_bCutVolume,
+		m_bFDSOldVolume,
+		m_bOverflowPaste,
+		m_bShowSkippedRows,
+		m_bHexKeypad,
+		m_bMultiFrameSel,
+		m_bCheckVersion,
+	};
+
+	CListCtrl *pList = static_cast<CListCtrl*>(GetDlgItem(IDC_CONFIG_LIST));
+	CRect r;		// // //
+	pList->GetClientRect(&r);
+	pList->DeleteAllItems();
+	pList->InsertColumn(0, _T(""), LVCFMT_LEFT, 20);
+	pList->InsertColumn(1, _T("Option"), LVCFMT_LEFT, r.Width() - 20 - ::GetSystemMetrics(SM_CXHSCROLL));
+	pList->SendMessage(LVM_SETEXTENDEDLISTVIEWSTYLE, 0, LVS_EX_FULLROWSELECT | LVS_EX_CHECKBOXES);
+	pList->SetItemState(0, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+	
+	for (int i = SETTINGS_BOOL_COUNT - 1; i > -1; i--) {
+		pList->InsertItem(0, _T(""), 0);
+		pList->SetCheck(0, CONFIG_BOOL[i]);
+		pList->SetItemText(0, 1, CONFIG_STR[i]);
+	}
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// EXCEPTION: OCX Property Pages should return FALSE
-}
-
-void CConfigGeneral::OnBnClickedStyle1()
-{
-	m_iEditStyle = EDIT_STYLE1;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedStyle2()
-{
-	m_iEditStyle = EDIT_STYLE2;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedStyle3()
-{
-	m_iEditStyle = EDIT_STYLE3;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptHexadecimal()
-{
-	m_bRowInHex = IsDlgButtonChecked(IDC_OPT_HEXROW) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptFramepreview()
-{
-	m_bFramePreview = IsDlgButtonChecked(IDC_OPT_FRAMEPREVIEW) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptNodpcmreset()
-{
-	m_bNoDPCMReset = IsDlgButtonChecked(IDC_OPT_NODPCMRESET) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptNostepmove()
-{
-	m_bNoStepMove = IsDlgButtonChecked(IDC_OPT_NOSTEPMOVE) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptPullupdelete()
-{
-	m_bPullUpDelete = IsDlgButtonChecked(IDC_OPT_PULLUPDELETE) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptBackups()
-{
-	m_bBackups = IsDlgButtonChecked(IDC_OPT_BACKUPS) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptSingleInstance()
-{
-	m_bSingleInstance = IsDlgButtonChecked(IDC_OPT_SINGLEINSTANCE) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptPreviewFullRow()
-{
-	m_bPreviewFullRow = IsDlgButtonChecked(IDC_OPT_PREVIEWFULLROW) != 0;
-	SetModified();
-}
-
-void CConfigGeneral::OnBnClickedOptDisableDoubleClick()
-{
-	m_bDisableDblClick = IsDlgButtonChecked(IDC_OPT_DOUBLECLICK) != 0;
-	SetModified();
 }
 
 void CConfigGeneral::OnCbnEditupdatePagelength()
@@ -300,6 +296,67 @@ void CConfigGeneral::OnCbnEditupdatePagelength()
 void CConfigGeneral::OnCbnSelendokPagelength()
 {
 	SetModified();
+}
+
+void CConfigGeneral::OnCbnSelchangeComboStyle()		// // //
+{
+	m_iEditStyle = static_cast<CComboBox*>(GetDlgItem(IDC_COMBO_STYLE))->GetCurSel();
+	SetModified();
+}
+
+void CConfigGeneral::OnLvnItemchangedConfigList(NMHDR *pNMHDR, LRESULT *pResult)		// // //
+{
+	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
+	CListCtrl *pList = static_cast<CListCtrl*>(GetDlgItem(IDC_CONFIG_LIST));
+
+	auto mask = pNMLV->uNewState & pNMLV->uOldState;		// // // wine compatibility
+	pNMLV->uNewState &= ~mask;
+	pNMLV->uOldState &= ~mask;
+
+	using T = bool (CConfigGeneral::*);
+	static T CONFIG_BOOL[SETTINGS_BOOL_COUNT] = {		// // //
+		&CConfigGeneral::m_bWrapCursor,
+		&CConfigGeneral::m_bWrapFrames,
+		&CConfigGeneral::m_bFreeCursorEdit,
+		&CConfigGeneral::m_bPreviewWAV,
+		&CConfigGeneral::m_bKeyRepeat,
+		&CConfigGeneral::m_bRowInHex,
+		&CConfigGeneral::m_bFramePreview,
+		&CConfigGeneral::m_bNoDPCMReset,
+		&CConfigGeneral::m_bNoStepMove,
+		&CConfigGeneral::m_bPullUpDelete,
+		&CConfigGeneral::m_bBackups,
+		&CConfigGeneral::m_bSingleInstance,
+		&CConfigGeneral::m_bPreviewFullRow,
+		&CConfigGeneral::m_bDisableDblClick,
+		&CConfigGeneral::m_bWrapPatternValue,
+		&CConfigGeneral::m_bCutVolume,
+		&CConfigGeneral::m_bFDSOldVolume,
+		&CConfigGeneral::m_bOverflowPaste,
+		&CConfigGeneral::m_bShowSkippedRows,
+		&CConfigGeneral::m_bHexKeypad,
+		&CConfigGeneral::m_bMultiFrameSel,
+		&CConfigGeneral::m_bCheckVersion,
+	};
+	
+	if (pNMLV->uChanged & LVIF_STATE) {
+		if (pNMLV->uNewState & LVNI_SELECTED || pNMLV->uNewState & 0x3000) {
+			CString str;
+			str.Format(_T("Description: %s"), CONFIG_DESC[pNMLV->iItem]);
+			SetDlgItemText(IDC_EDIT_CONFIG_DESC, str);
+			
+			if (pNMLV->iItem >= 0 && pNMLV->iItem < SETTINGS_BOOL_COUNT)
+				pList->SetItemState(pNMLV->iItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+		}
+
+		if (pNMLV->uNewState & 0x3000) {
+			SetModified();
+			for (int i = 0; i < SETTINGS_BOOL_COUNT; i++)
+				this->*(CONFIG_BOOL[i]) = pList->GetCheck(i) != 0;
+		}
+	}
+
+	*pResult = 0;
 }
 
 BOOL CConfigGeneral::PreTranslateMessage(MSG* pMsg)
@@ -324,6 +381,9 @@ BOOL CConfigGeneral::PreTranslateMessage(MSG* pMsg)
 				break;
 			case IDC_KEY_REPEAT:
 				m_iKeyRepeat = key;
+				break;
+			case IDC_KEY_ECHO_BUFFER:		// // //
+				m_iKeyEchoBuffer = key;
 				break;
 			default:
 				return CPropertyPage::PreTranslateMessage(pMsg);

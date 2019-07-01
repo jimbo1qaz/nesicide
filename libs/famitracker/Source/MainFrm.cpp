@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -19,6 +21,7 @@
 */
 
 #include "stdafx.h"
+#include "version.h"		// // //
 #include <algorithm>
 #include "FamiTracker.h"
 #include "FamiTrackerDoc.h"
@@ -32,6 +35,7 @@
 #include "VisualizerWnd.h"
 #include "TextExporter.h"
 #include "ConfigGeneral.h"
+#include "ConfigVersion.h"		// // //
 #include "ConfigAppearance.h"
 #include "ConfigMIDI.h"
 #include "ConfigSound.h"
@@ -50,6 +54,14 @@
 #include "PatternEditor.h"
 #include "FrameEditor.h"
 #include "APU/APU.h"
+#include "GrooveDlg.h"		// // //
+#include "GotoDlg.h"		// // //
+#include "BookmarkDlg.h"	// // //
+#include "SwapDlg.h"		// // //
+#include "SpeedDlg.h"		// // //
+#include "TransposeDlg.h"	// // //
+#include "DPI.h"		// // //
+#include "HistoryFileDlg.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -81,27 +93,6 @@ enum {
 const int REPEAT_DELAY = 20;
 const int REPEAT_TIME = 200;
 
-// DPI variables
-static const int DEFAULT_DPI = 96;
-static int _dpiX, _dpiY;
-
-// DPI scaling functions
-int SX(int pt)
-{
-	return MulDiv(pt, _dpiX, DEFAULT_DPI);
-}
-
-int SY(int pt)
-{
-	return MulDiv(pt, _dpiY, DEFAULT_DPI);
-}
-
-void ScaleMouse(CPoint &pt)
-{
-	pt.x = MulDiv(pt.x, DEFAULT_DPI, _dpiX);
-	pt.y = MulDiv(pt.y, DEFAULT_DPI, _dpiY);
-}
-
 // CMainFrame
 
 IMPLEMENT_DYNCREATE(CMainFrame, CFrameWnd)
@@ -111,25 +102,34 @@ IMPLEMENT_DYNCREATE(CMainFrame, CFrameWnd)
 CMainFrame::CMainFrame() : 
 	m_pVisualizerWnd(NULL), 
 	m_pFrameEditor(NULL),
+	m_pGrooveDlg(NULL),			// // //
+	m_pFindDlg(NULL),			// // //
+	m_pBookmarkDlg(NULL),		// // //
+	m_pPerformanceDlg(NULL),	// // //
 	m_pImageList(NULL),
 	m_pLockedEditSpeed(NULL),
 	m_pLockedEditTempo(NULL),
 	m_pLockedEditLength(NULL),
 	m_pLockedEditFrames(NULL),
 	m_pLockedEditStep(NULL),
+	m_pLockedEditHighlight1(NULL),		// // //
+	m_pLockedEditHighlight2(NULL),		// // //
+	m_pButtonGroove(NULL),		// // //
+	m_pButtonFixTempo(NULL),		// // //
 	m_pBannerEditName(NULL),
 	m_pBannerEditArtist(NULL),
 	m_pBannerEditCopyright(NULL),
 	m_pInstrumentList(NULL),
-	m_pActionHandler(NULL),
+	m_history(NULL),
 	m_iFrameEditorPos(FRAME_EDIT_POS_TOP),
 	m_pInstrumentFileTree(NULL),
 	m_iInstrument(0),
 	m_iTrack(0),
-	m_iOctave(3)
+	m_iOctave(3),
+	m_iInstNumDigit(0),		// // //
+	m_iInstNumCurrent(MAX_INSTRUMENTS),		// // //
+	m_iKraidCounter(0)		// // // Easter Egg
 {
-	_dpiX = DEFAULT_DPI;
-	_dpiY = DEFAULT_DPI;
 }
 
 CMainFrame::~CMainFrame()
@@ -140,13 +140,21 @@ CMainFrame::~CMainFrame()
 	SAFE_RELEASE(m_pLockedEditLength);
 	SAFE_RELEASE(m_pLockedEditFrames);
 	SAFE_RELEASE(m_pLockedEditStep);
+	SAFE_RELEASE(m_pLockedEditHighlight1);		// // //
+	SAFE_RELEASE(m_pLockedEditHighlight2);		// // //
+	SAFE_RELEASE(m_pButtonGroove);		// // //
+	SAFE_RELEASE(m_pButtonFixTempo);		// // //
 	SAFE_RELEASE(m_pBannerEditName);
 	SAFE_RELEASE(m_pBannerEditArtist);
 	SAFE_RELEASE(m_pBannerEditCopyright);
 	SAFE_RELEASE(m_pFrameEditor);
+	SAFE_RELEASE(m_pGrooveDlg);			// // //
+	SAFE_RELEASE(m_pFindDlg);			// // //
+	SAFE_RELEASE(m_pBookmarkDlg);			// // //
+	SAFE_RELEASE(m_pPerformanceDlg);		// // //
 	SAFE_RELEASE(m_pInstrumentList);
 	SAFE_RELEASE(m_pVisualizerWnd);
-	SAFE_RELEASE(m_pActionHandler);
+	SAFE_RELEASE(m_history);
 	SAFE_RELEASE(m_pInstrumentFileTree);
 }
 
@@ -205,19 +213,19 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND(ID_TRACKER_PLAY_CURSOR, OnTrackerPlayCursor)
 	ON_COMMAND(ID_TRACKER_STOP, OnTrackerStop)
 	ON_COMMAND(ID_TRACKER_TOGGLE_PLAY, OnTrackerTogglePlay)
-	ON_COMMAND(ID_TRACKER_PLAYPATTERN, OnTrackerPlaypattern)	
+	ON_COMMAND(ID_TRACKER_PLAYPATTERN, OnTrackerPlaypattern)
 	ON_COMMAND(ID_TRACKER_KILLSOUND, OnTrackerKillsound)
 	ON_COMMAND(ID_TRACKER_SWITCHTOTRACKINSTRUMENT, OnTrackerSwitchToInstrument)
-	ON_COMMAND(ID_TRACKER_DPCM, OnTrackerDPCM)
+	// // //
 	ON_COMMAND(ID_TRACKER_DISPLAYREGISTERSTATE, OnTrackerDisplayRegisterState)
 	ON_COMMAND(ID_VIEW_CONTROLPANEL, OnViewControlpanel)
-//	ON_COMMAND(ID_HELP, CFrameWnd::OnHelp)
-//	ON_COMMAND(ID_HELP_FINDER, CFrameWnd::OnHelpFinder)
-//	ON_COMMAND(ID_HELP_PERFORMANCE, OnHelpPerformance)
-//	ON_COMMAND(ID_HELP_EFFECTTABLE, &CMainFrame::OnHelpEffecttable)
-//	ON_COMMAND(ID_HELP_FAQ, &CMainFrame::OnHelpFAQ)
-//	ON_COMMAND(ID_DEFAULT_HELP, CFrameWnd::OnHelpFinder)
-//	ON_COMMAND(ID_CONTEXT_HELP, CFrameWnd::OnContextHelp)
+	ON_COMMAND(ID_HELP, CFrameWnd::OnHelp)
+	ON_COMMAND(ID_HELP_FINDER, CFrameWnd::OnHelpFinder)
+	ON_COMMAND(ID_HELP_PERFORMANCE, OnHelpPerformance)
+	ON_COMMAND(ID_HELP_EFFECTTABLE, &CMainFrame::OnHelpEffecttable)
+	ON_COMMAND(ID_HELP_FAQ, &CMainFrame::OnHelpFAQ)
+	ON_COMMAND(ID_DEFAULT_HELP, CFrameWnd::OnHelpFinder)
+	ON_COMMAND(ID_CONTEXT_HELP, CFrameWnd::OnContextHelp)
 	ON_COMMAND(ID_FRAMEEDITOR_TOP, OnFrameeditorTop)
 	ON_COMMAND(ID_FRAMEEDITOR_LEFT, OnFrameeditorLeft)
 	ON_COMMAND(ID_NEXT_FRAME, OnNextFrame)
@@ -281,8 +289,6 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_UPDATE_COMMAND_UI(ID_PREV_SONG, OnUpdatePrevSong)
 	ON_UPDATE_COMMAND_UI(ID_TRACKER_SWITCHTOTRACKINSTRUMENT, OnUpdateTrackerSwitchToInstrument)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_CONTROLPANEL, OnUpdateViewControlpanel)
-	ON_UPDATE_COMMAND_UI(IDC_HIGHLIGHT1, OnUpdateHighlight)
-	ON_UPDATE_COMMAND_UI(IDC_HIGHLIGHT2, OnUpdateHighlight)
 	ON_UPDATE_COMMAND_UI(ID_EDIT_EXPANDPATTERNS, OnUpdateSelectionEnabled)
 	ON_UPDATE_COMMAND_UI(ID_EDIT_SHRINKPATTERNS, OnUpdateSelectionEnabled)
 	ON_UPDATE_COMMAND_UI(ID_FRAMEEDITOR_TOP, OnUpdateFrameeditorTop)
@@ -291,9 +297,88 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_CBN_SELCHANGE(IDC_OCTAVE, OnCbnSelchangeOctave)
 	ON_MESSAGE(WM_USER_DISPLAY_MESSAGE_STRING, OnDisplayMessageString)
 	ON_MESSAGE(WM_USER_DISPLAY_MESSAGE_ID, OnDisplayMessageID)
-//	ON_COMMAND(ID_VIEW_TOOLBAR, &CMainFrame::OnViewToolbar)
-   ON_COMMAND(ID_VIEW_TOOLBAR, OnViewToolbar)
-   END_MESSAGE_MAP()
+	ON_COMMAND(ID_VIEW_TOOLBAR, &CMainFrame::OnViewToolbar)
+
+	// // //
+	ON_BN_CLICKED(IDC_BUTTON_GROOVE, OnToggleGroove)
+	ON_BN_CLICKED(IDC_BUTTON_FIXTEMPO, OnToggleFixTempo)
+	ON_BN_CLICKED(IDC_CHECK_COMPACT, OnClickedCompact)
+	ON_COMMAND(ID_CMD_INST_NUM, OnTypeInstrumentNumber)
+	ON_COMMAND(IDC_COMPACT_TOGGLE, OnToggleCompact)
+	ON_UPDATE_COMMAND_UI(IDC_HIGHLIGHT1, OnUpdateHighlight1)
+	ON_UPDATE_COMMAND_UI(IDC_HIGHLIGHT2, OnUpdateHighlight2)
+	ON_NOTIFY(UDN_DELTAPOS, IDC_HIGHLIGHTSPIN1, OnDeltaposHighlightSpin1)
+	ON_NOTIFY(UDN_DELTAPOS, IDC_HIGHLIGHTSPIN2, OnDeltaposHighlightSpin2)
+	ON_COMMAND(ID_FILE_EXPORTROWS, OnFileExportRows)
+	ON_COMMAND(ID_COPYAS_TEXT, OnEditCopyAsText)
+	ON_COMMAND(ID_COPYAS_VOLUMESEQUENCE, OnEditCopyAsVolumeSequence)
+	ON_COMMAND(ID_COPYAS_PPMCK, OnEditCopyAsPPMCK)
+	ON_COMMAND(ID_EDIT_PASTEOVERWRITE, OnEditPasteOverwrite)
+	ON_COMMAND(ID_SELECT_NONE, OnEditSelectnone)
+	ON_COMMAND(ID_SELECT_ROW, OnEditSelectrow)
+	ON_COMMAND(ID_SELECT_COLUMN, OnEditSelectcolumn)
+	ON_COMMAND(ID_SELECT_PATTERN, OnEditSelectpattern)
+	ON_COMMAND(ID_SELECT_FRAME, OnEditSelectframe)
+	ON_COMMAND(ID_SELECT_CHANNEL, OnEditSelectchannel)
+	ON_COMMAND(ID_SELECT_TRACK, OnEditSelecttrack)
+	ON_COMMAND(ID_SELECT_OTHER, OnEditSelectother)
+	ON_COMMAND(ID_EDIT_FIND_TOGGLE, OnEditFindToggle)
+	ON_COMMAND(ID_FIND_NEXT, OnFindNext)
+	ON_COMMAND(ID_FIND_PREVIOUS, OnFindPrevious)
+	ON_COMMAND(ID_EDIT_GOTO, OnEditGoto)
+	ON_COMMAND(ID_EDIT_SWAPCHANNELS, OnEditSwapChannels)
+	ON_COMMAND(ID_EDIT_STRETCHPATTERNS, OnEditStretchpatterns)
+	ON_COMMAND(ID_TRANSPOSE_CUSTOM, OnEditTransposeCustom)
+	ON_COMMAND(ID_CLEANUP_REMOVEUNUSEDDPCMSAMPLES, OnEditRemoveUnusedSamples)
+	ON_COMMAND(ID_CLEANUP_POPULATEUNIQUEPATTERNS, OnEditPopulateUniquePatterns)
+	ON_COMMAND(ID_MODULE_DUPLICATECURRENTPATTERN, OnModuleDuplicateCurrentPattern)
+	ON_COMMAND(ID_MODULE_GROOVE, OnModuleGrooveSettings)
+	ON_COMMAND(ID_MODULE_BOOKMARK, OnModuleBookmarkSettings)
+	ON_COMMAND(ID_MODULE_ESTIMATESONGLENGTH, OnModuleEstimateSongLength)
+	ON_COMMAND(ID_TRACKER_PLAY_MARKER, OnTrackerPlayMarker)		// // // 050B
+	ON_COMMAND(ID_TRACKER_SET_MARKER, OnTrackerSetMarker)		// // // 050B
+	ON_COMMAND(ID_VIEW_AVERAGEBPM, OnTrackerDisplayAverageBPM)		// // // 050B
+	ON_COMMAND(ID_TOGGLE_MULTIPLEXER, OnToggleMultiplexer)
+	ON_UPDATE_COMMAND_UI(IDC_FOLLOW_TOGGLE, OnUpdateToggleFollow)
+	ON_UPDATE_COMMAND_UI(IDC_COMPACT_TOGGLE, OnUpdateToggleCompact)
+	ON_UPDATE_COMMAND_UI(IDC_BUTTON_FIXTEMPO, OnUpdateToggleFixTempo)
+	ON_UPDATE_COMMAND_UI(IDC_BUTTON_GROOVE, OnUpdateGrooveEdit)
+	ON_UPDATE_COMMAND_UI(ID_COPYAS_TEXT, OnUpdateEditCopySpecial)
+	ON_UPDATE_COMMAND_UI(ID_COPYAS_VOLUMESEQUENCE, OnUpdateEditCopySpecial)
+	ON_UPDATE_COMMAND_UI(ID_COPYAS_PPMCK, OnUpdateEditCopySpecial)
+	ON_UPDATE_COMMAND_UI(ID_EDIT_PASTEOVERWRITE, OnUpdateEditPasteOverwrite)
+	ON_UPDATE_COMMAND_UI(ID_SELECT_ROW, OnUpdatePatternEditorSelected)
+	ON_UPDATE_COMMAND_UI(ID_SELECT_COLUMN, OnUpdatePatternEditorSelected)
+	ON_UPDATE_COMMAND_UI(ID_SELECT_CHANNEL, OnUpdateSelectMultiFrame)
+	ON_UPDATE_COMMAND_UI(ID_SELECT_TRACK, OnUpdateSelectMultiFrame)
+//	ON_UPDATE_COMMAND_UI(ID_SELECT_OTHER, OnUpdateCurrentSelectionEnabled)
+	ON_UPDATE_COMMAND_UI(ID_EDIT_FIND_TOGGLE, OnUpdateEditFindToggle)
+	ON_UPDATE_COMMAND_UI(ID_EDIT_INTERPOLATE, OnUpdateSelectionEnabled)
+	ON_UPDATE_COMMAND_UI(ID_EDIT_REVERSE, OnUpdateSelectionEnabled)
+	ON_UPDATE_COMMAND_UI(ID_EDIT_REPLACEINSTRUMENT, OnUpdateSelectionEnabled)
+	ON_UPDATE_COMMAND_UI(ID_EDIT_STRETCHPATTERNS, OnUpdateSelectionEnabled)
+	ON_UPDATE_COMMAND_UI(ID_TRACKER_PLAY_MARKER, OnUpdateTrackerPlayMarker)		// // // 050B
+	ON_UPDATE_COMMAND_UI(ID_VIEW_AVERAGEBPM, OnUpdateDisplayAverageBPM)		// // // 050B
+	ON_UPDATE_COMMAND_UI(ID_TRACKER_DISPLAYREGISTERSTATE, OnUpdateDisplayRegisterState)
+	ON_UPDATE_COMMAND_UI(ID_DECAY_FAST, OnUpdateDecayFast)		// // // 050B
+	ON_UPDATE_COMMAND_UI(ID_DECAY_SLOW, OnUpdateDecaySlow)		// // // 050B
+	ON_COMMAND(ID_KRAID1, OnEasterEggKraid1)		// Easter Egg
+	ON_COMMAND(ID_KRAID2, OnEasterEggKraid2)
+	ON_COMMAND(ID_KRAID3, OnEasterEggKraid3)
+	ON_COMMAND(ID_KRAID4, OnEasterEggKraid4)
+	ON_COMMAND(ID_KRAID5, OnEasterEggKraid5)
+	// // // From CFamiTrackerView
+	ON_COMMAND(ID_CMD_OCTAVE_NEXT, OnNextOctave)
+	ON_COMMAND(ID_CMD_OCTAVE_PREVIOUS, OnPreviousOctave)
+	ON_COMMAND(ID_TRACKER_PAL, OnTrackerPal)
+	ON_COMMAND(ID_TRACKER_NTSC, OnTrackerNtsc)
+	ON_COMMAND(ID_SPEED_DEFAULT, OnSpeedDefault)
+	ON_COMMAND(ID_SPEED_CUSTOM, OnSpeedCustom)
+	ON_UPDATE_COMMAND_UI(ID_TRACKER_PAL, OnUpdateTrackerPal)
+	ON_UPDATE_COMMAND_UI(ID_TRACKER_NTSC, OnUpdateTrackerNtsc)
+	ON_UPDATE_COMMAND_UI(ID_SPEED_DEFAULT, OnUpdateSpeedDefault)
+	ON_UPDATE_COMMAND_UI(ID_SPEED_CUSTOM, OnUpdateSpeedCustom)
+	END_MESSAGE_MAP()
 
 
 BOOL CMainFrame::Create(LPCTSTR lpszClassName, LPCTSTR lpszWindowName, DWORD dwStyle , const RECT& rect , CWnd* pParentWnd , LPCTSTR lpszMenuName , DWORD dwExStyle , CCreateContext* pContext)
@@ -313,14 +398,12 @@ BOOL CMainFrame::Create(LPCTSTR lpszClassName, LPCTSTR lpszWindowName, DWORD dwS
 int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
 	// Get the DPI setting
-	CDC *pDC = GetDC();
-	if (pDC) {
-		_dpiX = pDC->GetDeviceCaps(LOGPIXELSX);
-		_dpiY = pDC->GetDeviceCaps(LOGPIXELSY);
+	if (CDC *pDC = GetDC()) {		// // //
+		DPI::SetScale(pDC->GetDeviceCaps(LOGPIXELSX), pDC->GetDeviceCaps(LOGPIXELSY));
 		ReleaseDC(pDC);
 	}
 
-	m_pActionHandler = new CActionHandler();
+	m_history = new History();
 
 	if (CFrameWnd::OnCreate(lpCreateStruct) == -1)
 		return -1;
@@ -329,15 +412,17 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		return -1;
 
 	if (!m_wndStatusBar.Create(this) || !m_wndStatusBar.SetIndicators(indicators, sizeof(indicators) / sizeof(UINT))) {
-		TRACE0("Failed to create status bar\n");
+		TRACE("Failed to create status bar\n");
 		return -1;      // fail to create
 	}
+	m_wndStatusBar.SetPaneInfo(1, ID_INDICATOR_CHIP, SBPS_NORMAL, 250);		// // //
+	m_wndStatusBar.SetPaneInfo(2, ID_INDICATOR_INSTRUMENT, SBPS_NORMAL, 100);		// // //
 
 	if (!CreateDialogPanels())
 		return -1;
 
 	if (!CreateInstrumentToolbar()) {
-		TRACE0("Failed to create instrument toolbar\n");
+		TRACE("Failed to create instrument toolbar\n");
 		return -1;      // fail to create
 	}
 
@@ -349,7 +434,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	*/
 	
 	if (!CreateVisualizerWindow()) {
-		TRACE0("Failed to create sample window\n");
+		TRACE("Failed to create sample window\n");
 		return -1;      // fail to create
 	}
 
@@ -365,8 +450,9 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 #endif
 
 	m_wndOctaveBar.CheckDlgButton(IDC_FOLLOW, theApp.GetSettings()->FollowMode);
-	m_wndOctaveBar.SetDlgItemInt(IDC_HIGHLIGHT1, CFamiTrackerDoc::DEFAULT_FIRST_HIGHLIGHT, 0);
-	m_wndOctaveBar.SetDlgItemInt(IDC_HIGHLIGHT2, CFamiTrackerDoc::DEFAULT_SECOND_HIGHLIGHT, 0);
+	m_wndOctaveBar.CheckDlgButton(IDC_CHECK_COMPACT, false);		// // //
+	m_wndOctaveBar.SetDlgItemInt(IDC_HIGHLIGHT1, CPatternData::DEFAULT_HIGHLIGHT.First, 0);		// // //
+	m_wndOctaveBar.SetDlgItemInt(IDC_HIGHLIGHT2, CPatternData::DEFAULT_HIGHLIGHT.Second, 0);
 
 	UpdateMenus();
 
@@ -380,12 +466,10 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	m_strTitle.Append(_T(" [BETA]"));
 #endif
 
-//#ifndef RELEASE_BUILD
-//	if (AfxGetResourceHandle() != AfxGetInstanceHandle()) {
-//		// Prevent confusing bugs while developing
-//		m_strTitle.Append(_T(" [Localization enabled]"));
-//	}
-//#endif
+	if (AfxGetResourceHandle() != AfxGetInstanceHandle()) {		// // //
+		// Prevent confusing bugs while developing
+		m_strTitle.Append(_T(" [Localization enabled]"));
+	}
 
 	return 0;
 }
@@ -395,58 +479,58 @@ bool CMainFrame::CreateToolbars()
 	REBARBANDINFO rbi1;
 
 	if (!m_wndToolBarReBar.Create(this)) {
-		TRACE0("Failed to create rebar\n");
+		TRACE("Failed to create rebar\n");
 		return false;      // fail to create
 	}
 
 	// Add the toolbar
 	if (!m_wndToolBar.CreateEx(this, TBSTYLE_FLAT | TBSTYLE_TRANSPARENT, WS_CHILD | WS_VISIBLE | CBRS_TOP | CBRS_TOOLTIPS | CBRS_FLYBY | CBRS_SIZE_DYNAMIC) ||
 		!m_wndToolBar.LoadToolBar(IDR_MAINFRAME))  {
-		TRACE0("Failed to create toolbar\n");
+		TRACE("Failed to create toolbar\n");
 		return false;      // fail to create
 	}
 
 	m_wndToolBar.SetBarStyle(CBRS_ALIGN_TOP | CBRS_SIZE_DYNAMIC | CBRS_TOOLTIPS | CBRS_FLYBY);
 
 	if (!m_wndOctaveBar.Create(this, (UINT)IDD_OCTAVE, CBRS_TOOLTIPS | CBRS_FLYBY, IDD_OCTAVE)) {
-		TRACE0("Failed to create octave bar\n");
+		TRACE("Failed to create octave bar\n");
 		return false;      // fail to create
 	}
 
 	rbi1.cbSize		= sizeof(REBARBANDINFO);
 	rbi1.fMask		= RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
-	rbi1.fStyle		= RBBS_NOGRIPPER;
+	rbi1.fStyle		= RBBS_GRIPPERALWAYS;		// // // 050B
 	rbi1.hwndChild	= m_wndToolBar;
-	rbi1.cxMinChild	= SX(554);
-	rbi1.cyMinChild	= SY(22);
-	rbi1.cx			= SX(496);
+	rbi1.cxMinChild	= DPI::SX(554);
+	rbi1.cyMinChild	= DPI::SY(22);
+	rbi1.cx			= DPI::SX(496);
 
 	if (!m_wndToolBarReBar.GetReBarCtrl().InsertBand(-1, &rbi1)) {
-		TRACE0("Failed to create rebar\n");
+		TRACE("Failed to create rebar\n");
 		return false;      // fail to create
 	}
 
 	rbi1.cbSize		= sizeof(REBARBANDINFO);
 	rbi1.fMask		= RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_SIZE;
-	rbi1.fStyle		= RBBS_NOGRIPPER;
+	rbi1.fStyle		= RBBS_GRIPPERALWAYS;		// // // 050B
 	rbi1.hwndChild	= m_wndOctaveBar;
-	rbi1.cxMinChild	= SX(120);
-	rbi1.cyMinChild	= SY(22);
-	rbi1.cx			= SX(100);
+	rbi1.cxMinChild	= DPI::SX(460);		// // //
+	rbi1.cyMinChild	= DPI::SY(22);
+	rbi1.cx			= DPI::SX(100);
 
 	if (!m_wndToolBarReBar.GetReBarCtrl().InsertBand(-1, &rbi1)) {
-		TRACE0("Failed to create rebar\n");
+		TRACE("Failed to create rebar\n");
 		return false;      // fail to create
 	}
 
 	m_wndToolBarReBar.GetReBarCtrl().MinimizeBand(0);
 
-   HBITMAP hbm = (HBITMAP)::LoadImage(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDB_TOOLBAR_256), IMAGE_BITMAP, 0,0, LR_CREATEDIBSECTION /*| LR_LOADMAP3DCOLORS*/);
-   m_bmToolbar.Attach(hbm);
-
-   m_ilToolBar.Create(16, 15, ILC_COLOR8 | ILC_MASK, 4, 4);
-   m_ilToolBar.Add(&m_bmToolbar, RGB(192, 192, 192));
-   m_wndToolBar.GetToolBarCtrl().SetImageList(&m_ilToolBar);
+	HBITMAP hbm = (HBITMAP)::LoadImage(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDB_TOOLBAR_256), IMAGE_BITMAP, DPI::SX(352), DPI::SY(16), LR_CREATEDIBSECTION);
+	m_bmToolbar.Attach(hbm); 
+	
+	m_ilToolBar.Create(DPI::SX(16), DPI::SY(16), ILC_COLOR8 | ILC_MASK, 4, 4);
+	m_ilToolBar.Add(&m_bmToolbar, RGB(192, 192, 192));
+	m_wndToolBar.GetToolBarCtrl().SetImageList(&m_ilToolBar);
 
 	return true;
 }
@@ -457,13 +541,13 @@ bool CMainFrame::CreateDialogPanels()
 
 	// Top area
 	if (!m_wndControlBar.Create(this, IDD_MAINBAR, CBRS_TOP | CBRS_TOOLTIPS | CBRS_FLYBY, IDD_MAINBAR)) {
-		TRACE0("Failed to create frame main bar\n");
+		TRACE("Failed to create frame main bar\n");
 		return false;
 	}
 
 	/////////
 	if (!m_wndVerticalControlBar.Create(this, IDD_MAINBAR, CBRS_LEFT | CBRS_TOOLTIPS | CBRS_FLYBY, IDD_MAINBAR)) {
-		TRACE0("Failed to create frame main bar\n");
+		TRACE("Failed to create frame main bar\n");
 		return false;
 	}
 
@@ -478,17 +562,31 @@ bool CMainFrame::CreateDialogPanels()
 	// Create frame editor
 	m_pFrameEditor = new CFrameEditor(this);
 
-	CRect rect(SX(12), SY(10), SX(162), SY(173));
+	CRect rect(12, 12, m_pFrameEditor->CalcWidth(CHANNELS_DEFAULT), 162);
+	DPI::ScaleRect(rect);		// // //
 
 	if (!m_pFrameEditor->CreateEx(WS_EX_STATICEDGE, NULL, _T(""), WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_HSCROLL, rect, (CWnd*)&m_wndControlBar, 0)) {
-		TRACE0("Failed to create pattern window\n");
+		TRACE("Failed to create pattern window\n");
 		return false;
 	}
+	
+	// // // Find / replace panel
+	m_pFindDlg = new CFindDlg();
+	if (!m_wndFindControlBar.Create(this, IDD_MAINBAR, CBRS_RIGHT | CBRS_TOOLTIPS | CBRS_FLYBY, IDD_MAINBAR)) {
+		TRACE("Failed to create frame main bar\n");
+		return false;
+	}
+	m_wndFindControlBar.ShowWindow(SW_HIDE);
+	if (!m_pFindDlg->Create(IDD_FIND, &m_wndFindControlBar)) {
+		TRACE("Failed to create find / replace dialog\n");
+		return false;
+	}
+	m_pFindDlg->ShowWindow(SW_SHOW);
 
 	m_wndDialogBar.SetFrameParent(this);
 
 	if (!m_wndDialogBar.Create(IDD_MAINFRAME, &m_wndControlBar)) {
-		TRACE0("Failed to create dialog bar\n");
+		TRACE("Failed to create dialog bar\n");
 		return false;
 	}
 	
@@ -500,12 +598,20 @@ bool CMainFrame::CreateDialogPanels()
 	m_pLockedEditLength = new CLockedEdit();
 	m_pLockedEditFrames = new CLockedEdit();
 	m_pLockedEditStep	= new CLockedEdit();
+	m_pLockedEditHighlight1 = new CLockedEdit();		// // //
+	m_pLockedEditHighlight2 = new CLockedEdit();		// // //
+	m_pButtonGroove		= new CButton();		// // //
+	m_pButtonFixTempo	= new CButton();		// // //
 
 	m_pLockedEditSpeed->SubclassDlgItem(IDC_SPEED, &m_wndDialogBar);
 	m_pLockedEditTempo->SubclassDlgItem(IDC_TEMPO, &m_wndDialogBar);
 	m_pLockedEditLength->SubclassDlgItem(IDC_ROWS, &m_wndDialogBar);
 	m_pLockedEditFrames->SubclassDlgItem(IDC_FRAMES, &m_wndDialogBar);
 	m_pLockedEditStep->SubclassDlgItem(IDC_KEYSTEP, &m_wndDialogBar);
+	m_pLockedEditHighlight1->SubclassDlgItem(IDC_HIGHLIGHT1, &m_wndOctaveBar);		// // //
+	m_pLockedEditHighlight2->SubclassDlgItem(IDC_HIGHLIGHT2, &m_wndOctaveBar);		// // //
+	m_pButtonGroove->SubclassDlgItem(IDC_BUTTON_GROOVE, &m_wndDialogBar);		// // //
+	m_pButtonFixTempo->SubclassDlgItem(IDC_BUTTON_FIXTEMPO, &m_wndDialogBar);		// // //
 
 	// Subclass and setup the instrument list
 	
@@ -521,7 +627,7 @@ bool CMainFrame::CreateDialogPanels()
 	m_pImageList->Add(theApp.LoadIcon(IDI_INST_VRC7));
 	m_pImageList->Add(theApp.LoadIcon(IDI_INST_FDS));
 	m_pImageList->Add(theApp.LoadIcon(IDI_INST_N163));
-	m_pImageList->Add(theApp.LoadIcon(IDI_INST_5B));
+	m_pImageList->Add(theApp.LoadIcon(IDI_INST_S5B));		// // //
 
 	m_pInstrumentList->SetImageList(m_pImageList, LVSIL_NORMAL);
 	m_pInstrumentList->SetImageList(m_pImageList, LVSIL_SMALL);
@@ -549,7 +655,7 @@ bool CMainFrame::CreateDialogPanels()
 #ifdef NEW_INSTRUMENTPANEL
 /*
 	if (!m_wndInstrumentBar.Create(this, IDD_INSTRUMENTPANEL, CBRS_RIGHT | CBRS_TOOLTIPS | CBRS_FLYBY, IDD_INSTRUMENTPANEL)) {
-		TRACE0("Failed to create frame instrument bar\n");
+		TRACE("Failed to create frame instrument bar\n");
 	}
 
 	m_wndInstrumentBar.ShowWindow(SW_SHOW);
@@ -559,7 +665,7 @@ bool CMainFrame::CreateDialogPanels()
 	// Frame bar
 /*
 	if (!m_wndFrameBar.Create(this, IDD_FRAMEBAR, CBRS_LEFT | CBRS_TOOLTIPS | CBRS_FLYBY, IDD_FRAMEBAR)) {
-		TRACE0("Failed to create frame bar\n");
+		TRACE("Failed to create frame bar\n");
 	}
 	
 	m_wndFrameBar.ShowWindow(SW_SHOW);
@@ -570,12 +676,9 @@ bool CMainFrame::CreateDialogPanels()
 
 bool CMainFrame::CreateVisualizerWindow()
 {
-	const int POS_X = 138;
-	const int POS_Y = 113;
-	const int WIDTH = 143;
-	const int HEIGHT = 40;
-
-	CRect rect(SX(POS_X), SY(POS_Y), SX(POS_X) + WIDTH, SY(POS_Y) + HEIGHT);
+	CRect rect;		// // // 050B
+	m_wndDialogBar.GetDlgItem(IDC_MAINFRAME_VISUALIZER)->GetWindowRect(&rect);
+	GetDesktopWindow()->MapWindowPoints(&m_wndDialogBar, &rect);
 
 	// Create the sample graph window
 	m_pVisualizerWnd = new CVisualizerWnd();
@@ -597,7 +700,7 @@ bool CMainFrame::CreateInstrumentToolbar()
 	// Setup the instrument toolbar
 	REBARBANDINFO rbi;
 
-	if (!m_wndInstToolBarWnd.CreateEx(0, NULL, _T(""), WS_CHILD | WS_VISIBLE, CRect(SX(288), SY(173), SX(472), SY(199)), (CWnd*)&m_wndDialogBar, 0))
+	if (!m_wndInstToolBarWnd.CreateEx(0, NULL, _T(""), WS_CHILD | WS_VISIBLE, DPI::Rect(310, 173, 184, 26), (CWnd*)&m_wndDialogBar, 0))
 		return false;
 
 	if (!m_wndInstToolReBar.Create(WS_CHILD | WS_VISIBLE, CRect(0, 0, 0, 0), &m_wndInstToolBarWnd, AFX_IDW_REBAR))
@@ -606,23 +709,23 @@ bool CMainFrame::CreateInstrumentToolbar()
 	if (!m_wndInstToolBar.CreateEx(&m_wndInstToolReBar, TBSTYLE_FLAT | TBSTYLE_TRANSPARENT, WS_CHILD | WS_VISIBLE | CBRS_TOP | CBRS_TOOLTIPS | CBRS_FLYBY | CBRS_SIZE_DYNAMIC) || !m_wndInstToolBar.LoadToolBar(IDT_INSTRUMENT))
 		return false;
 
-   m_wndInstToolBar.GetToolBarCtrl().SetExtendedStyle(TBSTYLE_EX_DRAWDDARROWS);
+	m_wndInstToolBar.GetToolBarCtrl().SetExtendedStyle(TBSTYLE_EX_DRAWDDARROWS);
 
-   // Set 24-bit icons
-   HBITMAP hbm = (HBITMAP)::LoadImage(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDB_TOOLBAR_INST_256), IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
-   m_bmInstToolbar.Attach(hbm);
-   m_ilInstToolBar.Create(16, 16, ILC_COLOR24 | ILC_MASK, 4, 4);
-   m_ilInstToolBar.Add(&m_bmInstToolbar, RGB(255, 0, 255));
-   m_wndInstToolBar.GetToolBarCtrl().SetImageList(&m_ilInstToolBar);
+	// Set 24-bit icons
+	HBITMAP hbm = (HBITMAP)::LoadImage(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDB_TOOLBAR_INST_256), IMAGE_BITMAP, DPI::SX(96), DPI::SY(16), LR_CREATEDIBSECTION);
+	m_bmInstToolbar.Attach(hbm);
+	m_ilInstToolBar.Create(DPI::SX(16), DPI::SY(16), ILC_COLOR24 | ILC_MASK, 4, 4);
+	m_ilInstToolBar.Add(&m_bmInstToolbar, RGB(255, 0, 255));
+	m_wndInstToolBar.GetToolBarCtrl().SetImageList(&m_ilInstToolBar);
 
 	rbi.cbSize		= sizeof(REBARBANDINFO);
 	rbi.fMask		= RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_STYLE | RBBIM_TEXT;
 	rbi.fStyle		= RBBS_NOGRIPPER;
-	rbi.cxMinChild	= SX(300);
-	rbi.cyMinChild	= SY(30);
+	rbi.cxMinChild	= DPI::SX(300);
+	rbi.cyMinChild	= DPI::SY(30);
 	rbi.lpText		= "";
 	rbi.cch			= 7;
-	rbi.cx			= SX(300);
+	rbi.cx			= DPI::SX(300);
 	rbi.hwndChild	= m_wndInstToolBar;
 
 	m_wndInstToolReBar.InsertBand(-1, &rbi);
@@ -648,18 +751,18 @@ void CMainFrame::ResizeFrameWindow()
 	if (pDocument != NULL) {
 
 		int Channels = pDocument->GetAvailableChannels();
-		int Height(0), Width(0);
+		int Height = 0, Width = 0;
 
 		// Located to the right
 		if (m_iFrameEditorPos == FRAME_EDIT_POS_TOP) {
 			// Frame editor window
-			Height = CFrameEditor::DEFAULT_HEIGHT;
+			Height = CFrameEditor::DEFAULT_HEIGHT;		// // // 050B
 			Width = m_pFrameEditor->CalcWidth(Channels);
 
-			m_pFrameEditor->MoveWindow(SX(12), SY(12), SX(Width), SY(Height));
+			m_pFrameEditor->MoveWindow(DPI::Rect(12, 12, Width, Height));		// // //
 
 			// Move frame controls
-			m_wndFrameControls.MoveWindow(SX(10), SY(Height) + SY(21), SX(150), SY(26));
+			m_wndFrameControls.MoveWindow(DPI::Rect(10, Height + 21, 150, 26));		// // //
 		}
 		// Located to the left
 		else {
@@ -667,37 +770,37 @@ void CMainFrame::ResizeFrameWindow()
 			CRect rect;
 			m_wndVerticalControlBar.GetClientRect(&rect);
 
-			Height = rect.Height() - CPatternEditor::HEADER_HEIGHT - 2;
+			Height = rect.Height() - DPI::SY(CPatternEditor::HEADER_HEIGHT - 2);		// // //
 			Width = m_pFrameEditor->CalcWidth(Channels);
 
-			m_pFrameEditor->MoveWindow(SX(2), SY(CPatternEditor::HEADER_HEIGHT + 1), SX(Width), SY(Height));
+			m_pFrameEditor->MoveWindow(DPI::SX(2), DPI::SY(CPatternEditor::HEADER_HEIGHT + 1), DPI::SX(Width), Height);		// // //
 
 			// Move frame controls
-			m_wndFrameControls.MoveWindow(SX(4), SY(10), SX(150), SY(26));
+			m_wndFrameControls.MoveWindow(DPI::Rect(4, 10, 150, 26));
 		}
 
 		// Vertical control bar
-		m_wndVerticalControlBar.m_sizeDefault.cx = Width + 4;
+		m_wndVerticalControlBar.m_sizeDefault.cx = DPI::SX(Width + 4);		// // // 050B
 		m_wndVerticalControlBar.CalcFixedLayout(TRUE, FALSE);
 		RecalcLayout();
 	}
 
-	CRect ChildRect, ParentRect, FrameEditorRect;
 
+	int DialogStartPos = 0;
+	if (m_iFrameEditorPos == FRAME_EDIT_POS_TOP) {
+		CRect FrameEditorRect;
+		m_pFrameEditor->GetClientRect(&FrameEditorRect);
+		DialogStartPos = FrameEditorRect.right + DPI::SX(32);		// // // 050B
+	}
+
+	CRect ParentRect;
 	m_wndControlBar.GetClientRect(&ParentRect);
-	m_pFrameEditor->GetClientRect(&FrameEditorRect);
-
-	int DialogStartPos;
-
-	if (m_iFrameEditorPos == FRAME_EDIT_POS_TOP)
-		DialogStartPos = FrameEditorRect.right + 32;
-	else
-		DialogStartPos = 0;
-
-	m_wndDialogBar.MoveWindow(DialogStartPos, 2, ParentRect.Width() - DialogStartPos, ParentRect.Height() - 4);
-	m_wndDialogBar.GetWindowRect(&ChildRect);
-	m_wndDialogBar.GetDlgItem(IDC_INSTRUMENTS)->MoveWindow(SX(288), SY(10), ChildRect.Width() - SX(296), SY(158));
-	m_wndDialogBar.GetDlgItem(IDC_INSTNAME)->MoveWindow(SX(478), SY(175), ChildRect.Width() - SX(486), SY(22));
+	m_wndDialogBar.MoveWindow(DialogStartPos, DPI::SY(2), ParentRect.Width() - DialogStartPos, ParentRect.Height() - DPI::SY(4));		// // //
+	
+	CRect ControlRect;		// // //
+	m_wndDialogBar.GetDlgItem(IDC_MAINFRAME_INST_TOOLBAR)->GetWindowRect(&ControlRect);
+	GetDesktopWindow()->MapWindowPoints(&m_wndDialogBar, ControlRect);
+	m_wndInstToolBarWnd.MoveWindow(ControlRect);
 
 	m_pFrameEditor->RedrawWindow();
 }
@@ -729,9 +832,15 @@ void CMainFrame::SetTempo(int Tempo)
 void CMainFrame::SetSpeed(int Speed)
 {
 	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
-	int MaxSpeed = pDoc->GetSpeedSplitPoint() - 1;
-	Speed = std::max(Speed, MIN_SPEED);
-	Speed = std::min(Speed, MaxSpeed);
+	int MaxSpeed = pDoc->GetSongTempo(m_iTrack) ? pDoc->GetSpeedSplitPoint() - 1 : 0xFF;
+	if (pDoc->GetSongGroove(m_iTrack)) {		// // //
+		Speed = std::max(Speed, 0);
+		Speed = std::min(Speed, MAX_GROOVE - 1);
+	}
+	else {
+		Speed = std::max(Speed, MIN_SPEED);
+		Speed = std::min(Speed, MaxSpeed);		// // //
+	}
 	pDoc->SetSongSpeed(m_iTrack, Speed);
 	theApp.GetSoundGenerator()->ResetTempo();
 
@@ -747,25 +856,7 @@ void CMainFrame::SetRowCount(int Count)
 	if (!pDoc->IsFileLoaded())
 		return;
 
-	Count = std::max(Count, 1);
-	Count = std::min(Count, MAX_PATTERN_LENGTH);
-
-	if (Count != pDoc->GetPatternLength(m_iTrack)) {
-
-		CPatternAction *pAction = dynamic_cast<CPatternAction*>(GetLastAction(CPatternAction::ACT_PATTERN_LENGTH));
-
-		if (pAction == NULL) {
-			// New action
-			pAction = new CPatternAction(CPatternAction::ACT_PATTERN_LENGTH);
-			pAction->SetPatternLength(Count);
-			AddAction(pAction);
-		}
-		else {
-			// Update existing action
-			pAction->SetPatternLength(Count);
-			pAction->Update(this);
-		}
-	}
+	AddAction(new CPActionPatternLen {std::min(std::max(Count, 1), MAX_PATTERN_LENGTH)});		// // //
 
 	if (m_wndDialogBar.GetDlgItemInt(IDC_ROWS) != Count)
 		m_wndDialogBar.SetDlgItemInt(IDC_ROWS, Count, FALSE);
@@ -782,22 +873,7 @@ void CMainFrame::SetFrameCount(int Count)
 	Count = std::max(Count, 1);
 	Count = std::min(Count, MAX_FRAMES);
 
-	if (Count != pDoc->GetFrameCount(m_iTrack)) {
-
-		CFrameAction *pAction = static_cast<CFrameAction*>(GetLastAction(CFrameAction::ACT_CHANGE_COUNT));
-
-		if (pAction == NULL) {
-			// New action
-			pAction = new CFrameAction(CFrameAction::ACT_CHANGE_COUNT);
-			pAction->SetFrameCount(Count);
-			AddAction(pAction);
-		}
-		else {
-			// Update existing action
-			pAction->SetFrameCount(Count);
-			pAction->Update(this);
-		}
-	}
+	AddAction(new CFActionFrameCount {std::min(std::max(Count, 1), MAX_FRAMES)});		// // //
 
 	if (m_wndDialogBar.GetDlgItemInt(IDC_FRAMES) != Count)
 		m_wndDialogBar.SetDlgItemInt(IDC_FRAMES, Count, FALSE);
@@ -808,21 +884,17 @@ void CMainFrame::UpdateControls()
 	m_wndDialogBar.UpdateDialogControls(&m_wndDialogBar, TRUE);
 }
 
-void CMainFrame::SetFirstHighlightRow(int Rows)
+void CMainFrame::SetHighlightRows(stHighlight Hl)
 {
-	m_wndOctaveBar.SetDlgItemInt(IDC_HIGHLIGHT1, Rows);
-}
-
-void CMainFrame::SetSecondHighlightRow(int Rows)
-{
-	m_wndOctaveBar.SetDlgItemInt(IDC_HIGHLIGHT2, Rows);
+	m_wndOctaveBar.SetDlgItemInt(IDC_HIGHLIGHT1, Hl.First);
+	m_wndOctaveBar.SetDlgItemInt(IDC_HIGHLIGHT2, Hl.Second);
 }
 
 void CMainFrame::DisplayOctave()
 {
 	CComboBox *pOctaveList = static_cast<CComboBox*>(m_wndOctaveBar.GetDlgItem(IDC_OCTAVE));
 	CFamiTrackerView *pView	= static_cast<CFamiTrackerView*>(GetActiveView());
-	pOctaveList->SetCurSel(pView->GetOctave());
+	pOctaveList->SetCurSel(GetSelectedOctave());		// // //
 }
 
 // CMainFrame diagnostics
@@ -843,18 +915,14 @@ void CMainFrame::Dump(CDumpContext& dc) const
 
 // CMainFrame message handlers
 
-void CMainFrame::SetStatusText(LPCTSTR Text,...)
+template <typename... T>
+void CMainFrame::SetStatusText(LPCTSTR Text, T... args)		// // //
 {
-	char	Buf[512];
-    va_list argp;
-    
-	va_start(argp, Text);
-    
 	if (!Text)
 		return;
 
-    vsprintf(Buf, Text, argp);
-
+	char Buf[512] = { };
+	_sntprintf_s(Buf, sizeof(Buf), _TRUNCATE, Text, args...);
 	m_wndStatusBar.SetWindowText(Buf);
 }
 
@@ -971,6 +1039,65 @@ void CMainFrame::OnPrevInstrument()
 	m_pInstrumentList->SelectPreviousItem();
 }
 
+void CMainFrame::OnNextOctave()		// // //
+{
+	int Octave = GetSelectedOctave();
+	if (Octave < 7)
+		SelectOctave(Octave + 1);
+}
+
+void CMainFrame::OnPreviousOctave()		// // //
+{
+	int Octave = GetSelectedOctave();
+	if (Octave > 0)
+		SelectOctave(Octave - 1);
+}
+
+static const int INST_DIGITS = 2;		// // //
+
+void CMainFrame::OnTypeInstrumentNumber()		// // //
+{
+	m_iInstNumDigit = 1;
+	m_iInstNumCurrent = 0;
+	ShowInstrumentNumberText();
+}
+
+bool CMainFrame::TypeInstrumentNumber(int Digit)		// // //
+{
+	if (!m_iInstNumDigit) return false;
+	if (Digit != -1) {
+		m_iInstNumCurrent |= Digit << (4 * (INST_DIGITS - m_iInstNumDigit++));
+		ShowInstrumentNumberText();
+		if (m_iInstNumDigit > INST_DIGITS) {
+			if (m_iInstNumCurrent >= 0 && m_iInstNumCurrent < MAX_INSTRUMENTS)
+				SelectInstrument(m_iInstNumCurrent);
+			else {
+				SetMessageText(IDS_INVALID_INST_NUM);
+				MessageBeep(MB_ICONWARNING);
+			}
+			m_iInstNumDigit = 0;
+		}
+	}
+	else {
+		SetMessageText(IDS_INVALID_INST_NUM);
+		MessageBeep(MB_ICONWARNING);
+		m_iInstNumDigit = 0;
+	}
+	return true;
+}
+
+void CMainFrame::ShowInstrumentNumberText()
+{
+	CString msg, digit;
+	for (int i = 0; i < INST_DIGITS; ++i)
+		if (i >= m_iInstNumDigit - 1)
+			digit.AppendChar(_T('_'));
+		else
+			digit.AppendFormat("%X", (m_iInstNumCurrent >> (4 * (INST_DIGITS - i - 1))) & 0xF);
+	AfxFormatString1(msg, IDS_TYPE_INST_NUM, digit);
+	SetMessageText(msg);
+}
+
 void CMainFrame::GetInstrumentName(char *pText) const
 {
 	m_wndDialogBar.GetDlgItem(IDC_INSTNAME)->GetWindowText(pText, CInstrument::INST_NAME_MAX);
@@ -998,7 +1125,10 @@ void CMainFrame::SetIndicatorTime(int Min, int Sec, int MSec)
 void CMainFrame::SetIndicatorPos(int Frame, int Row)
 {
 	CString String;
-	String.Format(_T("%02i / %02i"), Row, Frame);
+	if (theApp.GetSettings()->General.bRowInHex)		// // //
+		String.Format(_T("%02X / %02X"), Row, Frame);
+	else
+		String.Format(_T("%02i / %02i"), Row, Frame);
 	m_wndStatusBar.SetPaneText(7, String);
 }
 
@@ -1193,14 +1323,22 @@ void CMainFrame::OnLoadInstrument()
 		int Index = pDoc->LoadInstrument(csFileName);
 		if (Index == -1)
 			return;
+		SelectInstrument(Index);		// // //
 		m_pInstrumentList->InsertInstrument(Index);
 	}
-
-	theApp.GetSettings()->SetPath(FileDialog.GetPathName(), PATH_FTI);
+	
+	if (FileDialog.GetFileName().GetLength() == 0)		// // //
+		theApp.GetSettings()->SetPath(FileDialog.GetPathName() + _T("\\"), PATH_FTI);
+	else
+		theApp.GetSettings()->SetPath(FileDialog.GetPathName(), PATH_FTI);
 }
 
 void CMainFrame::OnSaveInstrument()
 {
+#ifdef DISABLE_SAVE		// // //
+	SetMessageText(IDS_DISABLE_SAVE);
+	return;
+#endif
 	// Saves instrument to a file
 
 	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
@@ -1243,8 +1381,21 @@ void CMainFrame::OnSaveInstrument()
 
 void CMainFrame::OnDeltaposSpeedSpin(NMHDR *pNMHDR, LRESULT *pResult)
 {
-	int NewSpeed = CFamiTrackerDoc::GetDoc()->GetSongSpeed(m_iTrack) - ((NMUPDOWN*)pNMHDR)->iDelta;
-	SetSpeed(NewSpeed);
+	CFamiTrackerDoc *pDoc = CFamiTrackerDoc::GetDoc();		// // //
+	int NewSpeed = pDoc->GetSongSpeed(m_iTrack) - ((NMUPDOWN*)pNMHDR)->iDelta;
+
+	if (!pDoc->GetSongGroove(m_iTrack)) {
+		SetSpeed(NewSpeed);
+		return;
+	}
+	else if (((NMUPDOWN*)pNMHDR)->iDelta < 0) {
+		for (unsigned int i = pDoc->GetSongSpeed(m_iTrack) + 1; i < MAX_GROOVE; i++)
+			if (pDoc->GetGroove(i) != NULL) { SetSpeed(i); return; }
+	}
+	else if (((NMUPDOWN*)pNMHDR)->iDelta > 0) {
+		for (unsigned int i = pDoc->GetSongSpeed(m_iTrack) - 1; i >= 0; i--)
+			if (pDoc->GetGroove(i) != NULL) { SetSpeed(i); return; }
+	}
 }
 
 void CMainFrame::OnDeltaposTempoSpin(NMHDR *pNMHDR, LRESULT *pResult)
@@ -1289,6 +1440,30 @@ void CMainFrame::OnTrackerPlayCursor()
 	theApp.StartPlayer(MODE_PLAY_CURSOR);
 }
 
+void CMainFrame::OnTrackerPlayMarker()		// // // 050B
+{
+	// Play from row marker
+	if (static_cast<CFamiTrackerView*>(GetActiveView())->IsMarkerValid())
+		theApp.StartPlayer(MODE_PLAY_MARKER);
+}
+
+void CMainFrame::OnUpdateTrackerPlayMarker(CCmdUI *pCmdUI)		// // // 050B
+{
+	pCmdUI->Enable(static_cast<CFamiTrackerView*>(GetActiveView())->IsMarkerValid() ? TRUE : FALSE);
+}
+
+void CMainFrame::OnTrackerSetMarker()		// // // 050B
+{
+	auto pView = static_cast<CFamiTrackerView*>(GetActiveView());
+	int Frame = pView->GetSelectedFrame();
+	int Row = pView->GetSelectedRow();
+
+	if (Frame == pView->GetMarkerFrame() && Row == pView->GetMarkerRow())
+		pView->SetMarker(-1, -1);
+	else
+		pView->SetMarker(Frame, Row);
+}
+
 void CMainFrame::OnTrackerTogglePlay()
 {
 	// Toggle playback
@@ -1327,25 +1502,29 @@ bool CMainFrame::CheckRepeat() const
 
 void CMainFrame::OnBnClickedIncFrame()
 {
+	if (static_cast<CFamiTrackerView*>(GetActiveView())->GetSelectedFrame() != GetFrameEditor()->GetEditFrame())		// // //
+		return;
 	int Add = (CheckRepeat() ? 4 : 1);
-	bool bChangeAll = ChangeAllPatterns() != 0;
-	CFrameAction *pAction = new CFrameAction(bChangeAll ? CFrameAction::ACT_CHANGE_PATTERN_ALL : CFrameAction::ACT_CHANGE_PATTERN);
-	pAction->SetPatternDelta(Add, bChangeAll);
-	AddAction(pAction);
+	if (ChangeAllPatterns())
+		AddAction(new CFActionChangePatternAll {Add});		// // //
+	else
+		AddAction(new CFActionChangePattern {Add});
 }
 
 void CMainFrame::OnBnClickedDecFrame()
 {
+	if (static_cast<CFamiTrackerView*>(GetActiveView())->GetSelectedFrame() != GetFrameEditor()->GetEditFrame())		// // //
+		return;
 	int Remove = -(CheckRepeat() ? 4 : 1);
-	bool bChangeAll = ChangeAllPatterns() != 0;
-	CFrameAction *pAction = new CFrameAction(bChangeAll ? CFrameAction::ACT_CHANGE_PATTERN_ALL : CFrameAction::ACT_CHANGE_PATTERN);
-	pAction->SetPatternDelta(Remove, bChangeAll);
-	AddAction(pAction);
+	if (ChangeAllPatterns())
+		AddAction(new CFActionChangePatternAll {Remove});		// // //
+	else
+		AddAction(new CFActionChangePattern {Remove});
 }
 
 bool CMainFrame::ChangeAllPatterns() const
 {
-	return m_wndFrameControls.IsDlgButtonChecked(IDC_CHANGE_ALL) != 0;
+	return m_wndFrameControls.IsDlgButtonChecked(IDC_CHANGE_ALL) != 0 && !GetFrameEditor()->IsSelecting();		// // //
 }
 
 void CMainFrame::OnKeyRepeat()
@@ -1377,6 +1556,11 @@ void CMainFrame::OnCreateNSF()
 
 void CMainFrame::OnCreateWAV()
 {
+#ifdef DISABLE_SAVE		// // //
+	SetMessageText(IDS_DISABLE_SAVE);
+	return;
+#endif
+
 	CCreateWaveDlg WaveDialog;
 	WaveDialog.ShowDialog();
 }
@@ -1393,24 +1577,33 @@ void CMainFrame::OnPrevFrame()
 
 void CMainFrame::OnHelpPerformance()
 {
-   qDebug("Performance checking not implemented...");
-//	m_wndPerformanceDlg.Create(MAKEINTRESOURCE(IDD_PERFORMANCE), this);
-//	m_wndPerformanceDlg.ShowWindow(SW_SHOW);
+	if (m_pPerformanceDlg == NULL)		// // //
+		m_pPerformanceDlg = new CPerformanceDlg();
+	if (!m_pPerformanceDlg->m_hWnd)
+		m_pPerformanceDlg->Create(IDD_PERFORMANCE, this);
+	if (!m_pPerformanceDlg->IsWindowVisible())
+		m_pPerformanceDlg->CenterWindow();
+	m_pPerformanceDlg->ShowWindow(SW_SHOW);
+	m_pPerformanceDlg->SetFocus();
 }
 
 void CMainFrame::OnUpdateSBInstrument(CCmdUI *pCmdUI)
 {
 	CString String;
-	AfxFormatString1(String, ID_INDICATOR_INSTRUMENT, MakeIntString(GetSelectedInstrument(), _T("%02X")));
+	String.Format(_T("%02X"), GetSelectedInstrument());		// // //
+	unsigned int Split = static_cast<CFamiTrackerView*>(GetActiveView())->GetSplitInstrument();
+	if (Split != MAX_INSTRUMENTS)
+		String.Format(_T("%02X / %s"), Split, String);
+	CString msg;
+	AfxFormatString1(msg, ID_INDICATOR_INSTRUMENT, String);
 	pCmdUI->Enable(); 
-	pCmdUI->SetText(String);
+	pCmdUI->SetText(msg);
 }
 
 void CMainFrame::OnUpdateSBOctave(CCmdUI *pCmdUI)
 {
 	CString String;
-	const int Octave = static_cast<CFamiTrackerView*>(GetActiveView())->GetOctave();
-	AfxFormatString1(String, ID_INDICATOR_OCTAVE, MakeIntString(Octave));
+	AfxFormatString1(String, ID_INDICATOR_OCTAVE, MakeIntString(GetSelectedOctave()));		// // //
 	pCmdUI->Enable(); 
 	pCmdUI->SetText(String);
 }
@@ -1418,7 +1611,7 @@ void CMainFrame::OnUpdateSBOctave(CCmdUI *pCmdUI)
 void CMainFrame::OnUpdateSBFrequency(CCmdUI *pCmdUI)
 {
 	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
-	int Machine = pDoc->GetMachine();
+	machine_t Machine = pDoc->GetMachine();
 	int EngineSpeed = pDoc->GetEngineSpeed();
 	CString String;
 
@@ -1433,14 +1626,12 @@ void CMainFrame::OnUpdateSBFrequency(CCmdUI *pCmdUI)
 
 void CMainFrame::OnUpdateSBTempo(CCmdUI *pCmdUI)
 {
+	static int Highlight = m_wndOctaveBar.GetDlgItemInt(IDC_HIGHLIGHT1);
+
 	CSoundGen *pSoundGen = theApp.GetSoundGenerator();
 	if (pSoundGen && !pSoundGen->IsBackgroundTask()) {
-		int Highlight = m_wndOctaveBar.GetDlgItemInt(IDC_HIGHLIGHT1);
-		if (Highlight == 0)
-			Highlight = 4;
-		float BPM = (pSoundGen->GetTempo() * 4.0f) / float(Highlight);
 		CString String;
-		String.Format(_T("%.2f BPM"), BPM);
+		String.Format(_T("%.2f BPM"), pSoundGen->GetCurrentBPM());		// // //
 		pCmdUI->Enable();
 		pCmdUI->SetText(String);
 	}
@@ -1453,28 +1644,51 @@ void CMainFrame::OnUpdateSBChip(CCmdUI *pCmdUI)
 	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
 	int Chip = pDoc->GetExpansionChip();
 
-	switch (Chip) {
-		case SNDCHIP_NONE:
-			String = _T("No expansion chip");
-			break;
-		case SNDCHIP_VRC6:
-			String = _T("Konami VRC6");
-			break;
-		case SNDCHIP_MMC5:
-			String = _T("Nintendo MMC5");
-			break;
-		case SNDCHIP_FDS:
-			String = _T("Nintendo FDS");
-			break;
-		case SNDCHIP_VRC7:
-			String = _T("Konami VRC7");
-			break;
-		case SNDCHIP_N163:
-			String = _T("Namco 163");
-			break;
-		case SNDCHIP_S5B:
-			String = _T("Sunsoft 5B");
-			break;
+	if (!Chip)		// // //
+		String = _T("No expansion chip");
+	else if (!(Chip & (Chip - 1)))
+		switch (Chip) {
+			case SNDCHIP_VRC6:
+				String = _T(" Konami VRC6");
+				break;
+			case SNDCHIP_VRC7:
+				String = _T(" Konami VRC7");
+				break;
+			case SNDCHIP_FDS:
+				String = _T(" Nintendo FDS");
+				break;
+			case SNDCHIP_MMC5:
+				String = _T(" Nintendo MMC5");
+				break;
+			case SNDCHIP_N163:
+				String = _T(" Namco 163");
+				break;
+			case SNDCHIP_S5B:
+				String = _T(" Sunsoft 5B");
+				break;
+		}
+	else {
+		for (int i = 0; i < 6; i++)	if (Chip & (1 << i)) switch (i) {
+			case 0:
+				String += _T(" + VRC6");
+				break;
+			case 1:
+				String += _T(" + VRC7");
+				break;
+			case 2:
+				String += _T(" + FDS");
+				break;
+			case 3:
+				String += _T(" + MMC5");
+				break;
+			case 4:
+				String += _T(" + N163");
+				break;
+			case 5:
+				String += _T(" + S5B");
+				break;
+		}
+		String.Delete(0, 3);
 	}
 
 	pCmdUI->Enable(); 
@@ -1569,7 +1783,7 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 	switch (nIDEvent) {
 		// Welcome message
 		case TMR_WELCOME:
-			str.Format(_T("%i.%i.%i"), VERSION_MAJ, VERSION_MIN, VERSION_REV);
+			str.Format(_T("%i.%i.%i.%i"), VERSION);		// // //
 			AfxFormatString1(text, IDS_WELCOME_VER_FORMAT, str);
 			SetMessageText(text);
 			KillTimer(TMR_WELCOME);
@@ -1640,7 +1854,37 @@ void CMainFrame::OnUpdateFramesEdit(CCmdUI *pCmdUI)
 		else {
 			pCmdUI->SetText(MakeIntString(static_cast<CFamiTrackerDoc*>(GetActiveDocument())->GetFrameCount(m_iTrack)));
 		}
-	}	
+	}
+}
+
+void CMainFrame::OnUpdateHighlight1(CCmdUI *pCmdUI)		// // //
+{
+	if (!m_pLockedEditHighlight1->IsEditable()) {
+		CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+		if (m_pLockedEditHighlight1->Update())
+			AddAction(new CPActionHighlight {stHighlight {
+				std::max(0, std::min(MAX_PATTERN_LENGTH, m_pLockedEditHighlight1->GetValue())),
+				pDoc->GetHighlight().Second,
+				0
+			}});
+		else
+			pCmdUI->SetText(MakeIntString(pDoc->GetHighlight().First));
+	}
+}
+
+void CMainFrame::OnUpdateHighlight2(CCmdUI *pCmdUI)		// // //
+{
+	if (!m_pLockedEditHighlight2->IsEditable()) {
+		CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+		if (m_pLockedEditHighlight2->Update())
+			AddAction(new CPActionHighlight {stHighlight {
+				pDoc->GetHighlight().First,
+				std::max(0, std::min(MAX_PATTERN_LENGTH, m_pLockedEditHighlight2->GetValue())),
+				0
+			}});
+		else
+			pCmdUI->SetText(MakeIntString(pDoc->GetHighlight().Second));
+	}
 }
 
 void CMainFrame::OnFileGeneralsettings()
@@ -1650,23 +1894,26 @@ void CMainFrame::OnFileGeneralsettings()
 	CPropertySheet ConfigWindow(Title, this, 0);
 
 	CConfigGeneral		TabGeneral;
+	CConfigVersion		TabVersion;		// // //
 	CConfigAppearance	TabAppearance;
-   CConfigMIDI			TabMIDI;
+	CConfigMIDI			TabMIDI;
 	CConfigSound		TabSound;
 	CConfigShortcuts	TabShortcuts;
 	CConfigMixer		TabMixer;
 
-//	ConfigWindow.m_psh.dwFlags	&= ~PSH_HASHELP;
-//	TabGeneral.m_psp.dwFlags	&= ~PSP_HASHELP;
-//	TabAppearance.m_psp.dwFlags &= ~PSP_HASHELP;
-//	TabMIDI.m_psp.dwFlags		&= ~PSP_HASHELP;
-//	TabSound.m_psp.dwFlags		&= ~PSP_HASHELP;
-//	TabShortcuts.m_psp.dwFlags	&= ~PSP_HASHELP;
-//	TabMixer.m_psp.dwFlags		&= ~PSP_HASHELP;
-
+	ConfigWindow.m_psh.dwFlags	&= ~PSH_HASHELP;
+	TabGeneral.m_psp.dwFlags	&= ~PSP_HASHELP;
+	TabVersion.m_psp.dwFlags	&= ~PSP_HASHELP;
+	TabAppearance.m_psp.dwFlags &= ~PSP_HASHELP;
+	TabMIDI.m_psp.dwFlags		&= ~PSP_HASHELP;
+	TabSound.m_psp.dwFlags		&= ~PSP_HASHELP;
+	TabShortcuts.m_psp.dwFlags	&= ~PSP_HASHELP;
+	TabMixer.m_psp.dwFlags		&= ~PSP_HASHELP;
+	
 	ConfigWindow.AddPage(&TabGeneral);
+	ConfigWindow.AddPage(&TabVersion);
 	ConfigWindow.AddPage(&TabAppearance);
-   ConfigWindow.AddPage(&TabMIDI);
+	ConfigWindow.AddPage(&TabMIDI);
 	ConfigWindow.AddPage(&TabSound);
 	ConfigWindow.AddPage(&TabShortcuts);
 	ConfigWindow.AddPage(&TabMixer);
@@ -1716,6 +1963,7 @@ void CMainFrame::OpenInstrumentEditor()
 
 	if (pDoc->IsInstrumentUsed(Instrument)) {
 		if (m_wndInstEdit.IsOpened() == false) {
+			m_wndInstEdit.SetInstrumentManager(pDoc->GetInstrumentManager());		// // //
 			m_wndInstEdit.Create(IDD_INSTRUMENT, this);
 			m_wndInstEdit.SetCurrentInstrument(Instrument);
 			m_wndInstEdit.ShowWindow(SW_SHOW);
@@ -1731,6 +1979,32 @@ void CMainFrame::CloseInstrumentEditor()
 	// Close the instrument editor, in case it was opened
 	if (m_wndInstEdit.IsOpened())
 		m_wndInstEdit.DestroyWindow();
+}
+
+void CMainFrame::CloseGrooveSettings()		// // //
+{
+	if (m_pGrooveDlg != NULL) {
+		m_pGrooveDlg->DestroyWindow();
+		SAFE_RELEASE(m_pGrooveDlg);
+	}
+}
+
+void CMainFrame::CloseBookmarkSettings()		// // //
+{
+	if (m_pBookmarkDlg != NULL) {
+		m_pBookmarkDlg->DestroyWindow();
+		SAFE_RELEASE(m_pBookmarkDlg);
+	}
+}
+
+void CMainFrame::UpdateBookmarkList(int Pos)		// // //
+{
+	if (m_pBookmarkDlg != NULL) {
+		if (m_pBookmarkDlg->IsWindowVisible()) {
+			m_pBookmarkDlg->LoadBookmarks(m_iTrack);
+			m_pBookmarkDlg->SelectBookmark(Pos);
+		}
+	}
 }
 
 void CMainFrame::OnUpdateKeyRepeat(CCmdUI *pCmdUI)
@@ -1754,36 +2028,69 @@ void CMainFrame::OnFileImportText()
 
 	CTextExport Exporter;
 	CFamiTrackerDoc	*pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
-
-	CString sResult = Exporter.ImportFile(FileDialog.GetPathName(), pDoc);
+	
+	CString sResult;		// // //
+	do sResult = Exporter.ImportFile(FileDialog.GetPathName(), pDoc);
+	while (sResult == _T("Retry"));
 	if (sResult.GetLength() > 0)
 	{
 		AfxMessageBox(sResult, MB_OK | MB_ICONEXCLAMATION);
 	}
 
 	SetSongInfo(pDoc->GetSongName(), pDoc->GetSongArtist(), pDoc->GetSongCopyright());
-	pDoc->SetModifiedFlag(FALSE);
+	pDoc->SetModifiedFlag(TRUE);
 	// TODO figure out how to handle this case, call OnInitialUpdate??
 	//pDoc->UpdateAllViews(NULL, CHANGED_ERASE);		// Remove
+	pDoc->UpdateAllViews(NULL, UPDATE_PROPERTIES);
 	pDoc->UpdateAllViews(NULL, UPDATE_INSTRUMENT);
 	//pDoc->UpdateAllViews(NULL, UPDATE_ENTIRE);		// TODO Remove
 	theApp.GetSoundGenerator()->DocumentPropertiesChanged(pDoc);
+	pDoc->SetExceededFlag(false);			// // //
 }
 
 void CMainFrame::OnFileExportText()
 {
+#ifdef DISABLE_SAVE		// // //
+	SetMessageText(IDS_DISABLE_SAVE);
+	return;
+#endif
+
 	CFamiTrackerDoc	*pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
 	CString	DefFileName = pDoc->GetFileTitle();
 
 	CString fileFilter = LoadDefaultFilter(IDS_FILTER_TXT, _T(".txt"));
-	CFileDialog FileDialog(FALSE, _T(".txt"), DefFileName, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, fileFilter);
-	FileDialog.m_pOFN->lpstrInitialDir = theApp.GetSettings()->GetPath(PATH_NSF);
+	HistoryFileDlg FileDialog(PATH_EXPORT, FALSE, _T(".txt"), DefFileName, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, fileFilter);
+	// FileDialog.m_pOFN->lpstrInitialDir = theApp.GetSettings()->GetPath(PATH_NSF);
 
 	if (FileDialog.DoModal() == IDCANCEL)
 		return;
 
 	CTextExport Exporter;
 	CString sResult = Exporter.ExportFile(FileDialog.GetPathName(), pDoc);
+	if (sResult.GetLength() > 0)
+	{
+		AfxMessageBox(sResult, MB_OK | MB_ICONEXCLAMATION);
+	}
+}
+
+void CMainFrame::OnFileExportRows()		// // //
+{
+#ifdef DISABLE_SAVE		// // //
+	SetMessageText(IDS_DISABLE_SAVE);
+	return;
+#endif
+
+	CFamiTrackerDoc	*pDoc = (CFamiTrackerDoc*)GetActiveDocument();
+	CString	DefFileName = pDoc->GetFileTitle();
+
+	HistoryFileDlg FileDialog(PATH_EXPORT, FALSE, _T(".csv"), DefFileName, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("Comma-separated values (*.csv)|*.csv|All files|*.*||"));
+	// FileDialog.m_pOFN->lpstrInitialDir = theApp.GetSettings()->GetPath(PATH_NSF);
+
+	if (FileDialog.DoModal() == IDCANCEL)
+		return;
+
+	CTextExport Exporter;
+	CString sResult = Exporter.ExportRows(FileDialog.GetPathName(), pDoc);
 	if (sResult.GetLength() > 0)
 	{
 		AfxMessageBox(sResult, MB_OK | MB_ICONEXCLAMATION);
@@ -1799,20 +2106,21 @@ BOOL CMainFrame::DestroyWindow()
 
 	GetWindowRect(WinRect);
 
-//	if (IsZoomed()) {
-//		State = STATE_MAXIMIZED;
-//		// Ignore window position if maximized
-//		WinRect.top = theApp.GetSettings()->WindowPos.iTop;
-//		WinRect.bottom = theApp.GetSettings()->WindowPos.iBottom;
-//		WinRect.left = theApp.GetSettings()->WindowPos.iLeft;
-//		WinRect.right = theApp.GetSettings()->WindowPos.iRight;
-//	}
+	if (IsZoomed()) {
+		State = STATE_MAXIMIZED;
+		// Ignore window position if maximized
+		WinRect.top = theApp.GetSettings()->WindowPos.iTop;
+		WinRect.bottom = theApp.GetSettings()->WindowPos.iBottom;
+		WinRect.left = theApp.GetSettings()->WindowPos.iLeft;
+		WinRect.right = theApp.GetSettings()->WindowPos.iRight;
+	}
 
-//	if (IsIconic()) {
-//		WinRect.top = WinRect.left = 100;
-//		WinRect.bottom = 920;
-//		WinRect.right = 950;
-//	}
+	if (IsIconic()) {
+		WinRect.top = WinRect.left = 100;
+		WinRect.bottom = 920;
+		WinRect.right = 950;
+		DPI::ScaleRect(WinRect);		// // // 050B
+	}
 
 	// Save window position
 	theApp.GetSettings()->SetWindowPos(WinRect.left, WinRect.top, WinRect.right, WinRect.bottom, State);
@@ -1831,24 +2139,26 @@ void CMainFrame::OnTrackerSwitchToInstrument()
 	pView->SwitchToInstrument(!pView->SwitchToInstrument());
 }
 
-void CMainFrame::OnTrackerDPCM()
-{
-	CMenu *pMenu = GetMenu();
+// // //
 
-	if (pMenu->GetMenuState(ID_TRACKER_DPCM, MF_BYCOMMAND) == MF_CHECKED)
-		pMenu->CheckMenuItem(ID_TRACKER_DPCM, MF_UNCHECKED);
-	else
-		pMenu->CheckMenuItem(ID_TRACKER_DPCM, MF_CHECKED);
+void CMainFrame::OnTrackerDisplayAverageBPM()		// // // 050B
+{
+	theApp.GetSettings()->Display.bAverageBPM = !theApp.GetSettings()->Display.bAverageBPM;
 }
 
 void CMainFrame::OnTrackerDisplayRegisterState()
 {
-	CMenu *pMenu = GetMenu();
+	theApp.GetSettings()->Display.bRegisterState = !theApp.GetSettings()->Display.bRegisterState;		// // //
+}
 
-	if (pMenu->GetMenuState(ID_TRACKER_DISPLAYREGISTERSTATE, MF_BYCOMMAND) == MF_CHECKED)
-		pMenu->CheckMenuItem(ID_TRACKER_DISPLAYREGISTERSTATE, MF_UNCHECKED);
-	else
-		pMenu->CheckMenuItem(ID_TRACKER_DISPLAYREGISTERSTATE, MF_CHECKED);
+void CMainFrame::OnUpdateDisplayAverageBPM(CCmdUI *pCmdUI)		// // // 050B
+{
+	pCmdUI->SetCheck(theApp.GetSettings()->Display.bAverageBPM ? MF_CHECKED : MF_UNCHECKED);
+}
+
+void CMainFrame::OnUpdateDisplayRegisterState(CCmdUI *pCmdUI)		// // //
+{
+	pCmdUI->SetCheck(theApp.GetSettings()->Display.bRegisterState ? MF_CHECKED : MF_UNCHECKED);
 }
 
 void CMainFrame::OnUpdateTrackerSwitchToInstrument(CCmdUI *pCmdUI)
@@ -1873,7 +2183,59 @@ void CMainFrame::OnModuleChannels()
 void CMainFrame::OnModuleComments()
 {
 	CCommentsDlg commentsDlg;
-	commentsDlg.DoModal();
+	CFamiTrackerDoc	*pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());		// // //
+	commentsDlg.SetComment(pDoc->GetComment());
+	commentsDlg.SetShowOnLoad(pDoc->ShowCommentOnOpen());
+	if (commentsDlg.DoModal() == IDOK && commentsDlg.IsChanged())
+		pDoc->SetComment(commentsDlg.GetComment(), commentsDlg.GetShowOnLoad());
+}
+
+void CMainFrame::OnModuleGrooveSettings()		// // //
+{
+	if (m_pGrooveDlg == NULL) {
+		m_pGrooveDlg = new CGrooveDlg();
+		m_pGrooveDlg->Create(IDD_GROOVE, this);
+	}
+	if (!m_pGrooveDlg->IsWindowVisible())
+		m_pGrooveDlg->CenterWindow();
+	m_pGrooveDlg->ShowWindow(SW_SHOW);
+	m_pGrooveDlg->SetFocus();
+}
+
+void CMainFrame::OnModuleBookmarkSettings()		// // //
+{
+	if (m_pBookmarkDlg == NULL) {
+		m_pBookmarkDlg = new CBookmarkDlg();
+		m_pBookmarkDlg->Create(IDD_BOOKMARKS, this);
+	}
+	if (!m_pBookmarkDlg->IsWindowVisible())
+		m_pBookmarkDlg->CenterWindow();
+	m_pBookmarkDlg->ShowWindow(SW_SHOW);
+	m_pBookmarkDlg->SetFocus();
+	m_pBookmarkDlg->SetManager(static_cast<CFamiTrackerDoc*>(GetActiveDocument())->GetBookmarkManager());
+	m_pBookmarkDlg->LoadBookmarks(m_iTrack);
+}
+
+void CMainFrame::OnModuleEstimateSongLength()		// // //
+{
+	CFamiTrackerDoc	*pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+	double Intro = pDoc->GetStandardLength(m_iTrack, 0);
+	double Loop = pDoc->GetStandardLength(m_iTrack, 1) - Intro;
+	Intro = Intro - Loop;
+	int Rate = pDoc->GetFrameRate();
+
+	CString str = _T("");
+	str.Format(_T("Estimated duration:\nIntro: %lld:%02lld.%02lld (%lld ticks)\nLoop: %lld:%02lld.%02lld (%lld ticks)\n"),
+			   static_cast<long long>(Intro + .5 / 6000) / 60,
+			   static_cast<long long>(Intro + .005) % 60,
+			   static_cast<long long>(Intro * 100 + .5) % 100,
+			   static_cast<long long>(Intro * Rate + .5),
+			   static_cast<long long>(Loop + .5 / 6000) / 60,
+			   static_cast<long long>(Loop + .005) % 60,
+			   static_cast<long long>(Loop * 100 + .5) % 100,
+			   static_cast<long long>(Loop * Rate + .5));
+	str.Append(_T("Tick counts are subject to rounding errors!"));
+	AfxMessageBox(str);
 }
 
 void CMainFrame::UpdateTrackBox()
@@ -1915,8 +2277,8 @@ void CMainFrame::OnCbnSelchangeOctave()
 	CFamiTrackerView *pView	= static_cast<CFamiTrackerView*>(GetActiveView());
 	unsigned int Octave		= pTrackBox->GetCurSel();
 
-	if (pView->GetOctave() != Octave)
-		pView->SetOctave(Octave);
+	if (GetSelectedOctave() != Octave)		// // //
+		SelectOctave(Octave);
 }
 
 void CMainFrame::OnRemoveFocus()
@@ -1974,6 +2336,30 @@ void CMainFrame::OnToggleFollow()
 	OnClickedFollow();
 }
 
+void CMainFrame::OnUpdateToggleFollow(CCmdUI *pCmdUI)		// // //
+{
+	pCmdUI->SetCheck(m_wndOctaveBar.IsDlgButtonChecked(IDC_FOLLOW) != 0);
+}
+
+void CMainFrame::OnClickedCompact()		// // //
+{
+	CFamiTrackerView *pView	= static_cast<CFamiTrackerView*>(GetActiveView());
+	bool CompactMode = m_wndOctaveBar.IsDlgButtonChecked(IDC_CHECK_COMPACT) != 0;
+	pView->SetCompactMode(CompactMode);
+	pView->SetFocus();
+}
+
+void CMainFrame::OnToggleCompact()		// // //
+{
+	m_wndOctaveBar.CheckDlgButton(IDC_CHECK_COMPACT, !m_wndOctaveBar.IsDlgButtonChecked(IDC_CHECK_COMPACT));
+	OnClickedCompact();
+}
+
+void CMainFrame::OnUpdateToggleCompact(CCmdUI *pCmdUI)		// // //
+{
+	pCmdUI->SetCheck(m_wndOctaveBar.IsDlgButtonChecked(IDC_CHECK_COMPACT) != 0);
+}
+
 void CMainFrame::OnViewControlpanel()
 {
 	if (m_wndControlBar.IsVisible()) {
@@ -1993,22 +2379,22 @@ void CMainFrame::OnUpdateViewControlpanel(CCmdUI *pCmdUI)
 	pCmdUI->SetCheck(m_wndControlBar.IsVisible());
 }
 
-void CMainFrame::OnUpdateHighlight(CCmdUI *pCmdUI)
+void CMainFrame::OnDeltaposHighlightSpin1(NMHDR *pNMHDR, LRESULT *pResult)		// // //
 {
-	// TODO remove static variables
-	static int LastHighlight1, LastHighlight2;
-	int Highlight1, Highlight2;
-	Highlight1 = m_wndOctaveBar.GetDlgItemInt(IDC_HIGHLIGHT1);
-	Highlight2 = m_wndOctaveBar.GetDlgItemInt(IDC_HIGHLIGHT2);
-	if (Highlight1 != LastHighlight1 || Highlight2 != LastHighlight2) {
+	if (CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument())) {
+		stHighlight Hl = pDoc->GetHighlight();
+		Hl.First = std::max(0, std::min(MAX_PATTERN_LENGTH, Hl.First - ((NMUPDOWN*)pNMHDR)->iDelta));
+		AddAction(new CPActionHighlight {Hl});
+		theApp.GetSoundGenerator()->SetHighlightRows(Hl.First);		// // //
+	}
+}
 
-		CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
-
-		pDoc->SetHighlight(Highlight1, Highlight2);
-		pDoc->UpdateAllViews(NULL, UPDATE_HIGHLIGHT);
-
-		LastHighlight1 = Highlight1;
-		LastHighlight2 = Highlight2;
+void CMainFrame::OnDeltaposHighlightSpin2(NMHDR *pNMHDR, LRESULT *pResult)		// // //
+{
+	if (CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument())) {
+		stHighlight Hl = pDoc->GetHighlight();
+		Hl.Second = std::max(0, std::min(MAX_PATTERN_LENGTH, Hl.Second - ((NMUPDOWN*)pNMHDR)->iDelta));
+		AddAction(new CPActionHighlight {Hl});
 	}
 }
 
@@ -2024,32 +2410,45 @@ void CMainFrame::OnSelectFrameEditor()
 
 void CMainFrame::OnModuleInsertFrame()
 {
-	AddAction(new CFrameAction(CFrameAction::ACT_ADD));
+	AddAction(new CFActionAddFrame { });		// // //
 }
 
 void CMainFrame::OnModuleRemoveFrame()
 {
-	AddAction(new CFrameAction(CFrameAction::ACT_REMOVE));
+	AddAction(new CFActionRemoveFrame { });		// // //
 }
 
 void CMainFrame::OnModuleDuplicateFrame()
 {
-	AddAction(new CFrameAction(CFrameAction::ACT_DUPLICATE));
+	AddAction(new CFActionDuplicateFrame { });		// // //
 }
 
 void CMainFrame::OnModuleDuplicateFramePatterns()
 {
-	AddAction(new CFrameAction(CFrameAction::ACT_DUPLICATE_PATTERNS));
+	AddAction(new CFActionCloneFrame { });		// // //
 }
 
 void CMainFrame::OnModuleMoveframedown()
 {
-	AddAction(new CFrameAction(CFrameAction::ACT_MOVE_DOWN));
+	Action *pAction = new CFActionMoveDown { };		// // //
+	if (AddAction(pAction)) {
+		static_cast<CFamiTrackerView*>(GetActiveView())->SelectNextFrame();
+		pAction->SaveRedoState(this);
+	}
 }
 
 void CMainFrame::OnModuleMoveframeup()
 {
-	AddAction(new CFrameAction(CFrameAction::ACT_MOVE_UP));
+	Action *pAction = new CFActionMoveUp { };		// // //
+	if (AddAction(pAction)) {
+		static_cast<CFamiTrackerView*>(GetActiveView())->SelectPrevFrame();
+		pAction->SaveRedoState(this);
+	}
+}
+
+void CMainFrame::OnModuleDuplicateCurrentPattern()		// // //
+{
+	AddAction(new CFActionClonePatterns { });
 }
 
 // UI updates
@@ -2068,6 +2467,22 @@ void CMainFrame::OnUpdateEditCopy(CCmdUI *pCmdUI)
 	pCmdUI->Enable((pView->IsSelecting() || GetFocus() == m_pFrameEditor) ? 1 : 0);
 }
 
+void CMainFrame::OnUpdatePatternEditorSelected(CCmdUI *pCmdUI)		// // //
+{
+	pCmdUI->Enable(GetFocus() == GetActiveView() ? 1 : 0);
+}
+
+void CMainFrame::OnUpdateEditCopySpecial(CCmdUI *pCmdUI)		// // //
+{
+	CFamiTrackerView *pView = static_cast<CFamiTrackerView*>(GetActiveView());
+	pCmdUI->Enable((pView->IsSelecting() && GetFocus() == GetActiveView()) ? 1 : 0);
+}
+
+void CMainFrame::OnUpdateSelectMultiFrame(CCmdUI *pCmdUI)		// // //
+{
+	pCmdUI->Enable(theApp.GetSettings()->General.bMultiFrameSel ? TRUE : FALSE);
+}
+
 void CMainFrame::OnUpdateEditPaste(CCmdUI *pCmdUI)
 {
 	if (GetFocus() == GetActiveView())
@@ -2084,37 +2499,30 @@ void CMainFrame::OnUpdateEditDelete(CCmdUI *pCmdUI)
 
 void CMainFrame::OnHelpEffecttable()
 {
-   qDebug("HtmlHelp not done...");
-//	// Display effect table in help
-//	HtmlHelp((DWORD)_T("effect_list.htm"), HH_DISPLAY_TOPIC);
+	// Display effect table in help
+	HtmlHelp((DWORD)_T("effect_list.htm"), HH_DISPLAY_TOPIC);
 }
 
 void CMainFrame::OnHelpFAQ()
 {
-   qDebug("HtmlHelp not done...");
-//	// Display FAQ in help
-//	HtmlHelp((DWORD)_T("faq.htm"), HH_DISPLAY_TOPIC);
+	// Display FAQ in help
+	HtmlHelp((DWORD)_T("faq.htm"), HH_DISPLAY_TOPIC);
 }
 
 CFrameEditor *CMainFrame::GetFrameEditor() const
 {
-   return m_pFrameEditor;
-}
-
-CVisualizerWnd *CMainFrame::GetVisualizerWindow() const
-{
-   return m_pVisualizerWnd;
+	return m_pFrameEditor;
 }
 
 void CMainFrame::OnEditEnableMIDI()
 {
-   theApp.GetMIDI()->ToggleInput();
+	theApp.GetMIDI()->ToggleInput();
 }
 
 void CMainFrame::OnUpdateEditEnablemidi(CCmdUI *pCmdUI)
 {
-   pCmdUI->Enable(theApp.GetMIDI()->IsAvailable());
-   pCmdUI->SetCheck(theApp.GetMIDI()->IsOpened());
+	pCmdUI->Enable(theApp.GetMIDI()->IsAvailable());
+	pCmdUI->SetCheck(theApp.GetMIDI()->IsOpened());
 }
 
 void CMainFrame::OnShowWindow(BOOL bShow, UINT nStatus)
@@ -2148,7 +2556,7 @@ void CMainFrame::OnDestroy()
 
 		if (dwResult != WAIT_OBJECT_0) {
 			// The CEvent object will leak if this happens, but the program won't crash
-			TRACE0(_T("MainFrame: Error while waiting for sound to close!\n"));
+			TRACE(_T("MainFrame: Error while waiting for sound to close!\n"));
 		}
 		else
 			delete pSoundEvent;
@@ -2173,15 +2581,39 @@ void CMainFrame::SelectTrack(unsigned int Track)
 	
 	m_iTrack = Track;
 
+	if (theApp.IsPlaying() && Track != theApp.GetSoundGenerator()->GetPlayerTrack())		// // // 050B
+		theApp.ResetPlayer();
+
 	pTrackBox->SetCurSel(m_iTrack);
 	//pDoc->UpdateAllViews(NULL, CHANGED_TRACK);
+
+	ResetUndo();		// // // 050B
+	UpdateControls();
+
 	pView->TrackChanged(m_iTrack);
+	GetFrameEditor()->CancelSelection();		// // //
+	GetFrameEditor()->Invalidate();
 	OnUpdateFrameTitle(TRUE);
+
+	if (m_pBookmarkDlg != NULL)		// // //
+		m_pBookmarkDlg->LoadBookmarks(m_iTrack);
+}
+
+int CMainFrame::GetSelectedOctave() const		// // // 050B
+{
+	return m_iOctave;
+}
+
+void CMainFrame::SelectOctave(int Octave)		// // // 050B
+{
+	static_cast<CFamiTrackerView*>(GetActiveView())->AdjustOctave(Octave - GetSelectedOctave());
+	m_iOctave = Octave;
+	DisplayOctave();
 }
 
 BOOL CMainFrame::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResult)
 {
-    LPNMTOOLBAR lpnmtb = (LPNMTOOLBAR) lParam;
+	LPNMTOOLBAR lpnmtb = (LPNMTOOLBAR) lParam;
 	
 	// Handle new instrument menu
 	switch (((LPNMHDR)lParam)->code) {
@@ -2287,120 +2719,149 @@ void CMainFrame::OnLoadInstrumentMenu(NMHDR * pNotifyStruct, LRESULT * result)
 
 		if (Index == -1)
 			return;
-
-		m_pInstrumentList->InsertInstrument(Index);
+		
 		SelectInstrument(Index);
+		m_pInstrumentList->InsertInstrument(Index);
 	}
 }
 
 void CMainFrame::SelectInstrumentFolder()
 {
-   qDebug("CMainFrame::SelectInstrumentFolder");
-//	BROWSEINFOA Browse;
-//	LPITEMIDLIST lpID;
-//	char Path[MAX_PATH];
+	BROWSEINFOA Browse;	
+	LPITEMIDLIST lpID;
+	char Path[MAX_PATH];
+	CString Title;
 
-//	Browse.lpszTitle	= _T("Choose a folder where you have instrument files");
-//	Browse.hwndOwner	= m_hWnd;
-//	Browse.pidlRoot		= NULL;
-//	Browse.lpfn			= NULL;
-//	Browse.ulFlags		= BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
-//	Browse.pszDisplayName = Path;
+	Title.LoadString(IDS_INSTRUMENT_FOLDER);
+	Browse.lpszTitle	= Title;
+	Browse.hwndOwner	= m_hWnd;
+	Browse.pidlRoot		= NULL;
+	Browse.lpfn			= NULL;
+	Browse.ulFlags		= BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+	Browse.pszDisplayName = Path;
 
-//	lpID = SHBrowseForFolder(&Browse);
+	lpID = SHBrowseForFolder(&Browse);
 
-//	if (lpID != NULL) {
-//		SHGetPathFromIDList(lpID, Path);
-//		theApp.GetSettings()->InstrumentMenuPath = Path;
-//		m_pInstrumentFileTree->Changed();
-//	}
+	if (lpID != NULL) {
+		SHGetPathFromIDList(lpID, Path);
+		theApp.GetSettings()->InstrumentMenuPath = Path;
+		m_pInstrumentFileTree->Changed();
+	}
 }
 
 BOOL CMainFrame::OnCopyData(CWnd* pWnd, COPYDATASTRUCT* pCopyDataStruct)
 {
-   qDebug("CMainFrame::OnCopyData");
-   return TRUE;
-//	switch (pCopyDataStruct->dwData) {
-//		case IPC_LOAD:
-//			// Load file
-//			if (_tcslen((LPCTSTR)pCopyDataStruct->lpData) > 0)
-//				theApp.OpenDocumentFile((LPCTSTR)pCopyDataStruct->lpData);
-//			return TRUE;
-//		case IPC_LOAD_PLAY:
-//			// Load file
-//			if (_tcslen((LPCTSTR)pCopyDataStruct->lpData) > 0)
-//				theApp.OpenDocumentFile((LPCTSTR)pCopyDataStruct->lpData);
-//			// and play
-//			if (CFamiTrackerDoc::GetDoc()->IsFileLoaded() &&
-//				!CFamiTrackerDoc::GetDoc()->HasLastLoadFailed())
-//				theApp.GetSoundGenerator()->StartPlayer(MODE_PLAY_START);
-//			return TRUE;
-//	}
+	switch (pCopyDataStruct->dwData) {
+		case IPC_LOAD:
+			// Load file
+			if (_tcslen((LPCTSTR)pCopyDataStruct->lpData) > 0)
+				theApp.OpenDocumentFile((LPCTSTR)pCopyDataStruct->lpData);
+			return TRUE;
+		case IPC_LOAD_PLAY:
+			// Load file
+			if (_tcslen((LPCTSTR)pCopyDataStruct->lpData) > 0)
+				theApp.OpenDocumentFile((LPCTSTR)pCopyDataStruct->lpData);
+			// and play
+			if (CFamiTrackerDoc::GetDoc()->IsFileLoaded() &&
+				!CFamiTrackerDoc::GetDoc()->HasLastLoadFailed())
+				theApp.GetSoundGenerator()->StartPlayer(MODE_PLAY_START, 0);
+			return TRUE;
+	}
 
-//	return CFrameWnd::OnCopyData(pWnd, pCopyDataStruct);
+	return CFrameWnd::OnCopyData(pWnd, pCopyDataStruct);
 }
 
-bool CMainFrame::AddAction(CAction *pAction)
+/** \brief Performs pAction, saves "before" and "after" into pAction, and adds to history.
+*/
+bool CMainFrame::AddAction(Action *pAction)
 {
-	ASSERT(m_pActionHandler != NULL);
+	ASSERT(m_history != NULL);
+	
+	pAction->SaveUndoState(this);
 
-	if (!pAction->SaveState(this)) {
+	// Save state before operation. (Pasting also moves selection :( )
+	bool saveSuccess = pAction->SaveState(this);
+	if (!saveSuccess) {
 		// Operation cancelled
 		SAFE_RELEASE(pAction);
 		return false;
 	}
 
-	m_pActionHandler->Push(pAction);
+	// Perform action.
+	try {
+		pAction->Redo(this);
+	} catch (std::runtime_error *e) {
+		AfxMessageBox(e->what());
+		pAction->Undo(this);
+		SAFE_RELEASE(pAction);
+		SAFE_RELEASE(e);
+		return false;
+	}
+
+	// Save state after action.
+	pAction->SaveRedoState(this);
+
+	// Add action to history.
+	CFamiTrackerDoc	*pDoc = (CFamiTrackerDoc*)GetActiveDocument();			// // //
+	if (m_history->GetUndoLevel() == History::MAX_LEVELS)
+		pDoc->SetExceededFlag();
+	m_history->Push(pAction);
 
 	return true;
 }
 
-CAction *CMainFrame::GetLastAction(int Filter) const
+Action *CMainFrame::GetLastAction(int Filter) const
 {
-	ASSERT(m_pActionHandler != NULL);
-	CAction *pAction = m_pActionHandler->GetLastAction();
+	ASSERT(m_history != NULL);
+	Action *pAction = m_history->GetLastAction();
 	return (pAction == NULL || pAction->GetAction() != Filter) ? NULL : pAction;
 }
 
 void CMainFrame::ResetUndo()
 {
-	ASSERT(m_pActionHandler != NULL);
+	ASSERT(m_history != NULL);
 
-	m_pActionHandler->Clear();
+	m_history->Clear();
 }
 
 void CMainFrame::OnEditUndo()
 {
-	ASSERT(m_pActionHandler != NULL);
+	ASSERT(m_history != NULL);
 
-	CAction *pAction = m_pActionHandler->PopUndo();
-
-	if (pAction != NULL)
+	if (Action *pAction = m_history->PopUndo()) {
+		pAction->RestoreRedoState(this);		// // //
 		pAction->Undo(this);
+		pAction->RestoreUndoState(this);		// // //
+	}
+
+	CFamiTrackerDoc	*pDoc = (CFamiTrackerDoc*)GetActiveDocument();			// // //
+	if (!m_history->CanUndo() && !pDoc->GetExceededFlag())
+		pDoc->SetModifiedFlag(false);
 }
 
 void CMainFrame::OnEditRedo()
 {
-	ASSERT(m_pActionHandler != NULL);
+	ASSERT(m_history != NULL);
 
-	CAction *pAction = m_pActionHandler->PopRedo();
-
-	if (pAction != NULL)
+	if (Action *pAction = m_history->PopRedo()) {
+		pAction->RestoreUndoState(this);		// // //
 		pAction->Redo(this);
+		pAction->RestoreRedoState(this);		// // //
+	}
 }
 
 void CMainFrame::OnUpdateEditUndo(CCmdUI *pCmdUI)
 {
-	ASSERT(m_pActionHandler != NULL);
+	ASSERT(m_history != NULL);
 
-	pCmdUI->Enable(m_pActionHandler->CanUndo() ? 1 : 0);
+	pCmdUI->Enable(m_history->CanUndo() ? 1 : 0);
 }
 
 void CMainFrame::OnUpdateEditRedo(CCmdUI *pCmdUI)
 {
-	ASSERT(m_pActionHandler != NULL);
+	ASSERT(m_history != NULL);
 
-	pCmdUI->Enable(m_pActionHandler->CanRedo() ? 1 : 0);
+	pCmdUI->Enable(m_history->CanRedo() ? 1 : 0);
 }
 
 void CMainFrame::UpdateMenus()
@@ -2413,7 +2874,7 @@ void CMainFrame::UpdateMenu(CMenu *pMenu)
 {
 	CAccelerator *pAccel = theApp.GetAccelerator();
 
-	for (UINT i = 0; i < pMenu->GetMenuItemCount(); ++i) {
+	for (UINT i = 0; i < static_cast<unsigned int>(pMenu->GetMenuItemCount()); ++i) {		// // //
 		UINT state = pMenu->GetMenuState(i, MF_BYPOSITION);
 		if (state & MF_POPUP) {
 			// Update sub menu
@@ -2457,12 +2918,48 @@ void CMainFrame::OnEditCopy()
 		GetFrameEditor()->OnEditCopy();
 }
 
+void CMainFrame::OnEditCopyAsText()		// // //
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditCopyAsText();
+	//else if (GetFocus() == GetFrameEditor())
+	//	GetFrameEditor()->OnEditCopy();
+}
+
+void CMainFrame::OnEditCopyAsVolumeSequence()		// // //
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditCopyAsVolumeSequence();
+}
+
+void CMainFrame::OnEditCopyAsPPMCK()		// // //
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditCopyAsPPMCK();
+}
+
 void CMainFrame::OnEditPaste()
 {
 	if (GetFocus() == GetActiveView())
 		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditPaste();
 	else if (GetFocus() == GetFrameEditor())
 		GetFrameEditor()->OnEditPaste();
+}
+
+void CMainFrame::OnEditPasteOverwrite()		// // //
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditPasteOverwrite();
+	else if (GetFocus() == GetFrameEditor())
+		GetFrameEditor()->OnEditPasteOverwrite();
+}
+
+void CMainFrame::OnUpdateEditPasteOverwrite(CCmdUI *pCmdUI)		// // //
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnUpdateEditPaste(pCmdUI);
+	else if (GetFocus() == GetFrameEditor())
+		GetFrameEditor()->OnUpdateEditPasteOverwrite(pCmdUI);
 }
 
 void CMainFrame::OnEditDelete()
@@ -2477,26 +2974,159 @@ void CMainFrame::OnEditSelectall()
 {
 	if (GetFocus() == GetActiveView())
 		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditSelectall();
+	else if (GetFocus() == GetFrameEditor())		// // //
+		GetFrameEditor()->OnEditSelectall();
+}
+
+void CMainFrame::OnEditSelectnone()		// // //
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditSelectnone();
+	else if (GetFocus() == GetFrameEditor())
+		GetFrameEditor()->CancelSelection();
+}
+
+void CMainFrame::OnEditSelectrow()
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditSelectrow();
+}
+
+void CMainFrame::OnEditSelectcolumn()
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditSelectcolumn();
+}
+
+void CMainFrame::OnEditSelectpattern()
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditSelectpattern();
+	else if (GetFocus() == GetFrameEditor())
+		GetFrameEditor()->OnEditSelectpattern();
+}
+
+void CMainFrame::OnEditSelectframe()
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditSelectframe();
+	else if (GetFocus() == GetFrameEditor())
+		GetFrameEditor()->OnEditSelectframe();
+}
+
+void CMainFrame::OnEditSelectchannel()
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditSelectchannel();
+	else if (GetFocus() == GetFrameEditor())
+		GetFrameEditor()->OnEditSelectchannel();
+}
+
+void CMainFrame::OnEditSelecttrack()
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditSelecttrack();
+	else if (GetFocus() == GetFrameEditor())
+		GetFrameEditor()->OnEditSelectall();
+}
+
+void CMainFrame::OnEditSelectother()		// // //
+{
+	auto pView = static_cast<CFamiTrackerView*>(GetActiveView());
+	auto pEditor = pView->GetPatternEditor();
+	auto pDoc = static_cast<const CFamiTrackerDoc*>(GetActiveDocument());
+
+	if (GetFocus() == pView) {
+		if (pEditor->IsSelecting()) {
+			const CSelection Sel = pEditor->GetSelection().GetNormalized();
+			pEditor->CancelSelection();
+
+			CFrameSelection NewSel;
+			int Frames = pDoc->GetFrameCount(m_iTrack);
+			NewSel.m_cpStart.m_iFrame = Sel.m_cpStart.m_iFrame;
+			NewSel.m_cpEnd.m_iFrame = Sel.m_cpEnd.m_iFrame;
+			if (NewSel.m_cpStart.m_iFrame < 0) {
+				NewSel.m_cpStart.m_iFrame += Frames;
+				NewSel.m_cpEnd.m_iFrame += Frames;
+			}
+			NewSel.m_cpEnd.m_iFrame = std::min(NewSel.m_cpEnd.m_iFrame, Frames - 1);
+			NewSel.m_cpStart.m_iChannel = Sel.m_cpStart.m_iChannel;
+			NewSel.m_cpEnd.m_iChannel = Sel.m_cpEnd.m_iChannel;
+
+			m_pFrameEditor->SetSelection(NewSel);
+		}
+		else
+			m_pFrameEditor->CancelSelection();
+		m_pFrameEditor->EnableInput();
+	}
+	else if (GetFocus() == m_pFrameEditor) {
+		if (m_pFrameEditor->IsSelecting()) {
+			const CFrameSelection Sel = m_pFrameEditor->GetSelection().GetNormalized();
+			m_pFrameEditor->CancelSelection();
+
+			CSelection NewSel;
+			NewSel.m_cpStart.m_iFrame = Sel.m_cpStart.m_iFrame;
+			NewSel.m_cpEnd.m_iFrame = Sel.m_cpEnd.m_iFrame;
+			NewSel.m_cpStart.m_iRow = 0;
+			NewSel.m_cpEnd.m_iRow = pDoc->GetCurrentPatternLength(m_iTrack, Sel.m_cpStart.m_iFrame) - 1;
+			NewSel.m_cpStart.m_iChannel = Sel.m_cpStart.m_iChannel;
+			NewSel.m_cpEnd.m_iChannel = Sel.m_cpEnd.m_iChannel;
+			NewSel.m_cpStart.m_iColumn = C_NOTE;
+			NewSel.m_cpEnd.m_iColumn = pEditor->GetChannelColumns(Sel.m_cpEnd.m_iChannel);
+
+			pEditor->SetSelection(NewSel);
+			pEditor->UpdateSelectionCondition();
+		}
+		else
+			pEditor->CancelSelection();
+		pView->SetFocus();
+	}
 }
 
 void CMainFrame::OnDecayFast()
 {
-	// TODO add this
+	theApp.GetSoundGenerator()->SetMeterDecayRate(theApp.GetSettings()->MeterDecayRate = DECAY_FAST);		// // // 050B
 }
 
 void CMainFrame::OnDecaySlow()
 {
-	// TODO add this
+	theApp.GetSoundGenerator()->SetMeterDecayRate(theApp.GetSettings()->MeterDecayRate = DECAY_SLOW);		// // // 050B
+}
+
+void CMainFrame::OnUpdateDecayFast(CCmdUI *pCmdUI)		// // // 050B
+{
+	pCmdUI->SetCheck(theApp.GetSoundGenerator()->GetMeterDecayRate() == DECAY_FAST ? MF_CHECKED : MF_UNCHECKED);
+}
+
+void CMainFrame::OnUpdateDecaySlow(CCmdUI *pCmdUI)		// // // 050B
+{
+	pCmdUI->SetCheck(theApp.GetSoundGenerator()->GetMeterDecayRate() == DECAY_SLOW ? MF_CHECKED : MF_UNCHECKED);
 }
 
 void CMainFrame::OnEditExpandpatterns()
 {
-	AddAction(new CPatternAction(CPatternAction::ACT_EXPAND_PATTERN));
+	if (GetFocus() == GetActiveView())		// // //
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditExpandPatterns();
 }
 
 void CMainFrame::OnEditShrinkpatterns()
 {
-	AddAction(new CPatternAction(CPatternAction::ACT_SHRINK_PATTERN));
+	if (GetFocus() == GetActiveView())		// // //
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditShrinkPatterns();
+}
+
+void CMainFrame::OnEditStretchpatterns()		// // //
+{
+	if (GetFocus() == GetActiveView())
+		static_cast<CFamiTrackerView*>(GetActiveView())->OnEditStretchPatterns();
+}
+
+void CMainFrame::OnEditTransposeCustom()		// // //
+{
+	CTransposeDlg TrspDlg;
+	TrspDlg.SetTrack(GetSelectedTrack());
+	if (TrspDlg.DoModal() == IDOK)
+		ResetUndo();
 }
 
 void CMainFrame::OnEditClearPatterns()
@@ -2504,7 +3134,7 @@ void CMainFrame::OnEditClearPatterns()
 	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
 	int Track = GetSelectedTrack();
 
-	if (AfxMessageBox(IDS_CLEARPATTERN, MB_OKCANCEL | MB_ICONWARNING) == IDCANCEL)
+	if (AfxMessageBox(IDS_CLEARPATTERN, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO)
 		return;
 
 	pDoc->ClearPatterns(Track);
@@ -2519,7 +3149,7 @@ void CMainFrame::OnEditRemoveUnusedInstruments()
 
 	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
 
-	if (AfxMessageBox(IDS_REMOVE_INSTRUMENTS, MB_YESNO | MB_ICONINFORMATION) == IDNO)
+	if (AfxMessageBox(IDS_REMOVE_INSTRUMENTS, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO)
 		return;
 
 	// Current instrument might disappear
@@ -2537,22 +3167,31 @@ void CMainFrame::OnEditRemoveUnusedPatterns()
 
 	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
 
-	if (AfxMessageBox(IDS_REMOVE_PATTERNS, MB_YESNO | MB_ICONINFORMATION) == IDNO)
+	if (AfxMessageBox(IDS_REMOVE_PATTERNS, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO)
 		return;
 
 	pDoc->RemoveUnusedPatterns();
+	ResetUndo();		// // //
 	pDoc->UpdateAllViews(NULL, UPDATE_PATTERN);
 }
 
 void CMainFrame::OnEditMergeDuplicatedPatterns()
 {
-	AddAction(new CFrameAction(CFrameAction::ACT_MERGE_DUPLICATED_PATTERNS));
+	AddAction(new CFActionMergeDuplicated { });		// // //
 }
 
 void CMainFrame::OnUpdateSelectionEnabled(CCmdUI *pCmdUI)
 {
 	CFamiTrackerView *pView	= static_cast<CFamiTrackerView*>(GetActiveView());
-	pCmdUI->Enable((pView->IsSelecting()) ? 1 : 0);
+	pCmdUI->Enable(pView->IsSelecting() ? 1 : 0);
+}
+
+void CMainFrame::OnUpdateCurrentSelectionEnabled(CCmdUI *pCmdUI)		// // //
+{
+	if (GetFocus() == GetActiveView())
+		OnUpdateSelectionEnabled(pCmdUI);
+	else if (GetFocus() == GetFrameEditor())
+		pCmdUI->Enable(GetFrameEditor()->IsSelecting() ? 1 : 0);
 }
 
 void CMainFrame::SetFrameEditorPosition(int Position)
@@ -2585,6 +3224,38 @@ void CMainFrame::SetFrameEditorPosition(int Position)
 
 	// Save to settings
 	theApp.GetSettings()->FrameEditPos = Position;
+}
+
+void CMainFrame::SetControlPanelPosition(control_panel_pos_t Position)		// // // 050B
+{
+	m_iControlPanelPos = Position;
+	if (m_iControlPanelPos)
+		SetFrameEditorPosition(FRAME_EDIT_POS_LEFT);
+	
+	/*
+	CRect Rect {193, 0, 193, 126};
+	MapDialogRect(m_wndInstToolBarWnd, &Rect);
+
+	switch (m_iControlPanelPos) {
+	case CONTROL_PANEL_POS_TOP:
+		m_wndToolBar.SetBarStyle(CBRS_ALIGN_TOP | CBRS_BORDER_BOTTOM | CBRS_TOOLTIPS | CBRS_FLYBY);
+		m_wndToolBar.CalcFixedLayout(TRUE, FALSE);
+		break;
+	case CONTROL_PANEL_POS_LEFT:
+		m_wndToolBar.SetBarStyle(0x1430);
+		m_wndToolBar.CalcFixedLayout(TRUE, FALSE);
+		break;
+	case CONTROL_PANEL_POS_RIGHT:
+		m_wndToolBar.SetBarStyle(0x4130);
+		m_wndToolBar.CalcFixedLayout(TRUE, FALSE);
+		break;
+	}
+
+	// 0x462575
+	*/
+
+	ResizeFrameWindow();
+	ResizeFrameWindow();
 }
 
 void CMainFrame::OnFrameeditorTop()
@@ -2636,7 +3307,9 @@ void CMainFrame::OnUpdateFrameTitle(BOOL bAddToTitle)
 	// Add name of subtune
 	title.AppendFormat(_T(" [#%i %s]"), m_iTrack + 1, pDoc->GetTrackTitle(GetSelectedTrack()).GetString());
 
-	UpdateFrameTitleForDocument(title);
+	title.AppendFormat(_T(" - %s"), _T(APP_NAME_VERSION));		// // //
+	SetWindowText(title);
+	// UpdateFrameTitleForDocument(title);
 }
 
 LRESULT CMainFrame::OnDisplayMessageString(WPARAM wParam, LPARAM lParam)
@@ -2675,6 +3348,7 @@ void CMainFrame::CheckAudioStatus()
 		DisplayedError = TRUE;
 		MessageTimeout = GetTickCount() + TIMEOUT;
 	}
+#ifndef _DEBUG
 	else if (pSoundGen->IsBufferUnderrun()) {
 		// Buffer underrun
 		SetMessageText(IDS_UNDERRUN_MESSAGE);
@@ -2687,10 +3361,11 @@ void CMainFrame::CheckAudioStatus()
 		DisplayedError = TRUE;
 		MessageTimeout = GetTickCount() + TIMEOUT;
 	}
+#endif
 	else {
 		if (DisplayedError == TRUE && MessageTimeout < GetTickCount()) {
 			// Restore message
-			SetMessageText(AFX_IDS_IDLEMESSAGE);
+			//SetMessageText(AFX_IDS_IDLEMESSAGE);
 			DisplayedError = FALSE;
 		}
 	}
@@ -2702,4 +3377,287 @@ void CMainFrame::OnViewToolbar()
 	m_wndToolBar.ShowWindow(Visible ? SW_HIDE : SW_SHOW);
 	m_wndToolBarReBar.ShowWindow(Visible ? SW_HIDE : SW_SHOW);
 	RecalcLayout();
+}
+
+// // //
+
+void CMainFrame::OnToggleMultiplexer()
+{
+	CSettings *pSettings = theApp.GetSettings();
+	CSoundGen *pSoundGen = theApp.GetSoundGenerator();
+	if (!pSettings->m_bNamcoMixing){
+		pSettings->m_bNamcoMixing = true;
+		pSoundGen->SetNamcoMixing(theApp.GetSettings()->m_bNamcoMixing);
+		SetStatusText(_T("Namco 163 multiplexer emulation disabled"));
+	}
+	else{
+		pSettings->m_bNamcoMixing = false;
+		pSoundGen->SetNamcoMixing(theApp.GetSettings()->m_bNamcoMixing);
+		SetStatusText(_T("Namco 163 multiplexer emulation enabled"));
+	}
+}
+
+void CMainFrame::OnToggleGroove()
+{
+	CFamiTrackerDoc *pDoc = (CFamiTrackerDoc*)GetActiveDocument();
+	pDoc->SetSongGroove(m_iTrack, !pDoc->GetSongGroove(m_iTrack));
+	GetActiveView()->SetFocus();
+}
+
+void CMainFrame::OnUpdateGrooveEdit(CCmdUI *pCmdUI)
+{
+	CFamiTrackerDoc *pDoc = (CFamiTrackerDoc*)GetActiveDocument();
+	int Speed = pDoc->GetSongSpeed(m_iTrack);
+	if (pDoc->GetSongGroove(m_iTrack)) {
+		m_pButtonGroove->SetWindowText(_T("Groove"));
+		if (Speed > MAX_GROOVE - 1) Speed = MAX_GROOVE - 1;
+		if (Speed < 0) Speed = 0;
+		pDoc->SetSongSpeed(m_iTrack, Speed);
+	}
+	else {
+		m_pButtonGroove->SetWindowText(_T("Speed"));
+		int MaxSpeed = pDoc->GetSongTempo(m_iTrack) ? pDoc->GetSpeedSplitPoint() - 1 : 0xFF;
+		if (Speed > MaxSpeed) Speed = MaxSpeed;
+		if (Speed < MIN_SPEED) Speed = MIN_SPEED;
+		pDoc->SetSongSpeed(m_iTrack, Speed);
+	}
+}
+
+void CMainFrame::OnToggleFixTempo()
+{
+	CFamiTrackerDoc *pDoc = (CFamiTrackerDoc*)GetActiveDocument();
+	pDoc->SetSongTempo(m_iTrack, pDoc->GetSongTempo(m_iTrack) ? 0 : 150);
+	GetActiveView()->SetFocus();
+}
+
+void CMainFrame::OnUpdateToggleFixTempo(CCmdUI *pCmdUI)
+{
+	CFamiTrackerDoc *pDoc = (CFamiTrackerDoc*)GetActiveDocument();
+	int Tempo = pDoc->GetSongTempo(m_iTrack);
+	if (Tempo) {
+		m_pButtonFixTempo->SetWindowText(_T("Tempo"));
+		m_pLockedEditTempo->EnableWindow(true);
+		m_wndDialogBar.GetDlgItem(IDC_TEMPO_SPIN)->EnableWindow(true);
+	}
+	else {
+		m_pButtonFixTempo->SetWindowText(_T("Fixed"));
+		m_pLockedEditTempo->EnableWindow(false);
+		m_wndDialogBar.GetDlgItem(IDC_TEMPO_SPIN)->EnableWindow(false);
+		CString str;
+		str.Format(_T("%.2f"), static_cast<float>(pDoc->GetFrameRate()) * 2.5);
+		m_pLockedEditTempo->SetWindowText(str);
+	}
+}
+
+void CMainFrame::OnEasterEggKraid1()			// Easter Egg
+{
+	if (m_iKraidCounter == 0) m_iKraidCounter++;
+	else m_iKraidCounter = 0;
+}
+
+void CMainFrame::OnEasterEggKraid2()
+{
+	if (m_iKraidCounter == 1) m_iKraidCounter++;
+	else m_iKraidCounter = 0;
+}
+
+void CMainFrame::OnEasterEggKraid3()
+{
+	if (m_iKraidCounter == 2) m_iKraidCounter++;
+	else m_iKraidCounter = 0;
+}
+
+void CMainFrame::OnEasterEggKraid4()
+{
+	if (m_iKraidCounter == 3) m_iKraidCounter++;
+	else m_iKraidCounter = 0;
+}
+
+void CMainFrame::OnEasterEggKraid5()
+{
+	if (m_iKraidCounter == 4) {
+		if (AfxMessageBox(IDS_KRAID, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO) {
+			m_iKraidCounter = 0;
+			return;}
+		CFamiTrackerDoc *pDoc = (CFamiTrackerDoc*)GetActiveDocument();
+		pDoc->MakeKraid();
+		SelectTrack(0);
+		SetSongInfo(_T(""), _T(""), _T(""));
+		UpdateControls();
+		UpdateInstrumentList();
+		UpdateTrackBox();
+		ResetUndo();
+		ResizeFrameWindow();
+		SetStatusText(_T("Famitracker - Metroid - Kraid's Lair (Uploaded on Jun 9, 2010 http://www.youtube.com/watch?v=9yzCLy-fZVs) The FTM straight from the tutorial. - 8BitDanooct1"));
+	}
+	m_iKraidCounter = 0;
+}
+
+void CMainFrame::OnFindNext()
+{
+	m_pFindDlg->OnBnClickedButtonFindNext();
+}
+
+void CMainFrame::OnFindPrevious()
+{
+	m_pFindDlg->OnBnClickedButtonFindPrevious();
+}
+
+void CMainFrame::OnEditFindToggle()
+{
+	if (m_wndFindControlBar.IsWindowVisible())
+		m_wndFindControlBar.ShowWindow(SW_HIDE);
+	else {
+		m_wndFindControlBar.ShowWindow(SW_SHOW);
+		m_wndFindControlBar.Invalidate();
+		m_wndFindControlBar.RedrawWindow();
+	}
+	ResizeFrameWindow();
+}
+
+void CMainFrame::OnUpdateEditFindToggle(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(m_wndFindControlBar.IsWindowVisible());
+}
+
+void CMainFrame::ResetFind()
+{
+	m_pFindDlg->Reset();
+}
+
+void CMainFrame::OnEditRemoveUnusedSamples()
+{
+	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+
+	if (AfxMessageBox(IDS_REMOVE_SAMPLES, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO)
+		return;
+	
+	CloseInstrumentEditor();
+	pDoc->RemoveUnusedSamples();
+	ResetUndo();		// // //
+	pDoc->UpdateAllViews(NULL, UPDATE_PATTERN);
+}
+
+void CMainFrame::OnEditPopulateUniquePatterns()		// // //
+{
+	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+
+	if (AfxMessageBox(IDS_POPULATE_PATTERNS, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO)
+		return;
+	
+	pDoc->PopulateUniquePatterns(m_iTrack);
+	ResetUndo();
+	pDoc->UpdateAllViews(NULL, UPDATE_FRAME);
+}
+
+void CMainFrame::OnEditGoto()
+{
+	CGotoDlg gotoDlg;
+	gotoDlg.DoModal();
+}
+
+void CMainFrame::OnEditSwapChannels()
+{
+	CSwapDlg swapDlg;
+	swapDlg.SetTrack(GetSelectedTrack());
+	if (swapDlg.DoModal() == IDOK)
+		ResetUndo();
+}
+
+// // // Moved from CFamiTrackerView
+
+void CMainFrame::OnTrackerPal()
+{
+	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+	ASSERT_VALID(pDoc);
+
+	machine_t Machine = PAL;
+	pDoc->SetMachine(Machine);
+	theApp.GetSoundGenerator()->LoadMachineSettings();		// // //
+	theApp.GetSoundGenerator()->DocumentPropertiesChanged(pDoc);		// // //
+	m_wndInstEdit.SetRefreshRate(static_cast<float>(pDoc->GetFrameRate()));		// // //
+}
+
+void CMainFrame::OnTrackerNtsc()
+{
+	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+	ASSERT_VALID(pDoc);
+
+	machine_t Machine = NTSC;
+	pDoc->SetMachine(Machine);
+	theApp.GetSoundGenerator()->LoadMachineSettings();		// // //
+	theApp.GetSoundGenerator()->DocumentPropertiesChanged(pDoc);		// // //
+	m_wndInstEdit.SetRefreshRate(static_cast<float>(pDoc->GetFrameRate()));		// // //
+}
+
+void CMainFrame::OnSpeedDefault()
+{
+	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+	ASSERT_VALID(pDoc);
+
+	int Speed = 0;
+	pDoc->SetEngineSpeed(Speed);
+	theApp.GetSoundGenerator()->LoadMachineSettings();		// // //
+	m_wndInstEdit.SetRefreshRate(static_cast<float>(pDoc->GetFrameRate()));		// // //
+}
+
+void CMainFrame::OnSpeedCustom()
+{
+	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+	ASSERT_VALID(pDoc);
+
+	CSpeedDlg SpeedDlg;
+
+	machine_t Machine = pDoc->GetMachine();
+	int Speed = pDoc->GetEngineSpeed();
+	if (Speed == 0)
+		Speed = (Machine == NTSC) ? CAPU::FRAME_RATE_NTSC : CAPU::FRAME_RATE_PAL;
+	Speed = SpeedDlg.GetSpeedFromDlg(Speed);
+
+	if (Speed == 0)
+		return;
+
+	pDoc->SetEngineSpeed(Speed);
+	theApp.GetSoundGenerator()->LoadMachineSettings();		// // //
+	m_wndInstEdit.SetRefreshRate(static_cast<float>(pDoc->GetFrameRate()));		// // //
+}
+
+void CMainFrame::OnUpdateTrackerPal(CCmdUI *pCmdUI)
+{
+	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+	ASSERT_VALID(pDoc);
+
+	pCmdUI->Enable(pDoc->GetExpansionChip() == SNDCHIP_NONE && !theApp.IsPlaying());		// // //
+	UINT item = pDoc->GetMachine() == PAL ? ID_TRACKER_PAL : ID_TRACKER_NTSC;
+	if (pCmdUI->m_pMenu != NULL)
+		pCmdUI->m_pMenu->CheckMenuRadioItem(ID_TRACKER_NTSC, ID_TRACKER_PAL, item, MF_BYCOMMAND);
+}
+
+void CMainFrame::OnUpdateTrackerNtsc(CCmdUI *pCmdUI)
+{
+	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+	ASSERT_VALID(pDoc);
+
+	pCmdUI->Enable(!theApp.IsPlaying());		// // //
+	UINT item = pDoc->GetMachine() == NTSC ? ID_TRACKER_NTSC : ID_TRACKER_PAL;
+	if (pCmdUI->m_pMenu != NULL)
+		pCmdUI->m_pMenu->CheckMenuRadioItem(ID_TRACKER_NTSC, ID_TRACKER_PAL, item, MF_BYCOMMAND);
+}
+
+void CMainFrame::OnUpdateSpeedDefault(CCmdUI *pCmdUI)
+{
+	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+	ASSERT_VALID(pDoc);
+
+	pCmdUI->Enable(!theApp.IsPlaying());		// // //
+	pCmdUI->SetCheck(pDoc->GetEngineSpeed() == 0);
+}
+
+void CMainFrame::OnUpdateSpeedCustom(CCmdUI *pCmdUI)
+{
+	CFamiTrackerDoc *pDoc = static_cast<CFamiTrackerDoc*>(GetActiveDocument());
+	ASSERT_VALID(pDoc);	
+
+	pCmdUI->Enable(!theApp.IsPlaying());		// // //
+	pCmdUI->SetCheck(pDoc->GetEngineSpeed() != 0);
 }

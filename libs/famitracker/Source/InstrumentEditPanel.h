@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,7 +22,8 @@
 
 #pragma once
 
-// std::string is required by this header file
+#include <string>		// // //
+#include <memory>		// // //
 
 // List control states
 #define LCTRL_CHECKBOX_STATE		0x3000
@@ -28,6 +31,10 @@
 #define LCTRL_CHECKBOX_UNCHECKED	0x1000
 
 class CSequence;
+class CSeqInstrument;
+class CFamiTrackerDoc;
+class CInstrumentManager;		// // //
+class CSequenceParser;		// // //
 
 class CInstrumentEditPanel : public CDialog
 {
@@ -39,7 +46,8 @@ public:
 	virtual TCHAR *GetTitle() const = 0;
 
 	// Select instrument for the editing
-	virtual void SelectInstrument(int Instrument) = 0;
+	virtual void SelectInstrument(std::shared_ptr<CInstrument> pInst) = 0;		// // //
+	void SetInstrumentManager(CInstrumentManager *pManager);		// // //
 
 protected:
 	CFamiTrackerDoc *GetDocument() const;
@@ -49,6 +57,9 @@ protected:
 	virtual void OnKeyReturn();
 
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+
+protected:
+	CInstrumentManager *m_pInstManager;		// // //
 
 	DECLARE_MESSAGE_MAP()
 public:
@@ -69,17 +80,19 @@ public:
 	CSequenceInstrumentEditPanel(UINT nIDTemplate, CWnd* pParent);
 	virtual ~CSequenceInstrumentEditPanel();
 
-	virtual void SetSequenceString(CString Sequence, bool Changed) = 0;
+	virtual void UpdateSequenceString(bool Changed) = 0;		// // //
 
 	// Static methods
 public:
-	static int ReadStringValue(const std::string &str);
+	static int ReadStringValue(const std::string &str, bool Signed);		// // //
 
 	// Member variables
 protected:
 	CSequenceEditor	*m_pSequenceEditor;
 	CSequence *m_pSequence;
 	CWnd *m_pParentWin;
+	std::shared_ptr<CSeqInstrument> m_pInstrument;		// // //
+	CSequenceParser *m_pParser;		// // //
 
 	unsigned int m_iSelectedSetting;
 
@@ -88,9 +101,9 @@ protected:
 	void SetupDialog(LPCTSTR *pListItems);
 	
 	// Virtual methods
-	virtual void TranslateMML(CString String, CSequence *pSequence, int Max, int Min) const;
+	virtual void SetupParser() const = 0;		// // //
+	virtual void TranslateMML(CString String) const;		// // //
 	virtual void PreviewNote(unsigned char Key);
-	virtual void PreviewRelease(unsigned char Key);
 
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 

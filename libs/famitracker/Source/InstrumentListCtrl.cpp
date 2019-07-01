@@ -19,7 +19,7 @@
 */
 
 #include "stdafx.h"
-#include "resource.h"
+#include "res/resource.h"
 #include "FamiTrackerDoc.h"
 #include "MainFrm.h"
 #include "CustomControls.h"
@@ -35,21 +35,14 @@ IMPLEMENT_DYNAMIC(CInstrumentList, CListCtrl)
 
 BEGIN_MESSAGE_MAP(CInstrumentList, CListCtrl)
 	ON_WM_CONTEXTMENU()
-//   ON_NOTIFY_REFLECT(LVN_BEGINLABELEDIT, &CInstrumentList::OnLvnBeginlabeledit)
-//   ON_NOTIFY_REFLECT(NM_CLICK, &CInstrumentList::OnNMClick)
-//   ON_NOTIFY_REFLECT(LVN_KEYDOWN, &CInstrumentList::OnLvnKeydown)
-//   ON_NOTIFY_REFLECT(LVN_ENDLABELEDIT, &CInstrumentList::OnLvnEndlabeledit)
-//   ON_NOTIFY_REFLECT(LVN_ITEMCHANGED, &CInstrumentList::OnLvnItemchanged)
-//   ON_NOTIFY_REFLECT(NM_DBLCLK, &CInstrumentList::OnNMDblclk)
-//   ON_NOTIFY_REFLECT(LVN_BEGINDRAG, &CInstrumentList::OnLvnBegindrag)
-   ON_NOTIFY_REFLECT(LVN_BEGINLABELEDIT, OnLvnBeginlabeledit)
-   ON_NOTIFY_REFLECT(NM_CLICK, OnNMClick)
-   ON_NOTIFY_REFLECT(LVN_KEYDOWN, OnLvnKeydown)
-   ON_NOTIFY_REFLECT(LVN_ENDLABELEDIT, OnLvnEndlabeledit)
-   ON_NOTIFY_REFLECT(LVN_ITEMCHANGED, OnLvnItemchanged)
-   ON_NOTIFY_REFLECT(NM_DBLCLK, OnNMDblclk)
-   ON_NOTIFY_REFLECT(LVN_BEGINDRAG, OnLvnBegindrag)
-   ON_WM_MOUSEMOVE()
+	ON_NOTIFY_REFLECT(LVN_BEGINLABELEDIT, &CInstrumentList::OnLvnBeginlabeledit)
+	ON_NOTIFY_REFLECT(NM_CLICK, &CInstrumentList::OnNMClick)
+	ON_NOTIFY_REFLECT(LVN_KEYDOWN, &CInstrumentList::OnLvnKeydown)
+	ON_NOTIFY_REFLECT(LVN_ENDLABELEDIT, &CInstrumentList::OnLvnEndlabeledit)
+	ON_NOTIFY_REFLECT(LVN_ITEMCHANGED, &CInstrumentList::OnLvnItemchanged)
+	ON_NOTIFY_REFLECT(NM_DBLCLK, &CInstrumentList::OnNMDblclk)
+	ON_NOTIFY_REFLECT(LVN_BEGINDRAG, &CInstrumentList::OnLvnBegindrag)
+	ON_WM_MOUSEMOVE()
 	ON_WM_LBUTTONUP()
 END_MESSAGE_MAP()
 
@@ -136,6 +129,7 @@ void CInstrumentList::InsertInstrument(int Index)
 	CString Text;
 	Text.Format(_T("%02X - %s"), Index, A2T(Name));
 	InsertItem(Index, Text, Type - 1);
+	SelectInstrument(Index);		// // //
 }
 
 void CInstrumentList::RemoveInstrument(int Index)
@@ -240,21 +234,20 @@ void CInstrumentList::OnLvnBegindrag(NMHDR *pNMHDR, LRESULT *pResult)
 	m_nDragIndex = pNMLV->iItem;
 	m_nDropIndex = -1;
 
-    // Create a drag image
-    POINT pt;
-    int nOffset = 10;
-    pt.x = nOffset;
-    pt.y = nOffset;
+	// Create a drag image
+	POINT pt;
+	int nOffset = 10;
+	pt.x = nOffset;
+	pt.y = nOffset;
 
-    qDebug("DragImage support!");
-//    m_pDragImage = CreateDragImage(m_nDragIndex, &pt);	// Delete this later
-//    ASSERT(m_pDragImage);
+	m_pDragImage = CreateDragImage(m_nDragIndex, &pt);	// Delete this later
+	ASSERT(m_pDragImage);
 
-//    m_pDragImage->BeginDrag(0, CPoint(nOffset, nOffset));
-//    m_pDragImage->DragEnter(this, pNMLV->ptAction);
+	m_pDragImage->BeginDrag(0, CPoint(nOffset, nOffset));
+	m_pDragImage->DragEnter(this, pNMLV->ptAction);
 	
 	// Capture all mouse messages
-    SetCapture();
+	SetCapture();
 
 	*pResult = 0;
 }
@@ -262,30 +255,29 @@ void CInstrumentList::OnLvnBegindrag(NMHDR *pNMHDR, LRESULT *pResult)
 void CInstrumentList::OnMouseMove(UINT nFlags, CPoint point)
 {
 	// Handle drag operation
-   qDebug("DragImage support!");
-//    if (m_bDragging) {
-//        // Move the drag image
-//        m_pDragImage->DragMove(point);
-//        m_pDragImage->DragShowNolock(false);
+	if (m_bDragging) {
+		// Move the drag image
+		m_pDragImage->DragMove(point);
+		m_pDragImage->DragShowNolock(false);
 
-//		// Turn off hilight for previous drop target
-//		SetItemState(m_nDropIndex, 0, LVIS_DROPHILITED);
-//		// Redraw previous item
-//		RedrawItems(m_nDropIndex, m_nDropIndex);
+		// Turn off hilight for previous drop target
+		SetItemState(m_nDropIndex, 0, LVIS_DROPHILITED);
+		// Redraw previous item
+		RedrawItems(m_nDropIndex, m_nDropIndex);
 
-//		// Get drop index
-//		UINT nFlags;
-//		m_nDropIndex = HitTest(point, &nFlags);
+		// Get drop index
+		UINT nFlags;
+		m_nDropIndex = HitTest(point, &nFlags);
 
-//		// Highlight drop index
-//		if (m_nDropIndex != -1) {
-//			SetItemState(m_nDropIndex, LVIS_DROPHILITED, LVIS_DROPHILITED);
-//			RedrawItems(m_nDropIndex, m_nDropIndex);
-//			UpdateWindow();
-//		}
+		// Highlight drop index
+		if (m_nDropIndex != -1) {
+			SetItemState(m_nDropIndex, LVIS_DROPHILITED, LVIS_DROPHILITED);
+			RedrawItems(m_nDropIndex, m_nDropIndex);
+			UpdateWindow();
+		}
 
-//		m_pDragImage->DragShowNolock(true);
-//	}
+		m_pDragImage->DragShowNolock(true);
+	}
 
 	CListCtrl::OnMouseMove(nFlags, point);
 }
@@ -297,15 +289,13 @@ void CInstrumentList::OnLButtonUp(UINT nFlags, CPoint point)
 		ReleaseCapture();
 		m_bDragging = false;
 
-      qDebug("DragImage support!");
-//		m_pDragImage->DragLeave(this);
-//        m_pDragImage->EndDrag();
-//		SAFE_RELEASE(m_pDragImage);
+		m_pDragImage->DragLeave(this);
+		m_pDragImage->EndDrag();
+		SAFE_RELEASE(m_pDragImage);
 
-//		// Remove highlight
-//		SetItemState(-1, 0, LVIS_DROPHILITED);
-      qDebug("RedrawItems support!");
-//		RedrawItems(-1, -1);
+		// Remove highlight
+		SetItemState(-1, 0, LVIS_DROPHILITED);
+		RedrawItems(-1, -1);
 		UpdateWindow();
 
 		if (m_nDropIndex != -1 && m_nDragIndex != m_nDropIndex) {

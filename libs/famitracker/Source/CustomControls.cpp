@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2016 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -19,11 +21,8 @@
 */
 
 #include "stdafx.h"
-#include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
-#include "FamiTrackerView.h"
-#include "MainFrm.h"
 #include "CustomControls.h"
+#include "DPI.h"		// // //
 
 /*
 
@@ -72,17 +71,17 @@ void CBannerEdit::OnPaint()
 	CString str;
 	GetWindowText(str);
 
-	// only if empty and not in focus
-	if (str.GetLength() > 0 || GetFocus() == this)
+	// only if empty, enabled, and not in focus
+	if (str.GetLength() > 0 || GetFocus() == this || !IsWindowEnabled())
 		return;
 
 	CDC *pDC = GetDC();
 	if (pDC != NULL) {
 		CFont font;
-		font.CreateFont(12, 0, 0, 0, 0, TRUE, FALSE, FALSE, 0, 0, 0, 0, 0, BANNER_FONT);
+		font.CreateFont(DPI::SY(13), 0, 0, 0, 0, FALSE, FALSE, FALSE, 0, 0, 0, 0, 0, BANNER_FONT);
 		CFont *pOldFont = pDC->SelectObject(&font);
 
-		pDC->SetBkColor(pDC->GetPixel(4, 4));
+		pDC->SetBkColor(GetSysColor(COLOR_WINDOW));
 		pDC->SetTextColor(BANNER_COLOR);
 		pDC->TextOut(2, 1, m_strText);
 		pDC->SelectObject(pOldFont);
@@ -150,7 +149,7 @@ void CLockedEdit::OnSetFocus(CWnd* pOldWnd)
 	CEdit::OnSetFocus(pOldWnd);
 
 	if (!IsEditable())
-		CFamiTrackerView::GetView()->SetFocus();
+		static_cast<CFrameWnd*>(AfxGetMainWnd())->GetActiveView()->SetFocus();		// // //
 }
 
 void CLockedEdit::OnKillFocus(CWnd* pNewWnd)
@@ -169,7 +168,7 @@ BOOL CLockedEdit::PreTranslateMessage(MSG* pMsg)
 {
 	// For some reason OnKeyDown won't work
 	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN) {
-		CFamiTrackerView::GetView()->SetFocus();
+		static_cast<CFrameWnd*>(AfxGetMainWnd())->GetActiveView()->SetFocus();		// // //
 		return TRUE;
 	}
 

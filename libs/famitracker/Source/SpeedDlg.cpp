@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -19,17 +21,17 @@
 */
 
 #include "stdafx.h"
-#include "FamiTracker.h"
+#include "res/resource.h"
 #include "SpeedDlg.h"
 
-const int RATE_MIN = 25;
+const int RATE_MIN = 16;		// // //
 const int RATE_MAX = 400;
 
 // CSpeedDlg dialog
 
 IMPLEMENT_DYNAMIC(CSpeedDlg, CDialog)
 CSpeedDlg::CSpeedDlg(CWnd* pParent /*=NULL*/)
-	: CDialog(CSpeedDlg::IDD, pParent), m_iInitSpeed(0), m_iSpeed(0)
+	: CDialog(CSpeedDlg::IDD, pParent), m_iSpeed(0)
 {
 }
 
@@ -75,7 +77,7 @@ BOOL CSpeedDlg::OnInitDialog()
 	CSliderCtrl *Slider = static_cast<CSliderCtrl*>(GetDlgItem(IDC_SPEED_SLD));
 	CString String;
 
-	// TODO: Program will crash if speed is set below 25Hz, I don't know why
+	// Playing at FPS < 0.5*RATE_MIN will overflow blip_buffer.
 	Slider->SetRange(RATE_MIN, RATE_MAX);
 	Slider->SetPos(m_iSpeed);
 

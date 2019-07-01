@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -26,47 +28,40 @@
 
 class CChannelHandlerVRC6 : public CChannelHandler {
 public:
-	CChannelHandlerVRC6();
-	virtual void ProcessChannel();
-	virtual void ResetChannel();
+	CChannelHandlerVRC6(int MaxPeriod, int MaxVolume);		// // //
 
 protected:
-	virtual void HandleNoteData(stChanNote *pNoteData, int EffColumns);
-	virtual void HandleCustomEffects(int EffNum, int EffParam);
-	virtual bool HandleInstrument(int Instrument, bool Trigger, bool NewInstrument);
-	virtual void HandleEmptyNote();
-	virtual void HandleCut();
-	virtual void HandleRelease();
-	virtual void HandleNote(int Note, int Octave);
-
-protected:
-	int m_iPostEffect;
-	int m_iPostEffectParam;
+	// // //
+	bool	HandleEffect(effect_t EffNum, unsigned char EffParam) override;		// // //
+	void	HandleEmptyNote() override;
+	void	HandleCut() override;
+	void	HandleRelease() override;
+	bool	CreateInstHandler(inst_type_t Type) override;		// // //
+	// // //
+	uint16_t getAddress();
+	void	ClearRegisters() override;		// // //
+	void	resetPhase();
 };
 
-class CVRC6Square1 : public CChannelHandlerVRC6 {
+class CVRC6Square : public CChannelHandlerVRC6 {
 public:
-	CVRC6Square1() : CChannelHandlerVRC6() { m_iDefaultDuty = 0; };
-	void RefreshChannel();
+	CVRC6Square() : CChannelHandlerVRC6(0xFFF, 0x0F) { }
+	void	RefreshChannel() override;
+	int getDutyMax() const override;
 protected:
-	void ClearRegisters();
-private:
-};
+	static const char MAX_DUTY;		// TODO remove class constant, move to .cpp file
 
-class CVRC6Square2 : public CChannelHandlerVRC6 {
-public:
-	CVRC6Square2() : CChannelHandlerVRC6() { m_iDefaultDuty = 0; };
-	void RefreshChannel();
-protected:
-	void ClearRegisters();
-private:
+	int		ConvertDuty(int Duty) const override;		// // //
 };
 
 class CVRC6Sawtooth : public CChannelHandlerVRC6 {
 public:
-	CVRC6Sawtooth() : CChannelHandlerVRC6() { m_iDefaultDuty = 0; };
-	void RefreshChannel();
+	CVRC6Sawtooth() : CChannelHandlerVRC6(0xFFF, 0x3F) { }
+	void	RefreshChannel() override;
+	int getDutyMax() const override;
 protected:
-	void ClearRegisters();
-private:
+	static const char MAX_DUTY;		// TODO remove class constant, move to .cpp file
+
+	bool	CreateInstHandler(inst_type_t Type) override;		// // //
+	int		CalculateVolume() const override;
 };

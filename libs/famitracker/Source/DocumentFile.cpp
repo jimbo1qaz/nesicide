@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2016 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -19,6 +21,7 @@
 */
 
 #include "stdafx.h"
+#include "ModuleException.h"
 #include "DocumentFile.h"
 
 //
@@ -58,28 +61,28 @@ bool CDocumentFile::Finished() const
 
 bool CDocumentFile::BeginDocument()
 {
-//	try {
+	try {
 		Write(FILE_HEADER_ID, int(strlen(FILE_HEADER_ID)));
 		Write(&FILE_VER, sizeof(int));
-//	}
-//	catch (CFileException *e) {
-//		e->Delete();
-//		return false;
-//	}
+	}
+	catch (CFileException *e) {
+		e->Delete();
+		return false;
+	}
 
 	return true;
 }
 
 bool CDocumentFile::EndDocument()
 {
-//	try {
+	try {
 		Write(FILE_END_ID, int(strlen(FILE_END_ID)));
-//	}
-//	catch (CFileException *e) {
-//		e->Delete();
-//		return false;
-//	}
-
+	}
+	catch (CFileException *e) {
+		e->Delete();
+		return false;
+	}
+	
 	return true;
 }
 
@@ -117,6 +120,8 @@ void CDocumentFile::WriteBlock(const char *pData, unsigned int Size)
 	unsigned int WritePtr = 0;
 
 	// Allow block to grow in size
+
+	unsigned Previous = m_iBlockPointer;
 	while (Size > 0) {
 		unsigned int WriteSize = (Size > BLOCK_SIZE) ? BLOCK_SIZE : Size;
 
@@ -128,6 +133,7 @@ void CDocumentFile::WriteBlock(const char *pData, unsigned int Size)
 		Size -= WriteSize;
 		WritePtr += WriteSize;
 	}
+	m_iPreviousPointer = Previous;
 }
 
 template<class T> void CDocumentFile::WriteBlockData(T Value)
@@ -156,28 +162,36 @@ void CDocumentFile::WriteString(CString String)
 	WriteBlockChar(0);
 }
 
+
+// adapted from hertzdevil/25d77a
+void CDocumentFile::WriteString(std::string_view sv) {
+	WriteBlock((const char *)sv.data(), sv.size());
+	WriteBlockChar(0);
+}
+
+
 bool CDocumentFile::FlushBlock()
 {
 	if (!m_pBlockData)
 		return false;
 
-//	try {
+	try {
 		Write(m_cBlockID, 16);
 		Write(&m_iBlockVersion, sizeof(m_iBlockVersion));
 		Write(&m_iBlockPointer, sizeof(m_iBlockPointer));
 		Write(m_pBlockData, m_iBlockPointer);
-//	}
-//	catch (CFileException *e) {
-//		e->Delete();
-//		return false;
-//	}
+	}
+	catch (CFileException *e) {
+		e->Delete();
+		return false;
+	}
 
 	SAFE_RELEASE_ARRAY(m_pBlockData);
 
 	return true;
 }
 
-bool CDocumentFile::ValidateFile()
+void CDocumentFile::ValidateFile()
 {
 	// Checks if loaded file is valid
 
@@ -186,17 +200,29 @@ bool CDocumentFile::ValidateFile()
 	// Check ident string
 	Read(Buffer, int(strlen(FILE_HEADER_ID)));
 
+	CModuleException *e = new CModuleException();		// // // blank
+
 	if (memcmp(Buffer, FILE_HEADER_ID, strlen(FILE_HEADER_ID)) != 0)
-		return FALSE;
+		RaiseModuleException("File is not a FamiTracker module");
 
 	// Read file version
 	Read(Buffer, 4);
 	m_iFileVersion = (Buffer[3] << 24) | (Buffer[2] << 16) | (Buffer[1] << 8) | Buffer[0];
+	
+	// // // Older file version
+	if (GetFileVersion() < COMPATIBLE_VER) {
+		e->AppendError("FamiTracker module version too old (0x%X), expected 0x%X or above", GetFileVersion(), COMPATIBLE_VER);
+		e->Raise();
+	}
+	// // // File version is too new
+	if (GetFileVersion() > 0x450U /*FILE_VER*/) {		// // // 050B
+		e->AppendError("FamiTracker module version too new (0x%X), expected 0x%X or below", GetFileVersion(), FILE_VER);
+		e->Raise();
+	}
 
 	m_bFileDone = false;
 	m_bIncomplete = false;
-
-	return true;
+	delete e;
 }
 
 unsigned int CDocumentFile::GetFileVersion() const
@@ -256,13 +282,19 @@ int CDocumentFile::GetBlockVersion() const
 void CDocumentFile::RollbackPointer(int count)
 {
 	m_iBlockPointer -= count;
+	m_iPreviousPointer = m_iBlockPointer; // ?
+	m_iFilePosition -= count;		// // //
+	m_iPreviousPosition -= count;
 }
 
 int CDocumentFile::GetBlockInt()
 {
 	int Value;
 	memcpy(&Value, m_pBlockData + m_iBlockPointer, sizeof(Value));
+	m_iPreviousPointer = m_iBlockPointer;
 	m_iBlockPointer += sizeof(Value);
+	m_iPreviousPosition = m_iFilePosition;		// // //
+	m_iFilePosition += sizeof(Value);
 	return Value;
 }
 
@@ -270,7 +302,10 @@ char CDocumentFile::GetBlockChar()
 {
 	char Value;
 	memcpy(&Value, m_pBlockData + m_iBlockPointer, sizeof(Value));
+	m_iPreviousPointer = m_iBlockPointer;
 	m_iBlockPointer += sizeof(Value);
+	m_iPreviousPosition = m_iFilePosition;		// // //
+	m_iFilePosition += sizeof(Value);
 	return Value;
 }
 
@@ -289,11 +324,13 @@ CString CDocumentFile::ReadString()
 	*/
 
 	CString str;
-	int str_ptr = 0;
 	char c;
+	int str_ptr = 0;
 
-	while ((c = GetBlockChar()) && (str_ptr++ < 65536))
+	unsigned int Previous = m_iBlockPointer;
+	while (str_ptr++ < 65536 && (c = GetBlockChar()))
 		str.AppendChar(c);
+	m_iPreviousPointer = Previous;
 	
 	return str;
 }
@@ -304,7 +341,10 @@ void CDocumentFile::GetBlock(void *Buffer, int Size)
 	ASSERT(Buffer != NULL);
 
 	memcpy(Buffer, m_pBlockData + m_iBlockPointer, Size);
+	m_iPreviousPointer = m_iBlockPointer;
 	m_iBlockPointer += Size;
+	m_iPreviousPosition = m_iFilePosition;		// // //
+	m_iFilePosition += Size;
 }
 
 bool CDocumentFile::BlockDone() const
@@ -325,4 +365,41 @@ int CDocumentFile::GetBlockSize() const
 bool CDocumentFile::IsFileIncomplete() const
 {
 	return m_bIncomplete;
+}
+
+CModuleException *CDocumentFile::GetException() const		// // //
+{
+	CModuleException *e = new CModuleException();
+	SetDefaultFooter(e);
+	return e;
+}
+
+void CDocumentFile::SetDefaultFooter(CModuleException *e) const		// // //
+{
+	char Buffer[128] = {};
+	sprintf_s(Buffer, sizeof(Buffer), "At address 0x%X in %s block,\naddress 0x%llX in file",
+			  m_iPreviousPointer, m_cBlockID, m_iPreviousPosition);
+	std::string str(Buffer);
+	e->SetFooter(str);
+}
+
+void CDocumentFile::RaiseModuleException(std::string Msg) const		// // //
+{
+	CModuleException *e = GetException();
+	e->AppendError(Msg);
+	e->Raise();
+}
+
+UINT CDocumentFile::Read(void *lpBuf, UINT nCount)		// // //
+{
+	m_iPreviousPosition = m_iFilePosition;
+	m_iFilePosition = GetPosition();
+	return CFile::Read(lpBuf, nCount);
+}
+
+void CDocumentFile::Write(const void *lpBuf, UINT nCount)		// // //
+{
+	m_iPreviousPosition = m_iFilePosition;
+	m_iFilePosition = GetPosition();
+	CFile::Write(lpBuf, nCount);
 }

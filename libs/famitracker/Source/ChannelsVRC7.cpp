@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -21,20 +23,28 @@
 // This file handles playing of VRC7 channels
 
 #include "stdafx.h"
-#include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
+#include "FamiTrackerTypes.h"		// // //
+#include "APU/Types.h"		// // //
+#include "Instrument.h"		// // //
 #include "ChannelHandler.h"
 #include "ChannelsVRC7.h"
-#include "SoundGen.h"
+#include "InstHandler.h"		// // //
+#include "InstHandlerVRC7.h"		// // //
 
 #define OPL_NOTE_ON 0x10
 #define OPL_SUSTAIN_ON 0x20
 
+const int VRC7_PITCH_RESOLUTION = 2;		// // // extra bits for internal pitch
+
 // True if custom instrument registers needs to be updated, shared among all channels
 bool CChannelHandlerVRC7::m_bRegsDirty = false;
+// Each bit represents that the custom patch register on that index has been updated
+char CChannelHandlerVRC7::m_cPatchFlag = 0;		// // // 050B
+// Custom instrument patch
+unsigned char CChannelHandlerVRC7::m_iPatchRegs[8] = { };		// // // 050B
 
 CChannelHandlerVRC7::CChannelHandlerVRC7() : 
-	CChannelHandler(2047, 15),
+	FrequencyChannelHandler((1 << (VRC7_PITCH_RESOLUTION + 9)) - 1, 15),		// // //
 	m_iCommand(CMD_NONE),
 	m_iTriggeredNote(0)
 {
@@ -47,126 +57,41 @@ void CChannelHandlerVRC7::SetChannelID(int ID)
 	m_iChannel = ID - CHANID_VRC7_CH1;
 }
 
+void CChannelHandlerVRC7::SetPatch(unsigned char Patch)		// // //
+{
+	m_iDutyPeriod = Patch;
+}
+
+void CChannelHandlerVRC7::SetCustomReg(size_t Index, unsigned char Val)		// // //
+{
+	ASSERT(Index < sizeof(m_iPatchRegs));
+	if (!(m_cPatchFlag & (1 << Index)))		// // // 050B
+		m_iPatchRegs[Index] = Val;
+}
+
 void CChannelHandlerVRC7::HandleNoteData(stChanNote *pNoteData, int EffColumns)
 {
-	m_iPostEffect = 0;
-	m_iPostEffectParam = 0;
+	FrequencyChannelHandler::HandleNoteData(pNoteData, EffColumns);		// // //
 
-	CChannelHandler::HandleNoteData(pNoteData, EffColumns);
-
-	if (m_iPostEffect && (m_iPostEffect == EF_SLIDE_UP || m_iPostEffect == EF_SLIDE_DOWN)) {
-
-		#define GET_SLIDE_SPEED(x) (((x & 0xF0) >> 3) + 1)
-
-		m_iPortaSpeed = GET_SLIDE_SPEED(m_iPostEffectParam);
-		m_iEffect = m_iPostEffect;
-
-		if (m_iPostEffect == EF_SLIDE_UP) {
-			m_iNote = m_iNote + (m_iPostEffectParam & 0xF);
-			m_iEffect = EF_SLIDE_DOWN;
-		}
-		else {
-			m_iNote = m_iNote - (m_iPostEffectParam & 0xF);
-			m_iEffect = EF_SLIDE_UP;
-		}
-
-		int OldOctave = m_iOctave;
-		m_iPortaTo = TriggerNote(m_iNote);
-
-		if (m_iOctave > OldOctave) {
-			m_iPeriod >>= (m_iOctave - OldOctave);
-		}
-		else if (m_iOctave < OldOctave) {
-			m_iPortaTo >>= (OldOctave - m_iOctave);
-			m_iOctave = OldOctave;
-		}
-	}
-	else if (pNoteData->Note != NONE && (m_iEffect == EF_SLIDE_DOWN || m_iEffect == EF_SLIDE_UP))
-		m_iEffect = EF_NONE;
+	if (m_iCommand == CMD_NOTE_TRIGGER && pNoteData->Instrument == HOLD_INSTRUMENT)		// // // 050B
+		m_iCommand = CMD_NOTE_ON;
 }
 
-void CChannelHandlerVRC7::HandleCustomEffects(int EffNum, int EffParam)
+bool CChannelHandlerVRC7::HandleEffect(effect_t EffNum, unsigned char EffParam)
 {
-	if (EffNum == EF_PORTA_DOWN) {
-		m_iEffect = EF_PORTA_UP;
-		m_iPortaSpeed = EffParam;
-	}
-	else if (EffNum == EF_PORTA_UP) {
-		m_iEffect = EF_PORTA_DOWN;
-		m_iPortaSpeed = EffParam;
-	}
-	else {
-		if (!CheckCommonEffects(EffNum, EffParam)) {
-			switch (EffNum) {
-				case EF_SLIDE_UP:
-				case EF_SLIDE_DOWN:
-					m_iPostEffect = EffNum;
-					m_iPostEffectParam = EffParam;
-					//SetupSlide(EffCmd, EffParam);
-					break;
-				case EF_DUTY_CYCLE:
-//					Patch = EffParam;		// TODO add this
-					break;
-/*
-				case EF_VRC7_MODULATOR:
-					switch (EffParam & 0xF0) {
-						case 0x00:	// Amplitude modulation on/off
-							break;
-						case 0x10:	// Vibrato on/off
-							break;
-						case 0x20:	// Sustain on/off
-							break;
-						case 0x30:	// Wave rectification on/off
-							break;
-						case 0x40:	// Key rate scaling on/off
-							break;
-						case 0x50:	// Key rate level
-							break;
-						case 0x60:	// Mult factor
-							break;
-						case 0x70:	// Attack
-							break;
-						case 0x80:	// Decay
-							break;
-						case 0x90:	// Sustain
-							break;
-						case 0xA0:	// Release
-							break;
-					}
-					break;
-				case EF_VRC7_CARRIER:
-					break;
-				case EF_VRC7_LEVELS:
-					if (EffParam & 0x80)	// Feedback
-						m_iRegs[0x03] = (m_iRegs[0x03] & 0xF8) | (EffParam & 0x07);
-					else
-						m_iRegs[0x02] = (m_iRegs[0x02] & 0xC0) | (EffParam & 0x3F);
-					m_bRegsDirty = true;
-					break;
-					*/
-			}
-		}
-	}
-}
-
-bool CChannelHandlerVRC7::HandleInstrument(int Instrument, bool Trigger, bool NewInstrument)
-{
-	CFamiTrackerDoc *pDocument = m_pSoundGen->GetDocument();
-	CInstrumentContainer<CInstrumentVRC7> instContainer(pDocument, Instrument);
-	CInstrumentVRC7 *pInstrument = instContainer();
-
-	if (pInstrument == NULL)
-		return false;
-
-	if (Trigger || NewInstrument) {
-		// Patch number
-		m_iPatch = pInstrument->GetPatch();
-
-		// Load custom parameters
-		if (m_iPatch == 0) {
-			for (int i = 0; i < 8; ++i)
-				m_iRegs[i] = pInstrument->GetCustomReg(i);
-		}
+	switch (EffNum) {
+	case EF_DUTY_CYCLE:
+		m_iPatch = EffParam;		// // // 050B
+		break;
+	case EF_VRC7_PORT:		// // // 050B
+		m_iCustomPort = EffParam & 0x07;
+		break;
+	case EF_VRC7_WRITE:		// // // 050B
+		m_iPatchRegs[m_iCustomPort] = EffParam;
+		m_cPatchFlag |= 1 << m_iCustomPort;
+		m_bRegsDirty = true;
+		break;
+	default: return FrequencyChannelHandler::HandleEffect(EffNum, EffParam);
 	}
 
 	return true;
@@ -178,9 +103,23 @@ void CChannelHandlerVRC7::HandleEmptyNote()
 
 void CChannelHandlerVRC7::HandleCut()
 {
-	m_iCommand = CMD_NOTE_HALT;
-	m_iPortaTo = 0;
 	RegisterKeyState(-1);
+	m_bGate = false;
+//	m_iPeriod = 0;
+//	m_iPortaTo = 0;
+	m_iCommand = CMD_NOTE_HALT;
+//	m_iOldOctave = -1;		// // //
+}
+
+void CChannelHandlerVRC7::UpdateNoteRelease()		// // //
+{
+	// Note release (Lxx)
+	if (m_iNoteRelease > 0) {
+		m_iNoteRelease--;
+		if (m_iNoteRelease == 0) {
+			HandleRelease();
+		}
+	}
 }
 
 void CChannelHandlerVRC7::HandleRelease()
@@ -193,42 +132,89 @@ void CChannelHandlerVRC7::HandleRelease()
 
 void CChannelHandlerVRC7::HandleNote(int Note, int Octave)
 {
-	int OldNote = m_iNote;
-	int OldOctave = m_iOctave;
+	CChannelHandler::HandleNote(Note, Octave);		// // //
 
-	// Portamento fix
-	if (m_iCommand == CMD_NOTE_HALT)
-		m_iPeriod = 0;
-
-	// Trigger note
-	m_iNote	= CChannelHandler::RunNote(Octave, Note);
 	m_bHold	= true;
 
-	if ((m_iEffect != EF_PORTAMENTO || m_iPortaSpeed == 0) || m_iCommand == CMD_NOTE_HALT)
+/*
+	if ((m_iEffect != EF_PORTAMENTO || m_iPortaSpeed == 0) ||
+		m_iCommand == CMD_NOTE_HALT || m_iCommand == CMD_NOTE_RELEASE)		// // // 050B
 		m_iCommand = CMD_NOTE_TRIGGER;
+*/
+	if (m_iPortaSpeed > 0 && m_iEffect == EF_PORTAMENTO &&
+		m_iCommand != CMD_NOTE_HALT && m_iCommand != CMD_NOTE_RELEASE)		// // // 050B
+		CorrectOctave();
+	else
+		m_iCommand = CMD_NOTE_TRIGGER;
+}
 
-	if (m_iPortaSpeed > 0 && m_iEffect == EF_PORTAMENTO && m_iCommand != CMD_NOTE_HALT) {
-		// Set current frequency to the one with highest octave
-		if (m_iOctave > OldOctave) {
-			m_iPeriod >>= (m_iOctave - OldOctave);
+int CChannelHandlerVRC7::RunNote(int Octave, int Note)		// // //
+{
+	// Run the note and handle portamento
+	int NewNote = MIDI_NOTE(Octave, Note);
+
+	int NesFreq = TriggerNote(NewNote);
+
+	if (m_iPortaSpeed > 0 && m_iEffect == EF_PORTAMENTO && m_bGate) {		// // //
+		if (m_iPeriod == 0) {
+			m_iPeriod = NesFreq;
+			m_iOldOctave = m_iOctave = Octave;
 		}
-		else if (OldOctave > m_iOctave) {
-			// Do nothing
-			m_iPortaTo >>= (OldOctave - m_iOctave);
-			m_iOctave = OldOctave;
-		}
+		m_iPortaTo = NesFreq;
+		
 	}
+	else {
+		m_iPeriod = NesFreq;
+		m_iPortaTo = 0;
+		m_iOldOctave = m_iOctave = Octave;
+	}
+
+	m_bGate = true;
+
+	CorrectOctave();		// // //
+
+	return NewNote;
 }
 
-void CChannelHandlerVRC7::ProcessChannel()
+bool CChannelHandlerVRC7::CreateInstHandler(inst_type_t Type)
 {
-	// Default effects
-	CChannelHandler::ProcessChannel();
+	switch (Type) {
+	case INST_VRC7:
+		if (m_iInstTypeCurrent != INST_VRC7)
+			m_pInstHandler.reset(new CInstHandlerVRC7(this, 0x0F));
+		return true;
+	}
+	return false;
 }
 
-void CChannelHandlerVRC7::ResetChannel()
+void CChannelHandlerVRC7::SetupSlide()		// // //
 {
-	CChannelHandler::ResetChannel();
+	CChannelHandler::SetupSlide();		// // //
+	
+	CorrectOctave();
+}
+
+void CChannelHandlerVRC7::CorrectOctave()		// // //
+{
+	// Set current frequency to the one with highest octave
+	if (m_bLinearPitch)
+		return;
+
+	if (m_iOldOctave == -1) {
+		m_iOldOctave = m_iOctave;
+		return;
+	}
+
+	int Offset = m_iOctave - m_iOldOctave;
+	if (Offset > 0) {
+		m_iPeriod >>= Offset;
+		m_iOldOctave = m_iOctave;
+	}
+	else if (Offset < 0) {
+		// Do nothing
+		m_iPortaTo >>= -Offset;
+		m_iOctave = m_iOldOctave;
+	}
 }
 
 int CChannelHandlerVRC7::TriggerNote(int Note)
@@ -237,14 +223,14 @@ int CChannelHandlerVRC7::TriggerNote(int Note)
 	RegisterKeyState(Note);
 	if (m_iCommand != CMD_NOTE_TRIGGER && m_iCommand != CMD_NOTE_HALT)
 		m_iCommand = CMD_NOTE_ON;
-	m_iOctave = Note / 12;
-	return GetFnum(Note);
+	m_iOctave = Note / NOTE_RANGE;
+
+	return m_bLinearPitch ? (Note << LINEAR_PITCH_AMOUNT) : GetFnum(Note);		// // //
 }
 
 unsigned int CChannelHandlerVRC7::GetFnum(int Note) const
 {
-	const int FREQ_TABLE[] = {172, 183, 194, 205, 217, 230, 244, 258, 274, 290, 307, 326};
-	return FREQ_TABLE[Note % 12] << 2;
+	return m_pNoteLookupTable[Note % NOTE_RANGE] << VRC7_PITCH_RESOLUTION;		// // //
 }
 
 int CChannelHandlerVRC7::CalculateVolume() const
@@ -254,25 +240,52 @@ int CChannelHandlerVRC7::CalculateVolume() const
 		Volume = 15;
 	if (Volume < 0)
 		Volume = 0;
-	return 15 - Volume;
+	return Volume;		// // //
+}
+
+int CChannelHandlerVRC7::CalculatePeriod() const
+{
+	int Detune = GetVibrato() - GetFinePitch() - GetPitch();
+	int Period = LimitPeriod(GetPeriod() + (Detune << VRC7_PITCH_RESOLUTION));		// // //
+	if (m_bLinearPitch && m_pNoteLookupTable != nullptr) {
+		Period = LimitPeriod(GetPeriod() + Detune);		// // //
+		int Note = (Period >> LINEAR_PITCH_AMOUNT) % NOTE_RANGE;
+		int Sub = Period % (1 << LINEAR_PITCH_AMOUNT);
+		int Offset = (GetFnum(Note + 1) << ((Note < NOTE_RANGE - 1) ? 0 : 1)) - GetFnum(Note);
+		Offset = Offset * Sub >> LINEAR_PITCH_AMOUNT;
+		if (Sub && Offset < (1 << VRC7_PITCH_RESOLUTION)) Offset = 1 << VRC7_PITCH_RESOLUTION;
+		Period = GetFnum(Note) + Offset;
+	}
+	return LimitRawPeriod(Period) >> VRC7_PITCH_RESOLUTION;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 // VRC7 Channels
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+const char CVRC7Channel::MAX_DUTY = 0x0F;
+
+int CVRC7Channel::getDutyMax() const {
+	return MAX_DUTY;
+}
+
 void CVRC7Channel::RefreshChannel()
 {	
-	int Note = m_iTriggeredNote;
-	int Patch = m_iPatch;
+//	int Note = m_iTriggeredNote;
 	int Volume = CalculateVolume();
-	int Bnum = m_iOctave;
-	int Fnum = (m_iPeriod >> 2) - GetVibrato() - GetFinePitch();// (m_iFinePitch - 0x80);
+	int Fnum = CalculatePeriod();		// // //
+	int Bnum = !m_bLinearPitch ? m_iOctave :
+		((GetPeriod() + GetVibrato() - GetFinePitch() - GetPitch()) >> LINEAR_PITCH_AMOUNT) / NOTE_RANGE;
+
+	if (m_iPatch != -1) {		// // //
+		m_iDutyPeriod = m_iPatch;
+		m_iPatch = -1;
+	}
 
 	// Write custom instrument
-	if (Patch == 0 && (m_iCommand == CMD_NOTE_TRIGGER || m_bRegsDirty)) {
+	if ((m_iDutyPeriod == 0 && m_iCommand == CMD_NOTE_TRIGGER) || m_bRegsDirty) {
 		for (int i = 0; i < 8; ++i)
-			RegWrite(i, m_iRegs[i]);
+			RegWrite(i, m_iPatchRegs[i]);
 	}
 
 	m_bRegsDirty = false;
@@ -304,26 +317,32 @@ void CVRC7Channel::RefreshChannel()
 	
 	if (m_iCommand != CMD_NOTE_HALT) {
 		// Select volume & patch
-		RegWrite(0x30 + m_iChannel, (Patch << 4) | Volume);
+		RegWrite(0x30 + m_iChannel, (m_iDutyPeriod << 4) | (Volume ^ 0x0F));		// // //
 	}
 
 	RegWrite(0x20 + m_iChannel, ((Fnum >> 8) & 1) | (Bnum << 1) | Cmd);
+
+	if (m_iChannelID == CHANID_VRC7_CH6)		// // // 050B
+		m_cPatchFlag = 0;
 }
 
 void CVRC7Channel::ClearRegisters()
 {
 	for (int i = 0x10; i < 0x30; i += 0x10)
 		RegWrite(i + m_iChannel, 0);
+	RegWrite(0x30 + m_iChannel, 0x0F);		// // //
 
 	m_iNote = 0;
+	m_iOctave = m_iOldOctave = -1;		// // //
+	m_iPatch = -1;
 	m_iEffect = EF_NONE;
 
 	m_iCommand = CMD_NOTE_HALT;
-
+	m_iCustomPort = 0;		// // // 050B
 }
 
 void CVRC7Channel::RegWrite(unsigned char Reg, unsigned char Value)
 {
-	WriteExternalRegister(0x9010, Reg);
-	WriteExternalRegister(0x9030, Value);
+	WriteRegister(0x9010, Reg);
+	WriteRegister(0x9030, Value);
 }

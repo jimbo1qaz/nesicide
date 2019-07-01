@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,20 +22,27 @@
 
 #pragma once
 
-#include "cqtmfc.h"
-#include "resource.h"
 
 // CMainFrame, the main window class
 
 #include "InstrumentEditDlg.h"
-//#include "PerformanceDlg.h"
+#include "PerformanceDlg.h"
 #include "DialogReBar.h"
 #include "ControlPanelDlg.h"
 #include "CustomControls.h"
+#include "FindDlg.h"		// // //
+#include "PatternData.h"
 
 enum frame_edit_pos_t { 
 	FRAME_EDIT_POS_TOP, 
 	FRAME_EDIT_POS_LEFT
+};
+
+enum control_panel_pos_t		// // // 050B
+{
+	CONTROL_PANEL_POS_TOP,
+	CONTROL_PANEL_POS_LEFT,
+	CONTROL_PANEL_POS_RIGHT,
 };
 
 enum {
@@ -43,9 +52,12 @@ enum {
 
 class CVisualizerWnd;
 class CInstrumentFileTree;
-class CAction;
-class CActionHandler;
+class Action;
+class History;
 class CFrameEditor;
+class CGrooveDlg;		// // //
+class CBookmarkDlg;
+class CSwapDlg;
 
 class CMainFrame : public CFrameWnd
 {
@@ -56,11 +68,9 @@ protected: // create from serialization only
 // Attributes
 public:
 	CFrameEditor *GetFrameEditor() const;
-   CVisualizerWnd* GetVisualizerWindow() const;
 
 // Operations
 public:
-	void	SetStatusText(LPCTSTR Text,...);
 	void	ChangeNoteState(int Note);
 	
 	// Indicators & controls
@@ -74,10 +84,10 @@ public:
 	void	UpdateControls();
 	void	ResizeFrameWindow();
 
-	void	SetFirstHighlightRow(int Rows);
-	void	SetSecondHighlightRow(int Rows);
+	void	SetHighlightRows(stHighlight Hl);		// // //
 
 	void	UpdateMenus();
+	void	UpdateMenu(CMenu *pMenu);		// // //
 
 	// Instrument
 	void	OpenInstrumentEditor();
@@ -91,12 +101,24 @@ public:
 	int		GetSelectedTrack() const;
 	void	SelectTrack(unsigned int Track);
 
+	// Octave (moved from CFamiTrackerView)
+	int		GetSelectedOctave() const;		// // // 050B
+	void	SelectOctave(int Octave);		// // // 050B
+
 	// Undo/redo
-	bool	AddAction(CAction *pAction);
-	CAction *GetLastAction(int Filter) const;
+	bool	AddAction(Action *pAction);
+	Action *GetLastAction(int Filter) const;
 	void	ResetUndo();
 
 	bool	ChangeAllPatterns() const;
+	
+	void	CloseGrooveSettings();		// // //
+	void	CloseBookmarkSettings();		// // //
+	void	UpdateBookmarkList(int Pos = -1);		// // //
+
+	void	ResetFind();		// // //
+
+	bool	TypeInstrumentNumber(int Digit);		// // //
 
 // Overrides
 public:
@@ -110,6 +132,8 @@ public:
 #endif
 
 private:
+	template <typename... T>
+	void	SetStatusText(LPCTSTR Text, T... args);		// // //
 	bool	CreateDialogPanels();
 	bool	CreateToolbars();
 	bool	CreateInstrumentToolbar();
@@ -125,13 +149,15 @@ private:
 	void	GetInstrumentName(char *pText) const;
 	void	SetInstrumentName(char *pText);
 
-	void	UpdateMenu(CMenu *pMenu);
 	void	SetFrameEditorPosition(int Position);
+	void	SetControlPanelPosition(control_panel_pos_t Position);		// // // 050B
 	void	SelectInstrumentFolder();
 
 	bool	CheckRepeat() const;
 
 	void	CheckAudioStatus();
+
+	void	ShowInstrumentNumberText();		// // //
 
 private:  // control bar embedded members
 	CStatusBar			m_wndStatusBar;
@@ -140,6 +166,7 @@ private:  // control bar embedded members
 	CDialogReBar		m_wndOctaveBar;
 	CDialogBar			m_wndControlBar;	// Parent to frame editor and settings/instrument editor
 	CDialogBar			m_wndVerticalControlBar;	// Parent to large frame editor
+	CDialogBar			m_wndFindControlBar;		// // // Parent to find / replace dialog
 	CControlPanelDlg	m_wndDialogBar;
 
 	CControlPanelDlg	m_wndFrameControls;		// Contains +, - and change all
@@ -148,18 +175,25 @@ private:  // control bar embedded members
 	CToolBar			m_wndInstToolBar;
 	CReBarCtrl			m_wndInstToolReBar;
 	CInstrumentEditDlg	m_wndInstEdit;
-//	CPerformanceDlg		m_wndPerformanceDlg;
 
 	CFrameEditor		*m_pFrameEditor;
 	CInstrumentList		*m_pInstrumentList;
 	CImageList			*m_pImageList;
 	CVisualizerWnd		*m_pVisualizerWnd;
+	CGrooveDlg			*m_pGrooveDlg;			// // //
+	CFindDlg			*m_pFindDlg;			// // //
+	CBookmarkDlg		*m_pBookmarkDlg;		// // //
+	CPerformanceDlg		*m_pPerformanceDlg;		// // //
 
 	CLockedEdit			*m_pLockedEditSpeed;
 	CLockedEdit			*m_pLockedEditTempo;
 	CLockedEdit			*m_pLockedEditLength;
 	CLockedEdit			*m_pLockedEditFrames;
 	CLockedEdit			*m_pLockedEditStep;
+	CLockedEdit			*m_pLockedEditHighlight1;		// // //
+	CLockedEdit			*m_pLockedEditHighlight2;		// // //
+	CButton				*m_pButtonGroove;		// // //
+	CButton				*m_pButtonFixTempo;		// // //
 
 	CBannerEdit			*m_pBannerEditName;
 	CBannerEdit			*m_pBannerEditArtist;
@@ -171,9 +205,10 @@ private:  // control bar embedded members
 	CBitmap				m_bmInstToolbar;		// instrument toolbar
 	CImageList			m_ilInstToolBar;
 
-	CActionHandler		*m_pActionHandler;
+	History		*m_history;
 
 	int					m_iFrameEditorPos;
+	control_panel_pos_t	m_iControlPanelPos;		// // // 050B
 
 	CInstrumentFileTree	*m_pInstrumentFileTree;
 
@@ -181,6 +216,9 @@ private:  // control bar embedded members
 	int					m_iOctave;					// Selected octave
 	int					m_iInstrument;				// Selected instrument
 	int					m_iTrack;					// Selected track
+
+	int					m_iInstNumDigit;			// // //
+	int					m_iInstNumCurrent;
 
 public:
 	virtual BOOL Create(LPCTSTR lpszClassName, LPCTSTR lpszWindowName, DWORD dwStyle = WS_OVERLAPPEDWINDOW, const RECT& rect = rectDefault, CWnd* pParentWnd = NULL, LPCTSTR lpszMenuName = NULL, DWORD dwExStyle = 0, CCreateContext* pContext = NULL);
@@ -247,7 +285,6 @@ public:
 	afx_msg void OnUpdateNextSong(CCmdUI *pCmdUI);
 	afx_msg void OnUpdatePrevSong(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateViewControlpanel(CCmdUI *pCmdUI);
-	afx_msg void OnUpdateHighlight(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateEditCut(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateEditCopy(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateEditPaste(CCmdUI *pCmdUI);
@@ -289,7 +326,7 @@ public:
 	afx_msg void OnClickedFollow();
 	afx_msg void OnToggleFollow();
 	afx_msg void OnViewControlpanel();
-	afx_msg void OnTrackerDPCM();
+	// // //
 	afx_msg void OnTrackerDisplayRegisterState();
 	afx_msg void OnSelectPatternEditor();
 	afx_msg void OnSelectFrameEditor();
@@ -332,13 +369,86 @@ public:
 	afx_msg void OnToggleSpeed();
 	afx_msg LRESULT OnDisplayMessageString(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnDisplayMessageID(WPARAM wParam, LPARAM lParam);
+
+	// // // Moved from CFamiTrackerView
+	afx_msg void OnNextOctave();
+	afx_msg void OnPreviousOctave();
+	afx_msg void OnTrackerPal();
+	afx_msg void OnTrackerNtsc();
+	afx_msg void OnSpeedDefault();
+	afx_msg void OnSpeedCustom();
+	afx_msg void OnUpdateTrackerPal(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateTrackerNtsc(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateSpeedDefault(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateSpeedCustom(CCmdUI *pCmdUI);
+
+	// // //
+	afx_msg void OnToggleGroove();
+	afx_msg void OnToggleFixTempo();
+	afx_msg void OnClickedCompact();
+	afx_msg void OnTypeInstrumentNumber();
+	afx_msg void OnToggleCompact();
+	afx_msg void OnUpdateHighlight1(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateHighlight2(CCmdUI *pCmdUI);
+	afx_msg void OnDeltaposHighlightSpin1(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnDeltaposHighlightSpin2(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnFileExportRows();
+	afx_msg void OnEditCopyAsText();
+	afx_msg void OnEditCopyAsVolumeSequence();
+	afx_msg void OnEditCopyAsPPMCK();
+	afx_msg void OnEditPasteOverwrite();
+	afx_msg void OnEditSelectnone();
+	afx_msg void OnEditSelectrow();
+	afx_msg void OnEditSelectcolumn();
+	afx_msg void OnEditSelectpattern();
+	afx_msg void OnEditSelectframe();
+	afx_msg void OnEditSelectchannel();
+	afx_msg void OnEditSelecttrack();
+	afx_msg void OnEditSelectother();
+	afx_msg void OnEditFindToggle();
+	afx_msg void OnFindNext();
+	afx_msg void OnFindPrevious();
+	afx_msg void OnEditGoto();
+	afx_msg void OnEditSwapChannels();
+	afx_msg void OnEditStretchpatterns();
+	afx_msg void OnEditTransposeCustom();
+	afx_msg void OnEditRemoveUnusedSamples();
+	afx_msg void OnEditPopulateUniquePatterns();
+	afx_msg void OnModuleDuplicateCurrentPattern();
+	afx_msg void OnModuleGrooveSettings();
+	afx_msg void OnModuleBookmarkSettings();
+	afx_msg void OnModuleEstimateSongLength();
+	afx_msg void OnTrackerPlayMarker();		// // // 050B
+	afx_msg void OnTrackerSetMarker();		// // // 050B
+	afx_msg void OnTrackerDisplayAverageBPM();		// // // 050B
+	afx_msg void OnTrackerDisplayChannelState();		// // // 050B
+	afx_msg void OnToggleMultiplexer();
+	afx_msg void OnUpdatePatternEditorSelected(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateEditCopySpecial(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateEditPasteOverwrite(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateSelectMultiFrame(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateToggleFollow(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateToggleCompact(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateToggleFixTempo(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateGrooveEdit(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateEditFindToggle(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateTrackerPlayMarker(CCmdUI *pCmdUI);		// // // 050B
+	afx_msg void OnUpdateDisplayAverageBPM(CCmdUI *pCmdUI);		// // // 050B
+	afx_msg void OnUpdateDisplayChannelState(CCmdUI *pCmdUI);		// // // 050B
+	afx_msg void OnUpdateDisplayRegisterState(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateDecayFast(CCmdUI *pCmdUI);		// // // 050B
+	afx_msg void OnUpdateDecaySlow(CCmdUI *pCmdUI);		// // // 050B
+	afx_msg void OnUpdateCurrentSelectionEnabled(CCmdUI *pCmdUI);
+
+	afx_msg void OnEasterEggKraid1();		// Easter Egg
+	afx_msg void OnEasterEggKraid2();
+	afx_msg void OnEasterEggKraid3();
+	afx_msg void OnEasterEggKraid4();
+	afx_msg void OnEasterEggKraid5();
+private:
+	int					m_iKraidCounter;
 protected:
 	virtual void OnUpdateFrameTitle(BOOL bAddToTitle);
 public:
 	afx_msg void OnViewToolbar();
 };
-
-// Global DPI functions
-int  SX(int pt);
-int  SY(int pt);
-void ScaleMouse(CPoint &pt);

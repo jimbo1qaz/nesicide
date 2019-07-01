@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -23,7 +25,9 @@
 
 // CTrackerChannel
 
-//#include <afxmt.h>	// For CMutex
+#include <afxmt.h>	// For CMutex
+#include "APU/Types.h"		// // //
+#include "FamiTrackerTypes.h"
 
 enum note_prio_t {
 	NOTE_PRIO_0, 
@@ -34,11 +38,12 @@ enum note_prio_t {
 class CTrackerChannel
 {
 public:
-	CTrackerChannel(LPCTSTR pName, const int iChip, const int iID);
+	CTrackerChannel(LPCTSTR pName, LPCTSTR pShort, const int iChip, chan_id_t iID);		// // //
 	~CTrackerChannel(void);
 	LPCTSTR GetChannelName() const;
+	LPCTSTR GetShortName() const;		// // //
 	const char GetChip() const;
-	const int GetID() const;
+	chan_id_t GetID() const;		// // //
 	const int GetColumnCount() const;
 	void SetColumnCount(int Count);
 
@@ -53,14 +58,15 @@ public:
 	void SetPitch(int Pitch);
 	int GetPitch() const;
 
-	bool IsInstrumentCompatible(int Instrument, CFamiTrackerDoc *pDoc) const;
+	bool IsInstrumentCompatible(int Instrument, inst_type_t Type) const;		// // //
+	bool IsEffectCompatible(effect_t EffNumber, int EffParam) const;		// // //
 
 private:
-	LPCTSTR m_pChannelName;
+	LPCTSTR m_pChannelName, m_pShortName;		// // //
 
 private:
 	int m_iChip;
-	int m_iChannelID;
+	chan_id_t m_iChannelID;		// // //
 	int m_iColumnCount;
 
 	stChanNote m_Note;

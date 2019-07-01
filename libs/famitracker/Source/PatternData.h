@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -21,126 +23,84 @@
 #pragma once
 
 
-// Channel note struct, holds the data for each row in patterns
-struct stChanNote {
-	unsigned char Note;
-	unsigned char Octave;
-	unsigned char Vol;
-	unsigned char Instrument;
-	unsigned char EffNumber[MAX_EFFECT_COLUMNS];
-	unsigned char EffParam[MAX_EFFECT_COLUMNS];
+#include "PatternNote.h"		// // //
+
+// // // Highlight settings
+struct stHighlight {
+	int First;
+	int Second;
+	int Offset;
 };
+
+// // // moved from FamiTrackerDoc.h
+const unsigned int DEFAULT_TEMPO_NTSC = 150;
+const unsigned int DEFAULT_TEMPO_PAL  = 125;
+const unsigned int DEFAULT_SPEED      = 6;
 
 // TODO rename to CTrack perhaps?
 
 // CPatternData holds all notes in the patterns
-class CPatternData {
+class CPatternData
+{
 public:
-	CPatternData(unsigned int PatternLength, unsigned int Speed, unsigned int Tempo);
+	CPatternData(unsigned int PatternLength = DEFAULT_ROW_COUNT);		// // //
 	~CPatternData();
-
-	char GetNote(unsigned int Channel, unsigned int Pattern, unsigned int Row) const { 
-		stChanNote *pNote = GetPatternData(Channel, Pattern, Row);
-		return pNote == NULL ? 0 : pNote->Note; 
-	};
-
-	char GetOctave(unsigned int Channel, unsigned int Pattern, unsigned int Row) const { 
-		stChanNote *pNote = GetPatternData(Channel, Pattern, Row);
-		return pNote == NULL ? 0 : pNote->Octave; 
-	};
-
-	char GetInstrument(unsigned int Channel, unsigned int Pattern, unsigned int Row) const { 
-		stChanNote *pNote = GetPatternData(Channel, Pattern, Row);
-		return pNote == NULL ? 0 : pNote->Instrument; 
-	};
-
-	char GetVolume(unsigned int Channel, unsigned int Pattern, unsigned int Row) const { 
-		stChanNote *pNote = GetPatternData(Channel, Pattern, Row);
-		return pNote == NULL ? 0 : pNote->Vol; 
-	};
-
-	char GetEffect(unsigned int Channel, unsigned int Pattern, unsigned int Row, unsigned int Column) const { 
-		stChanNote *pNote = GetPatternData(Channel, Pattern, Row);
-		return pNote == NULL ? 0 : pNote->EffNumber[Column]; 
-	};
-
-	char GetEffectParam(unsigned int Channel, unsigned int Pattern, unsigned int Row, unsigned int Column) const { 
-		stChanNote *pNote = GetPatternData(Channel, Pattern, Row);
-		return pNote == NULL ? 0 : pNote->EffParam[Column]; 
-	};
 
 	bool IsCellFree(unsigned int Channel, unsigned int Pattern, unsigned int Row) const;
 	bool IsPatternEmpty(unsigned int Channel, unsigned int Pattern) const;
 	bool IsPatternInUse(unsigned int Channel, unsigned int Pattern) const;
-
-	int GetEffectColumnCount(int Channel) const { 
-		return m_iEffectColumns[Channel]; 
-	};
-
-	void SetEffectColumnCount(int Channel, int Count) { 
-		m_iEffectColumns[Channel] = Count; 
-	};
 
 	void ClearEverything();
 	void ClearPattern(unsigned int Channel, unsigned int Pattern);
 
 	stChanNote *GetPatternData(unsigned int Channel, unsigned int Pattern, unsigned int Row);
 
-	unsigned int GetPatternLength() const { 
-		return m_iPatternLength;
-	};
+	CString GetTitle() const;
+	unsigned int GetPatternLength() const;
+	unsigned int GetFrameCount() const;
+	unsigned int GetSongSpeed() const;
+	unsigned int GetSongTempo() const;
+	int GetEffectColumnCount(int Channel) const;;
+	bool GetSongGroove() const;		// // //
 
-	unsigned int GetFrameCount() const { 
-		return m_iFrameCount;
-	};
-
-	unsigned int GetSongSpeed() const { 
-		return m_iSongSpeed;
-	};
-
-	unsigned int GetSongTempo() const { 
-		return m_iSongTempo;
-	};
-
-	void SetPatternLength(unsigned int Length) {
-		m_iPatternLength = Length; 
-	};
-
-	void SetFrameCount(unsigned int Count) {
-		m_iFrameCount = Count;
-	};
-
-	void SetSongSpeed(unsigned int Speed) {
-		m_iSongSpeed = Speed;
-	};
-
-	void SetSongTempo(unsigned int Tempo) {
-		m_iSongTempo = Tempo;
-	};
+	void SetTitle(CString str);
+	void SetPatternLength(unsigned int Length);
+	void SetFrameCount(unsigned int Count);
+	void SetSongSpeed(unsigned int Speed);
+	void SetSongTempo(unsigned int Tempo);
+	void SetEffectColumnCount(int Channel, int Count);;
+	void SetSongGroove(bool Groove);		// // //
 
 	unsigned int GetFramePattern(unsigned int Frame, unsigned int Channel) const;
 	void SetFramePattern(unsigned int Frame, unsigned int Channel, unsigned int Pattern);
 
-	void SetHighlight(unsigned int First, unsigned int Second);
-	unsigned int GetFirstRowHighlight() const;
-	unsigned int GetSecondRowHighlight() const;
+	void SetHighlight(const stHighlight Hl);		// // //
+	stHighlight GetRowHighlight() const;
+
+	void SwapChannels(unsigned int First, unsigned int Second);		// // //
 
 private:
 	stChanNote *GetPatternData(unsigned int Channel, unsigned int Pattern, unsigned int Row) const;
 	void AllocatePattern(unsigned int Channel, unsigned int Patterns);
 
-	// Pattern data
+public:
+	// // // moved from CFamiTrackerDoc
+	static const CString DEFAULT_TITLE;
+	static const stHighlight DEFAULT_HIGHLIGHT;
+
 private:
+	static const unsigned DEFAULT_ROW_COUNT;
 
 	// Track parameters
+	CString      m_sTrackName;				// // // moved
 	unsigned int m_iPatternLength;			// Amount of rows in one pattern
 	unsigned int m_iFrameCount;				// Number of frames
 	unsigned int m_iSongSpeed;				// Song speed
 	unsigned int m_iSongTempo;				// Song tempo
+	bool		 m_bUseGroove;				// // // Groove
 
 	// Row highlight settings
-	unsigned int m_iRowHighlight1;
-	unsigned int m_iRowHighlight2;
+	stHighlight  m_vRowHighlight;			// // //
 
 	// Number of visible effect columns for each channel
 	unsigned char m_iEffectColumns[MAX_CHANNELS];

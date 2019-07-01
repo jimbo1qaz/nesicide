@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,75 +22,54 @@
 
 // MMC5 file
 
-#include <cmath>
 #include "stdafx.h"
-#include "FamiTracker.h"
-#include "FamiTrackerDoc.h"
+#include "FamiTrackerTypes.h"		// // //
+#include "APU/Types.h"		// // //
+#include "Instrument.h"		// // //
 #include "ChannelHandler.h"
 #include "ChannelsMMC5.h"
-#include "SoundGen.h"
-
-const int CChannelHandlerMMC5::SEQ_TYPES[] = {SEQ_VOLUME, SEQ_ARPEGGIO, SEQ_PITCH, SEQ_HIPITCH, SEQ_DUTYCYCLE};
+#include "InstHandler.h"		// // //
+#include "SeqInstHandler.h"		// // //
 
 CChannelHandlerMMC5::CChannelHandlerMMC5() : CChannelHandler(0x7FF, 0x0F)
 {
+	m_bHardwareEnvelope = false;		// // //
+	m_bEnvelopeLoop = true;
+	m_bResetEnvelope = false;
+	m_iLengthCounter = 1;
 }
 
 void CChannelHandlerMMC5::HandleNoteData(stChanNote *pNoteData, int EffColumns)
 {
-	m_iPostEffect = 0;
-	m_iPostEffectParam = 0;
-	m_bManualVolume = false;
-	m_iInitVolume = 0x0F;
-
+	// // //
 	CChannelHandler::HandleNoteData(pNoteData, EffColumns);
 
 	if (pNoteData->Note != NONE && pNoteData->Note != HALT && pNoteData->Note != RELEASE) {
-		if (m_iPostEffect && (m_iEffect == EF_SLIDE_UP || m_iEffect == EF_SLIDE_DOWN))
-			SetupSlide(m_iPostEffect, m_iPostEffectParam);
-		else if (m_iEffect == EF_SLIDE_DOWN || m_iEffect == EF_SLIDE_UP)
-			m_iEffect = EF_NONE;
+		if (!m_bEnvelopeLoop || m_bHardwareEnvelope)		// // //
+			m_bResetEnvelope = true;
 	}
 }
 
-void CChannelHandlerMMC5::HandleCustomEffects(int EffNum, int EffParam)
+bool CChannelHandlerMMC5::HandleEffect(effect_t EffNum, unsigned char EffParam)
 {
-	if (!CheckCommonEffects(EffNum, EffParam)) {
-		switch (EffNum) {
-			case EF_VOLUME:
-				m_iInitVolume = EffParam;
-				m_bManualVolume = true;
-				break;
-			case EF_DUTY_CYCLE:
-				m_iDefaultDuty = m_iDutyPeriod = EffParam;
-				break;
-			case EF_SLIDE_UP:
-			case EF_SLIDE_DOWN:
-				m_iPostEffect = EffNum;
-				m_iPostEffectParam = EffParam;
-				SetupSlide(EffNum, EffParam);
-				break;
+	switch (EffNum) {
+	case EF_VOLUME:
+		if (EffParam < 0x20) {		// // //
+			m_iLengthCounter = EffParam;
+			m_bEnvelopeLoop = false;
+			m_bResetEnvelope = true;
 		}
-	}
-}
-
-bool CChannelHandlerMMC5::HandleInstrument(int Instrument, bool Trigger, bool NewInstrument)
-{
-	CFamiTrackerDoc *pDocument = m_pSoundGen->GetDocument();
-	CInstrumentContainer<CInstrument2A03> instContainer(pDocument, Instrument);
-	CInstrument2A03 *pInstrument = instContainer();
-
-	if (pInstrument == NULL)
-		return false;
-
-	for (int i = 0; i < CInstrument2A03::SEQUENCE_COUNT; ++i) {
-		const CSequence *pSequence = pDocument->GetSequence(SNDCHIP_NONE, pInstrument->GetSeqIndex(i), i);
-		if (Trigger || !IsSequenceEqual(i, pSequence) || pInstrument->GetSeqEnable(i) > GetSequenceState(i)) {
-			if (pInstrument->GetSeqEnable(i) == 1)
-				SetupSequence(i, pSequence);
-			else 
-				ClearSequence(i);
+		else if (EffParam >= 0xE0 && EffParam < 0xE4) {
+			if (!m_bEnvelopeLoop || !m_bHardwareEnvelope)
+				m_bResetEnvelope = true;
+			m_bHardwareEnvelope = ((EffParam & 0x01) == 0x01);
+			m_bEnvelopeLoop = ((EffParam & 0x02) != 0x02);
 		}
+		break;
+	case EF_DUTY_CYCLE:
+		m_iDefaultDuty = m_iDutyPeriod = EffParam;
+		break;
+	default: return CChannelHandler::HandleEffect(EffNum, EffParam);
 	}
 
 	return true;
@@ -105,96 +86,95 @@ void CChannelHandlerMMC5::HandleCut()
 
 void CChannelHandlerMMC5::HandleRelease()
 {
-	if (!m_bRelease) {
+	if (!m_bRelease)
 		ReleaseNote();
-		ReleaseSequences();
+}
+
+bool CChannelHandlerMMC5::CreateInstHandler(inst_type_t Type)
+{
+	switch (Type) {
+	case INST_2A03: case INST_VRC6: case INST_N163: case INST_S5B: case INST_FDS:
+		switch (m_iInstTypeCurrent) {
+		case INST_2A03: case INST_VRC6: case INST_N163: case INST_S5B: case INST_FDS: break;
+		default:
+			m_pInstHandler.reset(new CSeqInstHandler(this, 0x0F, Type == INST_S5B ? 0x40 : 0));
+			return true;
+		}
 	}
-}
-
-void CChannelHandlerMMC5::HandleNote(int Note, int Octave)
-{
-	m_iNote		  = RunNote(Octave, Note);
-	m_iDutyPeriod = m_iDefaultDuty;
-	m_iSeqVolume  = m_iInitVolume;
-}
-
-void CChannelHandlerMMC5::ProcessChannel()
-{
-	CFamiTrackerDoc *pDocument = m_pSoundGen->GetDocument();
-
-	// Default effects
-	CChannelHandler::ProcessChannel();
-
-	// Sequences
-	for (int i = 0; i < SEQUENCES; ++i)
-		RunSequence(i);
+	return false;
 }
 
 void CChannelHandlerMMC5::ResetChannel()
 {
 	CChannelHandler::ResetChannel();
+	m_bEnvelopeLoop = true;		// // //
+	m_bHardwareEnvelope = false;
+	m_iLengthCounter = 1;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Square 1 
+// // // MMC5 Channels
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void CMMC5Square1Chan::RefreshChannel()
+const char CChannelHandlerMMC5::MAX_DUTY = 0x03;
+
+int CChannelHandlerMMC5::getDutyMax() const {
+	return MAX_DUTY;
+}
+
+void CChannelHandlerMMC5::RefreshChannel()		// // //
 {
 	int Period = CalculatePeriod();
 	int Volume = CalculateVolume();
-	char DutyCycle = (m_iDutyPeriod & 0x03);
+	char DutyCycle = (m_iDutyPeriod & MAX_DUTY);
 
 	unsigned char HiFreq		= (Period & 0xFF);
 	unsigned char LoFreq		= (Period >> 8);
-	unsigned char LastLoFreq	= (m_iLastPeriod >> 8);
+	unsigned int  Offs			= 0x5000 + 4 * (m_iChannelID - CHANID_MMC5_SQUARE1);
 
-	m_iLastPeriod = Period;
+	WriteRegister(0x5015, 0x03);
+	
+	if (m_bGate)		// // //
+		WriteRegister(Offs, (DutyCycle << 6) | (m_bEnvelopeLoop << 5) | (!m_bHardwareEnvelope << 4) | Volume);
+	else {
+		WriteRegister(Offs, 0x30);
+		m_iLastPeriod = 0xFFFF;
+		return;
+	}
+	WriteRegister(Offs + 2, HiFreq);
+	if (LoFreq != (m_iLastPeriod >> 8) || m_bResetEnvelope)		// // //
+		WriteRegister(Offs + 3, LoFreq + (m_iLengthCounter << 3));
 
-	WriteExternalRegister(0x5015, 0x03);
-
-	WriteExternalRegister(0x5000, (DutyCycle << 6) | 0x30 | Volume);
-	WriteExternalRegister(0x5002, HiFreq);
-
-	if (LoFreq != LastLoFreq)
-		WriteExternalRegister(0x5003, LoFreq);
+	m_iLastPeriod = Period;		// // //
+	m_bResetEnvelope = false;
 }
 
-void CMMC5Square1Chan::ClearRegisters()
+int CChannelHandlerMMC5::ConvertDuty(int Duty) const		// // //
 {
-	WriteExternalRegister(0x5000, 0);
-	WriteExternalRegister(0x5002, 0);
-	WriteExternalRegister(0x5003, 0);
+	switch (m_iInstTypeCurrent) {
+	case INST_VRC6:	return DUTY_2A03_FROM_VRC6[Duty & 0x07];
+	case INST_S5B:	return 0x02;
+	default:		return Duty;
+	}
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Square 2 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void CMMC5Square2Chan::RefreshChannel()
+void CChannelHandlerMMC5::ClearRegisters()
 {
-	int Period = CalculatePeriod();
-	int Volume = CalculateVolume();
-	char DutyCycle = (m_iDutyPeriod & 0x03);
-
-	unsigned char HiFreq		= (Period & 0xFF);
-	unsigned char LoFreq		= (Period >> 8);
-	unsigned char LastLoFreq	= (m_iLastPeriod >> 8);
-
-	m_iLastPeriod = Period;
-
-	WriteExternalRegister(0x5015, 0x03);
-
-	WriteExternalRegister(0x5004, (DutyCycle << 6) | 0x30 | Volume);
-	WriteExternalRegister(0x5006, HiFreq);
-
-	if (LoFreq != LastLoFreq)
-		WriteExternalRegister(0x5007, LoFreq);
+	unsigned char Offs = 0x5000 + 4 * (m_iChannelID - CHANID_MMC5_SQUARE1);		// // //
+	WriteRegister(Offs, 0x30);
+	WriteRegister(Offs + 2, 0);
+	WriteRegister(Offs + 3, 0);
+	m_iLastPeriod = 0xFFFF;		// // //
 }
 
-void CMMC5Square2Chan::ClearRegisters()
+CString CChannelHandlerMMC5::GetCustomEffectString() const		// // //
 {
-	WriteExternalRegister(0x5004, 0);
-	WriteExternalRegister(0x5006, 0);
-	WriteExternalRegister(0x5007, 0);
+	CString str = _T("");
+
+	if (!m_bEnvelopeLoop)
+		str.AppendFormat(_T(" E%02X"), m_iLengthCounter);
+	if (!m_bEnvelopeLoop || m_bHardwareEnvelope)
+		str.AppendFormat(_T(" EE%X"), !m_bEnvelopeLoop * 2 + m_bHardwareEnvelope);
+
+	return str;
 }

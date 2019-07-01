@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2017 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -18,8 +20,13 @@
 ** must bear this legend.
 */
 
+
 #pragma once
 
+#include "stdafx.h"		// // //
+#include "res/resource.h"        // // //
+
+#define SETTINGS_BOOL_COUNT 22		// // //
 
 // CConfigGeneral dialog
 
@@ -44,19 +51,33 @@ protected:
 	bool	m_bKeyRepeat;
 	bool	m_bRowInHex;
 	bool	m_bFramePreview;
-	int		m_iEditStyle;
 	bool	m_bNoDPCMReset;
 	bool	m_bNoStepMove;
-	int		m_iPageStepSize;
 	bool	m_bPullUpDelete;
 	bool	m_bBackups;
 	bool	m_bSingleInstance;
 	bool	m_bPreviewFullRow;
 	bool	m_bDisableDblClick;
+	bool	m_bWrapPatternValue;		// // //
+	bool	m_bCutVolume;
+	bool	m_bFDSOldVolume;
+	bool	m_bOverflowPaste;
+	bool	m_bShowSkippedRows;
+	bool	m_bHexKeypad;
+	bool	m_bMultiFrameSel;
+	bool	m_bCheckVersion;
+
+	int		m_iEditStyle;
+	int		m_iPageStepSize;
+
 	int		m_iKeyNoteCut;
 	int		m_iKeyNoteRelease;
 	int		m_iKeyClear;
 	int		m_iKeyRepeat;
+	int		m_iKeyEchoBuffer;		// // //
+
+	static const CString CONFIG_STR[SETTINGS_BOOL_COUNT];		// // //
+	static const CString CONFIG_DESC[SETTINGS_BOOL_COUNT];		// // //
 
 	CToolTipCtrl m_wndToolTip;
 
@@ -66,27 +87,11 @@ public:
 	virtual void OnOK();
 	virtual BOOL OnApply();
 	virtual BOOL OnInitDialog();
-	afx_msg void OnBnClickedOptWrapcursor();
-	afx_msg void OnBnClickedOptWrapFrames();
-	afx_msg void OnBnClickedOptFreecursor();
-	afx_msg void OnBnClickedOptWavepreview();
-	afx_msg void OnBnClickedOptKeyrepeat();
-	afx_msg void OnBnClickedStyle1();
-	afx_msg void OnBnClickedStyle2();
-	afx_msg void OnBnClickedStyle3();
-	afx_msg void OnBnClickedOptHexadecimal();
-	afx_msg void OnBnClickedSquarehack();
-	afx_msg void OnBnClickedOptFramepreview();
-	afx_msg void OnBnClickedOptNodpcmreset();
 	afx_msg void OnCbnEditupdatePagelength();
 	afx_msg void OnCbnSelendokPagelength();
-	afx_msg void OnBnClickedOptNostepmove();
-	afx_msg void OnBnClickedOptPullupdelete();
-	afx_msg void OnBnClickedOptBackups();
-	afx_msg void OnBnClickedOptSingleInstance();
-	afx_msg void OnBnClickedOptPreviewFullRow();
-	afx_msg void OnBnClickedOptDisableDoubleClick();
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 
+	afx_msg void OnCbnSelchangeComboStyle();		// // //
+	afx_msg void OnLvnItemchangedConfigList(NMHDR *pNMHDR, LRESULT *pResult);
 };
 

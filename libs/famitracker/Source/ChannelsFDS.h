@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,44 +22,44 @@
 
 #pragma once
 
-class CChannelHandlerFDS : public CChannelHandlerInverted {
+class CChannelHandlerFDS : public FrequencyChannelHandler, public CChannelHandlerInterfaceFDS {
 public:
 	CChannelHandlerFDS();
-	virtual void ProcessChannel();
 	virtual void RefreshChannel();
 protected:
-	virtual void HandleNoteData(stChanNote *pNoteData, int EffColumns);
-	virtual void HandleCustomEffects(int EffNum, int EffParam);
-	virtual bool HandleInstrument(int Instrument, bool Trigger, bool NewInstrument);
-	virtual void HandleEmptyNote();
-	virtual void HandleCut();
-	virtual void HandleRelease();
-	virtual void HandleNote(int Note, int Octave);
-	virtual void ClearRegisters();
+	void	HandleNoteData(stChanNote *pNoteData, int EffColumns) override;
+	bool	HandleEffect(effect_t EffNum, unsigned char EffParam) override;		// // //
+	void	HandleEmptyNote() override;
+	void	HandleCut() override;
+	void	HandleRelease() override;
+	int		CalculateVolume() const override;		// // //
+	bool	CreateInstHandler(inst_type_t Type) override;		// // //
+	void	ClearRegisters() override;
+	CString	GetCustomEffectString() const override;		// // //
 
-protected:
+public:		// // //
 	// FDS functions
-	void FillWaveRAM(CInstrumentFDS *pInst);
-	void FillModulationTable(CInstrumentFDS *pInst);
-private:
-	void CheckWaveUpdate();
+	void SetFMSpeed(int Speed);
+	void SetFMDepth(int Depth);
+	void SetFMDelay(int Delay);
+	// void SetFMEnable(bool Enable);
+	void FillWaveRAM(const char *pBuffer);		// // //
+	void FillModulationTable(const char *pBuffer);		// // //
 protected:
 	// FDS control variables
 	int m_iModulationSpeed;
 	int m_iModulationDepth;
 	int m_iModulationDelay;
-	// FDS sequences
-	//CSequence *m_pVolumeSeq;
-	//CSequence *m_pArpeggioSeq;
-	//CSequence *m_pPitchSeq;
 	// Modulation table
 	char m_iModTable[32];
 	char m_iWaveTable[64];
-	// Modulation
-	bool m_bResetMod;
 protected:
-	int m_iPostEffect;
-	int m_iPostEffectParam;
+	int m_iVolModMode;		// // // 0CC: make an enum for this
+	int m_iVolModRate;
+	bool m_bVolModTrigger;
+
+	bool m_bAutoModulation;		// // //
+	int m_iModulationOffset;
 
 	int m_iEffModDepth;
 	int m_iEffModSpeedHi;

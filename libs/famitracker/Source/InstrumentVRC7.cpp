@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -18,11 +20,10 @@
 ** must bear this legend.
 */
 
-#include <vector>
 #include "stdafx.h"
-#include "FamiTrackerDoc.h"
 #include "Instrument.h"
-#include "Compiler.h"
+#include "InstrumentVRC7.h"		// // //
+#include "ModuleException.h"		// // //
 #include "Chunk.h"
 #include "DocumentFile.h"
 
@@ -31,31 +32,29 @@
  *
  */
 
-CInstrumentVRC7::CInstrumentVRC7() :
-	m_iPatch(0)
+static const unsigned char VRC7_SINE_PATCH[] = {0x01, 0x21, 0x00, 0x00, 0x00, 0xF0, 0x00, 0x0F};		// // //
+
+CInstrumentVRC7::CInstrumentVRC7() : CInstrument(INST_VRC7), m_iPatch(0)		// // //
 {
-	m_iRegs[0] = 0x01;
-	m_iRegs[1] = 0x21;
-	m_iRegs[2] = 0x00;
-	m_iRegs[3] = 0x00;
-	m_iRegs[4] = 0x00;
-	m_iRegs[5] = 0xF0;
-	m_iRegs[6] = 0x00;
-	m_iRegs[7] = 0x0F;
+	memcpy(m_iRegs, VRC7_SINE_PATCH, sizeof(VRC7_SINE_PATCH));
 }
 
 CInstrument *CInstrumentVRC7::Clone() const
 {
-	CInstrumentVRC7 *pNew = new CInstrumentVRC7();
+	CInstrumentVRC7 *inst = new CInstrumentVRC7();		// // //
+	inst->CloneFrom(this);
+	return inst;
+}
 
-	pNew->SetPatch(GetPatch());
-
-	for (int i = 0; i < 8; ++i)
-		pNew->SetCustomReg(i, GetCustomReg(i));
-
-	pNew->SetName(GetName());
-
-	return pNew;
+void CInstrumentVRC7::CloneFrom(const CInstrument *pInst)
+{
+	CInstrument::CloneFrom(pInst);
+	
+	if (auto pNew = dynamic_cast<const CInstrumentVRC7*>(pInst)) {
+		SetPatch(pNew->GetPatch());
+		for (int i = 0; i < 8; ++i)
+			SetCustomReg(i, pNew->GetCustomReg(i));
+	}
 }
 
 void CInstrumentVRC7::Setup()
@@ -72,7 +71,7 @@ void CInstrumentVRC7::Store(CDocumentFile *pDocFile)
 
 bool CInstrumentVRC7::Load(CDocumentFile *pDocFile)
 {
-	m_iPatch = pDocFile->GetBlockInt();
+	m_iPatch = CModuleException::AssertRangeFmt(pDocFile->GetBlockInt(), 0, 0xF, "VRC7 patch number", "%i");
 
 	for (int i = 0; i < 8; ++i)
 		SetCustomReg(i, pDocFile->GetBlockChar());
@@ -80,7 +79,7 @@ bool CInstrumentVRC7::Load(CDocumentFile *pDocFile)
 	return true;
 }
 
-void CInstrumentVRC7::SaveFile(CInstrumentFile *pFile, const CFamiTrackerDoc *pDoc)
+void CInstrumentVRC7::SaveFile(CInstrumentFile *pFile)
 {
 	pFile->WriteInt(m_iPatch);
 
@@ -88,7 +87,7 @@ void CInstrumentVRC7::SaveFile(CInstrumentFile *pFile, const CFamiTrackerDoc *pD
 		pFile->WriteChar(GetCustomReg(i));
 }
 
-bool CInstrumentVRC7::LoadFile(CInstrumentFile *pFile, int iVersion, CFamiTrackerDoc *pDoc)
+bool CInstrumentVRC7::LoadFile(CInstrumentFile *pFile, int iVersion)
 {
 	m_iPatch = pFile->ReadInt();
 
@@ -98,10 +97,11 @@ bool CInstrumentVRC7::LoadFile(CInstrumentFile *pFile, int iVersion, CFamiTracke
 	return true;
 }
 
-int CInstrumentVRC7::Compile(CFamiTrackerDoc *pDoc, CChunk *pChunk, int Index)
+int CInstrumentVRC7::Compile(CChunk *pChunk, int Index)
 {
 	int Patch = GetPatch();
 
+	pChunk->StoreByte(6);		// // // CHAN_VRC7
 	pChunk->StoreByte(Patch << 4);	// Shift up by 4 to make room for volume
 
 	if (Patch == 0) {
@@ -111,7 +111,7 @@ int CInstrumentVRC7::Compile(CFamiTrackerDoc *pDoc, CChunk *pChunk, int Index)
 		}
 	}
 
-	return (Patch == 0) ? 9 : 1;
+	return (Patch == 0) ? 10 : 2;		// // //
 }
 
 bool CInstrumentVRC7::CanRelease() const
@@ -130,13 +130,13 @@ unsigned int CInstrumentVRC7::GetPatch() const
 	return m_iPatch;
 }
 
-void CInstrumentVRC7::SetCustomReg(int Reg, unsigned int Value)
+void CInstrumentVRC7::SetCustomReg(int Reg, unsigned char Value)		// // //
 {
 	m_iRegs[Reg] = Value;
 	InstrumentChanged();
 }
 
-unsigned int CInstrumentVRC7::GetCustomReg(int Reg) const
+unsigned char CInstrumentVRC7::GetCustomReg(int Reg) const		// // //
 {
 	return m_iRegs[Reg];
 }

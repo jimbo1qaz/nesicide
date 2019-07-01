@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2015 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -20,31 +22,9 @@
 
 #pragma once
 
-#include "stdafx.h"
-#include "FamiTrackerDoc.h"
-#include "InstrumentEditPanel.h"
-
-// Derive a new class from CFileDialog with implemented preview of DMC files
-
-class CDMCFileSoundDialog : public CFileDialog
-{
-   Q_OBJECT
-   // Qt stuff
-public slots:
-   void fileSelected(QString file);
-   
-public:
-	CDMCFileSoundDialog(BOOL bOpenFileDialog, LPCTSTR lpszDefExt = NULL, LPCTSTR lpszFileName = NULL, DWORD dwFlags = OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, LPCTSTR lpszFilter = NULL, CWnd* pParentWnd = NULL, DWORD dwSize = 0);
-	virtual ~CDMCFileSoundDialog();
-
-	static const int DEFAULT_PREVIEW_PITCH = 15;
-
-protected:
-	virtual void OnFileNameChange();
-	CString m_strLastFile;
-};
-
 class CFamiTrackerView;
+class CInstrument2A03;		// // //
+class CDSample;		// // //
 
 // CInstrumentDPCM dialog
 
@@ -61,25 +41,23 @@ public:
 // Dialog Data
 	enum { IDD = IDD_INSTRUMENT_DPCM };
 
-	// Overloaded
-	void SelectInstrument(int Instrument);
-
-protected:
-	static const char *KEY_NAMES[];
+	virtual void SelectInstrument(std::shared_ptr<CInstrument> pInst);
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
 	void BuildKeyList();
 	void BuildSampleList();
+	void UpdateCurrentKey();		// // //
 	void UpdateKey(int Index);
 	bool LoadSample(const CString &FilePath, const CString &FileName);
 	bool InsertSample(CDSample *pNewSample);
 
-	CDSample *GetSelectedSample();
+	const CDSample *GetSelectedSample();		// // //
+	void SetSelectedSample(CDSample *pSamp) const;		// // //
 
 protected:
-	CInstrument2A03	*m_pInstrument;
+	std::shared_ptr<CInstrument2A03> m_pInstrument;
 
 	int	m_iSelectedSample;
 	int	m_iOctave;
@@ -92,7 +70,6 @@ public:
 	afx_msg void OnBnClickedUnload();
 	afx_msg void OnNMClickSampleList(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnBnClickedImport();
-	afx_msg void OnCbnSelchangeOctave();
 	afx_msg void OnCbnSelchangePitch();
 	afx_msg void OnLvnItemchangedTable(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnNMClickTable(NMHDR *pNMHDR, LRESULT *pResult);

@@ -2,6 +2,8 @@
 ** FamiTracker - NES/Famicom sound tracker
 ** Copyright (C) 2005-2014  Jonathan Liss
 **
+** 0CC-FamiTracker is (C) 2014-2016 HertzDevil
+**
 ** This program is free software; you can redistribute it and/or modify
 ** it under the terms of the GNU General Public License as published by
 ** the Free Software Foundation; either version 2 of the License, or
@@ -18,8 +20,10 @@
 ** must bear this legend.
 */
 
+#include "json/json.hpp"		// // //
+#include "version.h"		// // //
 #include "stdafx.h"
-//#include "Exception.h"
+#include "Exception.h"
 #include "FamiTracker.h"
 #include "FamiTrackerDoc.h"
 #include "FamiTrackerView.h"
@@ -33,10 +37,10 @@
 #include "ChannelMap.h"
 #include "CustomExporters.h"
 #include "CommandLineExport.h"
+#include "WinSDK/VersionHelpers.h"		// // //
 
-#ifdef EXPORT_TEST
-#include "ExportTest/ExportTest.h"
-#endif /* EXPORT_TEST */
+#include "WinInet.h"		// // //
+#pragma comment(lib, "wininet.lib")
 
 // Single instance-stuff
 const TCHAR FT_SHARED_MUTEX_NAME[]	= _T("FamiTrackerMutex");	// Name of global mutex
@@ -47,24 +51,15 @@ const DWORD	SHARED_MEM_SIZE			= 256;
 #define new DEBUG_NEW
 #endif
 
-#ifdef RELEASE_BUILD
-#pragma message("Building SVN release build...")
-#endif /* RELEASE_BUILD */
-
 // CFamiTrackerApp
 
 BEGIN_MESSAGE_MAP(CFamiTrackerApp, CWinApp)
 	ON_COMMAND(ID_APP_ABOUT, OnAppAbout)
 	// Standard file based document commands
-//ON_COMMAND(ID_FILE_NEW, CWinApp::OnFileNew)
-   ON_COMMAND(ID_FILE_NEW, OnFileNew)
+	ON_COMMAND(ID_FILE_NEW, CWinApp::OnFileNew)
 	ON_COMMAND(ID_FILE_OPEN, OnFileOpen)
-#ifdef UPDATE_CHECK
-	ON_COMMAND(ID_HELP_CHECKFORNEWVERSIONS, CheckNewVersion)
-#endif
-#ifdef EXPORT_TEST
-	ON_COMMAND(ID_MODULE_TEST_EXPORT, OnTestExport)
-#endif
+	ON_COMMAND(ID_RECENTFILES_CLEAR, OnRecentFilesClear)		// // //
+	ON_UPDATE_COMMAND_UI(ID_FILE_MRU_FILE1, OnUpdateRecentFiles)		// // //
 END_MESSAGE_MAP()
 
 // Include this for windows xp style in visual studio 2005 or later
@@ -73,25 +68,21 @@ END_MESSAGE_MAP()
 // CFamiTrackerApp construction
 
 CFamiTrackerApp::CFamiTrackerApp() :
-//   m_bThemeActive(false),
-   m_pMIDI(NULL),
+	m_bThemeActive(false),
+	m_pMIDI(NULL),
 	m_pAccel(NULL),
 	m_pSettings(NULL),
 	m_pSoundGenerator(NULL),
 	m_pChannelMap(NULL),
 	m_customExporters(NULL),
-//	m_hWndMapFile(NULL),
+	m_hWndMapFile(NULL),
 #ifdef SUPPORT_TRANSLATIONS
 	m_hInstResDLL(NULL),
 #endif
-#ifdef EXPORT_TEST
-	m_bExportTesting(false),
-#endif
 	m_pInstanceMutex(NULL)
 {
-   qDebug("EnableHtmlHelp");
-//	// Place all significant initialization in InitInstance
-//	EnableHtmlHelp();
+	// Place all significant initialization in InitInstance
+	EnableHtmlHelp();
 
 #ifdef ENABLE_CRASH_HANDLER
 	// This will cover the whole process
@@ -110,7 +101,7 @@ BOOL CFamiTrackerApp::InitInstance()
 	// InitCommonControls() is required on Windows XP if an application
 	// manifest specifies use of ComCtl32.dll version 6 or later to enable
 	// visual styles.  Otherwise, any window creation will fail.
-//	InitCommonControls();
+	InitCommonControls();
 #ifdef SUPPORT_TRANSLATIONS
 	LoadLocalization();
 #endif
@@ -118,9 +109,9 @@ BOOL CFamiTrackerApp::InitInstance()
 
 	TRACE("App: InitInstance\n");
 
-//	if (!AfxOleInit()) {
-//		TRACE0("OLE initialization failed\n");
-//	}
+	if (!AfxOleInit()) {
+		TRACE("OLE initialization failed\n");
+	}
 
 	// Standard initialization
 	// If you are not using these features and wish to reduce the size
@@ -129,8 +120,8 @@ BOOL CFamiTrackerApp::InitInstance()
 	// Change the registry key under which our settings are stored
 	// TODO: You should modify this string to be something appropriate
 	// such as the name of your company or organization
-//	SetRegistryKey(_T(""));
-	LoadStdProfileSettings(8);  // Load standard INI file options (including MRU)
+	SetRegistryKey(_T(""));
+	LoadStdProfileSettings(MAX_RECENT_FILES);  // Load standard INI file options (including MRU)
 
 	// Load program settings
 	m_pSettings = CSettings::GetObject();
@@ -157,8 +148,8 @@ BOOL CFamiTrackerApp::InitInstance()
 	m_pAccel->LoadShortcuts(m_pSettings);
 	m_pAccel->Setup();
 
-   // Create the MIDI interface
-   m_pMIDI = new CMIDI();
+	// Create the MIDI interface
+	m_pMIDI = new CMIDI();
 
 	// Create sound generator
 	m_pSoundGenerator = new CSoundGen();
@@ -181,7 +172,7 @@ BOOL CFamiTrackerApp::InitInstance()
 
 	// Register the application's document templates.  Document templates
 	//  serve as the connection between documents, frame windows and views
-	CSingleDocTemplate* pDocTemplate = new CSingleDocTemplate(
+	CDocTemplate0CC* pDocTemplate = new CDocTemplate0CC(		// // //
 		IDR_MAINFRAME, 
 		RUNTIME_CLASS(CFamiTrackerDoc), 
 		RUNTIME_CLASS(CMainFrame), 
@@ -190,42 +181,38 @@ BOOL CFamiTrackerApp::InitInstance()
 	if (!pDocTemplate)
 		return FALSE;
 	
-	AddDocTemplate(pDocTemplate);
+	if (m_pDocManager == NULL)		// // //
+		m_pDocManager = new CDocManager0CC { };
+	m_pDocManager->AddDocTemplate(pDocTemplate);
 
-//	// Determine windows version
-//    OSVERSIONINFO osvi;
+	// Work-around to enable file type registration in windows vista/7
+	if (IsWindowsVistaOrGreater()) {		// // //
+		HKEY HKCU;
+		long res_reg = ::RegOpenKey(HKEY_CURRENT_USER, _T("Software\\Classes"), &HKCU);
+		if(res_reg == ERROR_SUCCESS)
+			RegOverridePredefKey(HKEY_CLASSES_ROOT, HKCU);
+	}
 
-//    ZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-//    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+	// Enable DDE Execute open
+	EnableShellOpen();
 
-//    GetVersionEx(&osvi);
+	// Skip this if in wip/beta mode
+#if !defined(WIP) && !defined(_DEBUG)
+	// Add shell options
+	RegisterShellFileTypes();		// // //
+	static const LPCTSTR FILE_ASSOC_NAME = _T(APP_NAME " Module");
+	AfxRegSetValue(HKEY_CLASSES_ROOT, "0CCFamiTracker.Document", REG_SZ, FILE_ASSOC_NAME, lstrlen(FILE_ASSOC_NAME) * sizeof(TCHAR));
+	// Add an option to play files
+	CString strPathName, strTemp, strFileTypeId;
+	AfxGetModuleShortFileName(AfxGetInstanceHandle(), strPathName);
+	CString strOpenCommandLine = strPathName;
+	strOpenCommandLine += _T(" /play \"%1\"");
+	if (pDocTemplate->GetDocString(strFileTypeId, CDocTemplate::regFileTypeId) && !strFileTypeId.IsEmpty()) {
+		strTemp.Format(_T("%s\\shell\\play\\%s"), (LPCTSTR)strFileTypeId, _T("command"));
+		AfxRegSetValue(HKEY_CLASSES_ROOT, strTemp, REG_SZ, strOpenCommandLine, lstrlen(strOpenCommandLine) * sizeof(TCHAR));
+	}
+#endif
 
-//	// Work-around to enable file type registration in windows vista/7
-//	if (osvi.dwMajorVersion >= 6) { 
-//		HKEY HKCU;
-//		long res_reg = ::RegOpenKey(HKEY_CURRENT_USER, _T("Software\\Classes"), &HKCU);
-//		if(res_reg == ERROR_SUCCESS)
-//			RegOverridePredefKey(HKEY_CLASSES_ROOT, HKCU);
-//	}
-
-//	// Enable DDE Execute open
-//	EnableShellOpen();
-
-//	// Skip this if in wip/beta mode
-//#if /*!defined(WIP) &&*/ !defined(_DEBUG)
-//	// Add shell options
-//	RegisterShellFileTypes(TRUE);
-//	// Add an option to play files
-//	CString strPathName, strTemp, strFileTypeId;
-//	AfxGetModuleShortFileName(AfxGetInstanceHandle(), strPathName);
-//	CString strOpenCommandLine = strPathName;
-//	strOpenCommandLine += _T(" /play \"%1\"");
-//	if (pDocTemplate->GetDocString(strFileTypeId, CDocTemplate::regFileTypeId) && !strFileTypeId.IsEmpty()) {
-//		strTemp.Format(_T("%s\\shell\\play\\%s"), (LPCTSTR)strFileTypeId, _T("command"));
-//		AfxRegSetValue(HKEY_CLASSES_ROOT, strTemp, REG_SZ, strOpenCommandLine, lstrlen(strOpenCommandLine) * sizeof(TCHAR));
-//	}
-//#endif
-	
 	// Handle command line export
 	if (cmdInfo.m_bExport) {
 		CCommandLineExport exporter;
@@ -243,17 +230,14 @@ BOOL CFamiTrackerApp::InitInstance()
 		return FALSE;
 	}
 
-//	// Move root key back to default
-//	if (osvi.dwMajorVersion >= 6) { 
-//		::RegOverridePredefKey(HKEY_CLASSES_ROOT, NULL);
-//	}
+	// Move root key back to default
+	if (IsWindowsVistaOrGreater()) {		// // //
+		::RegOverridePredefKey(HKEY_CLASSES_ROOT, NULL);
+	}
 
 	// The one and only window has been initialized, so show and update it
-// CP: Showing the window here causes a blip of a not-yet-initialized window because Qt hasn't yet actually
-// "taken over" for MFC, so I'm hacking this out and letting the Qt subsystem show the window when it's done
-// "initializing" it.
-//	m_pMainWnd->ShowWindow(SW_SHOW);
-//	m_pMainWnd->UpdateWindow();
+	m_pMainWnd->ShowWindow(m_nCmdShow);
+	m_pMainWnd->UpdateWindow();
 	// call DragAcceptFiles only if there's a suffix
 	//  In an SDI app, this should occur after ProcessShellCommand
 	// Enable drag/drop open
@@ -268,35 +252,25 @@ BOOL CFamiTrackerApp::InitInstance()
 		AfxMessageBox(IDS_START_ERROR, MB_ICONERROR);
 		return FALSE;
 	}
-
-   // Initialize midi unit
-   m_pMIDI->Init();
+	
+	// Initialize midi unit
+	m_pMIDI->Init();
 	
 	if (cmdInfo.m_bPlay)
 		theApp.StartPlayer(MODE_PLAY);
-
-#ifdef EXPORT_TEST
-	if (cmdInfo.m_bVerifyExport) {
-		m_bExportTesting = true;
-		VerifyExport(cmdInfo.m_strVerifyFile);
-	}
-	else {
-		// Append menu option
-		m_pMainWnd->GetMenu()->GetSubMenu(2)->AppendMenu(MF_SEPARATOR);
-		m_pMainWnd->GetMenu()->GetSubMenu(2)->AppendMenu(MF_STRING, ID_MODULE_TEST_EXPORT, _T("Test exporter"));
-	}
-#endif
 
 	// Save the main window handle
 	RegisterSingleInstance();
 
 #ifndef _DEBUG
-	// WIP
-	m_pMainWnd->GetMenu()->GetSubMenu(2)->RemoveMenu(ID_MODULE_CHANNELS, MF_BYCOMMAND);
+	m_pMainWnd->GetMenu()->GetSubMenu(4)->RemoveMenu(ID_MODULE_CHANNELS, MF_BYCOMMAND);		// // //
 #endif
 
+	if (m_pSettings->General.bCheckVersion)		// // //
+		CheckNewVersion(true);
+
 	// Initialization is done
-	TRACE0("App: InitInstance done\n");
+	TRACE("App: InitInstance done\n");
 
 	return TRUE;
 }
@@ -312,11 +286,11 @@ int CFamiTrackerApp::ExitInstance()
 
 	ShutDownSynth();
 
-   if (m_pMIDI) {
-      m_pMIDI->Shutdown();
-      delete m_pMIDI;
-      m_pMIDI = NULL;
-   }
+	if (m_pMIDI) {
+		m_pMIDI->Shutdown();
+		delete m_pMIDI;
+		m_pMIDI = NULL;
+	}
 
 	if (m_pAccel) {
 		m_pAccel->SaveShortcuts(m_pSettings);
@@ -341,17 +315,19 @@ int CFamiTrackerApp::ExitInstance()
 	}
 
 #ifdef SUPPORT_TRANSLATIONS
-   qDebug("SUPPORT_TRANSLATIONS");
-//	if (m_hInstResDLL) {
-//		// Revert back to internal resources
-//		AfxSetResourceHandle(m_hInstance);
-//		// Unload DLL
-//		::FreeLibrary(m_hInstResDLL);
-//		m_hInstResDLL = NULL;
-//	}
+	if (m_hInstResDLL) {
+		// Revert back to internal resources
+		AfxSetResourceHandle(m_hInstance);
+		// Unload DLL
+		::FreeLibrary(m_hInstResDLL);
+		m_hInstResDLL = NULL;
+	}
 #endif
 
-	TRACE0("App: End ExitInstance\n");
+	if (m_thVersionCheck.joinable())		// // //
+		m_thVersionCheck.join();
+
+	TRACE("App: End ExitInstance\n");
 
 	return CWinApp::ExitInstance();
 }
@@ -372,18 +348,18 @@ BOOL CFamiTrackerApp::PreTranslateMessage(MSG* pMsg)
 
 void CFamiTrackerApp::CheckAppThemed()
 {
-//	HMODULE hinstDll = ::LoadLibrary(_T("UxTheme.dll"));
+	HMODULE hinstDll = ::LoadLibrary(_T("UxTheme.dll"));
 	
-//	if (hinstDll) {
-//		typedef BOOL (*ISAPPTHEMEDPROC)();
-//		ISAPPTHEMEDPROC pIsAppThemed;
-//		pIsAppThemed = (ISAPPTHEMEDPROC) ::GetProcAddress(hinstDll, "IsAppThemed");
+	if (hinstDll) {
+		typedef BOOL (*ISAPPTHEMEDPROC)();
+		ISAPPTHEMEDPROC pIsAppThemed;
+		pIsAppThemed = (ISAPPTHEMEDPROC) ::GetProcAddress(hinstDll, "IsAppThemed");
 
-//		if(pIsAppThemed)
-//			m_bThemeActive = (pIsAppThemed() == TRUE);
+		if(pIsAppThemed)
+			m_bThemeActive = (pIsAppThemed() == TRUE);
 
-//		::FreeLibrary(hinstDll);
-//	}
+		::FreeLibrary(hinstDll);
+	}
 }
 
 bool CFamiTrackerApp::IsThemeActive() const
@@ -430,29 +406,55 @@ bool GetFileVersion(LPCTSTR Filename, WORD &Major, WORD &Minor, WORD &Revision, 
 #ifdef SUPPORT_TRANSLATIONS
 void CFamiTrackerApp::LoadLocalization()
 {
-   qDebug("SUPPORT_TRANSLATIONS");
-//	LPCTSTR DLL_NAME = _T("language.dll");
-//	WORD Major, Minor, Build, Revision;
+	LPCTSTR DLL_NAME = _T("language.dll");
+	WORD Major, Minor, Build, Revision;
 
-//	if (GetFileVersion(DLL_NAME, Major, Minor, Revision, Build)) {
-//		if (Major != VERSION_MAJ || Minor != VERSION_MIN || Revision != VERSION_REV)
-//			return;
+	if (GetFileVersion(DLL_NAME, Major, Minor, Revision, Build)) {
+		if (Major != VERSION_API || Minor != VERSION_MAJ || Revision != VERSION_MIN || Build != VERSION_REV)		// // //
+			return;
 
-//		m_hInstResDLL = ::LoadLibrary(DLL_NAME);
+		m_hInstResDLL = ::LoadLibrary(DLL_NAME);
 
-//		if (m_hInstResDLL != NULL) {
-//			TRACE0("App: Loaded localization DLL\n");
-//			AfxSetResourceHandle(m_hInstResDLL);
-//		}
-//	}
+		if (m_hInstResDLL != NULL) {
+			TRACE("App: Loaded localization DLL\n");
+			AfxSetResourceHandle(m_hInstResDLL);
+		}
+	}
 }
 #endif
+
+void CFamiTrackerApp::OnRecentFilesClear()		// // //
+{
+	int confirm = AfxMessageBox(IDS_CLEAR_RECENTS, MB_YESNO | MB_ICONEXCLAMATION | MB_DEFBUTTON2);
+	if (confirm == IDNO) {
+		return;
+	} else if (confirm != IDYES) {
+		throw std::runtime_error("Recent Files Clear message box returned invalid value");
+	}
+
+	SAFE_RELEASE(m_pRecentFileList);
+	m_pRecentFileList = new CRecentFileList(0, _T("Recent File List"), _T("File%d"), MAX_RECENT_FILES);
+
+	auto pMenu = m_pMainWnd->GetMenu()->GetSubMenu(0)->GetSubMenu(14);
+	for (int i = 0; i < MAX_RECENT_FILES; ++i)
+		pMenu->RemoveMenu(ID_FILE_MRU_FILE1 + i, MF_BYCOMMAND);
+	pMenu->AppendMenu(MF_STRING, ID_FILE_MRU_FILE1, _T("(File)"));
+}
+
+void CFamiTrackerApp::OnUpdateRecentFiles(CCmdUI *pCmdUI)		// // //
+{
+	// https://www.codeguru.com/cpp/controls/menu/miscellaneous/article.php/c167
+	// updating a submenu?
+	if (pCmdUI->m_pSubMenu != NULL) return;
+
+	m_pRecentFileList->UpdateMenu(pCmdUI);
+}
 
 void CFamiTrackerApp::ShutDownSynth()
 {
 	// Shut down sound generator
 	if (m_pSoundGenerator == NULL) {
-		TRACE0("App: Sound generator object was not available\n");
+		TRACE("App: Sound generator object was not available\n");
 		return;
 	}
 
@@ -463,11 +465,11 @@ void CFamiTrackerApp::ShutDownSynth()
 		// Object was found but thread not created
 		delete m_pSoundGenerator;
 		m_pSoundGenerator = NULL;
-		TRACE0("App: Sound generator object was found but no thread created\n");
+		TRACE("App: Sound generator object was found but no thread created\n");
 		return;
 	}
 
-	TRACE0("App: Waiting for sound player thread to close\n");
+	TRACE("App: Waiting for sound player thread to close\n");
 
 	// Resume if thread was suspended
 	if (m_pSoundGenerator->ResumeThread() == 0) {
@@ -481,7 +483,7 @@ void CFamiTrackerApp::ShutDownSynth()
 	DWORD dwResult = ::WaitForSingleObject(hThread, CSoundGen::AUDIO_TIMEOUT + 1000);
 
 	if (dwResult != WAIT_OBJECT_0 && m_pSoundGenerator != NULL) {
-		TRACE0("App: Closing the sound generator thread failed\n");
+		TRACE("App: Closing the sound generator thread failed\n");
 #ifdef _DEBUG
 		AfxMessageBox(_T("Error: Could not close sound generator thread"));
 #endif
@@ -492,7 +494,7 @@ void CFamiTrackerApp::ShutDownSynth()
 	// Object should be auto-deleted
 	ASSERT(m_pSoundGenerator == NULL);
 
-	TRACE0("App: Sound generator has closed\n");
+	TRACE("App: Sound generator has closed\n");
 }
 
 void CFamiTrackerApp::RemoveSoundGenerator()
@@ -508,33 +510,130 @@ CCustomExporters* CFamiTrackerApp::GetCustomExporters(void) const
 
 void CFamiTrackerApp::RegisterSingleInstance()
 {
-   qDebug("RegisterSingleInstance");
-//	// Create a memory area with this app's window handle
-//	if (!GetSettings()->General.bSingleInstance)
-//		return;
+	// Create a memory area with this app's window handle
+	if (!GetSettings()->General.bSingleInstance)
+		return;
 
-//	m_hWndMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, SHARED_MEM_SIZE, FT_SHARED_MEM_NAME);
+	m_hWndMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, SHARED_MEM_SIZE, FT_SHARED_MEM_NAME);
 
-//	if (m_hWndMapFile != NULL) {
-//		LPTSTR pBuf = (LPTSTR) MapViewOfFile(m_hWndMapFile, FILE_MAP_ALL_ACCESS, 0, 0, SHARED_MEM_SIZE);
-//		if (pBuf != NULL) { 
-//			// Create a string of main window handle
-//			_itot((int)GetMainWnd()->m_hWnd, pBuf, 10);
-//			UnmapViewOfFile(pBuf);
-//		}
-//	}
+	if (m_hWndMapFile != NULL) {
+		LPTSTR pBuf = (LPTSTR) MapViewOfFile(m_hWndMapFile, FILE_MAP_ALL_ACCESS, 0, 0, SHARED_MEM_SIZE);
+		if (pBuf != NULL) { 
+			// Create a string of main window handle
+			_itot_s((int)GetMainWnd()->m_hWnd, pBuf, SHARED_MEM_SIZE, 10);
+			UnmapViewOfFile(pBuf);
+		}
+	}
 }
 
 void CFamiTrackerApp::UnregisterSingleInstance()
 {	
-   qDebug("UnregisterSingleInstance");
-//	// Close shared memory area
-//	if (m_hWndMapFile) {
-//		CloseHandle(m_hWndMapFile);
-//		m_hWndMapFile = NULL;
-//	}
+	// Close shared memory area
+	if (m_hWndMapFile) {
+		CloseHandle(m_hWndMapFile);
+		m_hWndMapFile = NULL;
+	}
 
-//	SAFE_RELEASE(m_pInstanceMutex);
+	SAFE_RELEASE(m_pInstanceMutex);
+}
+
+void CFamiTrackerApp::CheckNewVersion(bool StartUp)		// // //
+{
+	return;
+
+	static PCTSTR rgpszAcceptTypes[] = {_T("application/json"), NULL};
+
+	m_bVersionReady = false;
+	m_pVersionMessage = _T("");
+	m_iVersionStyle = 0U;
+
+	const auto CheckFunc = [&] (bool Start) {
+		HINTERNET hOpen, hConnect, hRequest;
+		CString jsonStr;
+
+		// FIXME FIXME github repo differs from APP_NAME
+		// also burn this code with fire
+
+		try {
+			if ((hOpen = InternetOpen(_T("0CC_FamiTracker"), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0)) &&
+				(hConnect = InternetConnect(hOpen, _T("api.github.com"),
+				INTERNET_DEFAULT_HTTPS_PORT, _T(""), _T(""), INTERNET_SERVICE_HTTP, 0, 0)) &&
+				(hRequest = HttpOpenRequest(hConnect, _T("GET"), _T("/repos/jimbo1qaz/0CC-FamiTracker/releases"),
+				_T("HTTP/1.0"), NULL, rgpszAcceptTypes,
+				INTERNET_FLAG_RELOAD | INTERNET_FLAG_SECURE | INTERNET_FLAG_NO_CACHE_WRITE, NULL))) {
+				HttpAddRequestHeaders(hRequest, _T("Content-Type: application/json\r\n"), -1, HTTP_ADDREQ_FLAG_ADD);
+
+				if (!HttpSendRequest(hRequest, NULL, 0, NULL, 0)) throw GetLastError();
+				while (true) {
+					DWORD Size;
+					if (!InternetQueryDataAvailable(hRequest, &Size, 0, 0)) throw GetLastError();
+					if (!Size) break;
+					char *Buf = new char[Size + 1]();
+					DWORD Received = 0;
+					for (DWORD i = 0; i < Size; i += 1024) {
+						DWORD Length = (Size - i < 1024) ? Size % 1024 : 1024;
+						if (!InternetReadFile(hRequest, Buf + i, Length, &Received))
+							throw GetLastError();
+					}
+					jsonStr += Buf;
+					SAFE_RELEASE_ARRAY(Buf);
+				}
+				nlohmann::json j = nlohmann::json::parse(jsonStr.GetBuffer());
+				for (const auto &i : j) {
+					int Ver[4] = { };
+					sscanf_s(i["tag_name"].get<std::string>().c_str(),
+							 "v%u.%u.%u%*1[.r]%u", Ver, Ver + 1, Ver + 2, Ver + 3);
+
+					// TODO std::vector comparison
+
+					if (Ver[0] > VERSION_API || Ver[0] == VERSION_API &&
+						(Ver[1] > VERSION_MAJ || Ver[1] == VERSION_MAJ &&
+						(Ver[2] > VERSION_MIN || Ver[2] == VERSION_MIN &&
+						Ver[3] > VERSION_REV))) {
+						int Y = 1970, M = 1, D = 1;
+						sscanf_s(i["published_at"].get<std::string>().c_str(), "%d-%d-%d", &Y, &M, &D);
+						static const CString MONTHS[] = {
+							_T("Jan"), _T("Feb"), _T("Mar"), _T("Apr"), _T("May"), _T("Jun"),
+							_T("Jul"), _T("Aug"), _T("Sept"), _T("Oct"), _T("Nov"), _T("Dec"),
+						};
+
+						CString desc = i["body"].get<std::string>().c_str();
+						int Index = desc.Find(_T("\r\n\r\n"));
+						if (Index >= 0)
+							desc.Delete(0, Index + 4);
+						Index = desc.Find(_T("\r\n\r\n#"));
+						if (Index >= 0)
+							desc.Truncate(Index);
+
+						m_pVersionMessage.Format(_T("A new version of " APP_NAME " is now available:\n\n"
+												 "Version %d.%d.%d.%d (released %s %d, %d)\n\n%s\n\n"
+												 "Pressing \"Yes\" will launch the Github web page for this release."),
+												 Ver[0], Ver[1], Ver[2], Ver[3], MONTHS[--M], D, Y, desc);
+						if (Start)
+							m_pVersionMessage.Append(_T(" (Version checking on startup may be disabled in the configuration menu.)"));
+						m_pVersionURL.Format(_T("https://github.com/jimbo1qaz/0CC-FamiTracker/releases/tag/v%d.%d.%d.%d"),
+											 Ver[0], Ver[1], Ver[2], Ver[3]);
+						m_iVersionStyle = MB_YESNO | MB_ICONINFORMATION;
+						m_bVersionReady = true;
+						break;
+					}
+				}
+			}
+		}
+		catch (DWORD &) {
+			m_pVersionMessage = _T("Unable to get version information from the source repository.");
+			m_iVersionStyle = MB_ICONERROR;
+			m_bVersionReady = true;
+		}
+
+		if (hRequest) InternetCloseHandle(hRequest);
+		if (hConnect) InternetCloseHandle(hConnect);
+		if (hOpen) InternetCloseHandle(hOpen);
+	};
+
+	if (m_thVersionCheck.joinable())
+		m_thVersionCheck.join();
+	m_thVersionCheck = std::thread {CheckFunc, StartUp};
 }
 
 bool CFamiTrackerApp::CheckSingleInstance(CFTCommandLineInfo &cmdInfo)
@@ -547,39 +646,38 @@ bool CFamiTrackerApp::CheckSingleInstance(CFTCommandLineInfo &cmdInfo)
 	if (cmdInfo.m_bExport)
 		return false;
 
-   qDebug("CheckSingleInstance");
-//	m_pInstanceMutex = new CMutex(FALSE, FT_SHARED_MUTEX_NAME);
+	m_pInstanceMutex = new CMutex(FALSE, FT_SHARED_MUTEX_NAME);
 
-//	if (GetLastError() == ERROR_ALREADY_EXISTS) {
-//		// Another instance detected, get window handle
-//		HANDLE hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, FT_SHARED_MEM_NAME);
-//		if (hMapFile != NULL) {
-//			LPCTSTR pBuf = (LPTSTR) MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, SHARED_MEM_SIZE);
-//			if (pBuf != NULL) {
-//				// Get window handle
-//				HWND hWnd = (HWND)_ttoi(pBuf);
-//				if (hWnd != NULL) {
-//					// Get file name
-//					LPTSTR pFilePath = cmdInfo.m_strFileName.GetBuffer();
-//					// We have the window handle & file, send a message to open the file
-//					COPYDATASTRUCT data;
-//					data.dwData = cmdInfo.m_bPlay ? IPC_LOAD_PLAY : IPC_LOAD;
-//					data.cbData = (DWORD)((_tcslen(pFilePath) + 1) * sizeof(TCHAR));
-//					data.lpData = pFilePath;
-//					DWORD result;
-//					SendMessageTimeout(hWnd, WM_COPYDATA, NULL, (LPARAM)&data, SMTO_NORMAL, 100, &result);
-//					UnmapViewOfFile(pBuf);
-//					CloseHandle(hMapFile);
-//					TRACE("App: Found another instance, shutting down\n");
-//					// Then close the program
-//					return true;
-//				}
+	if (GetLastError() == ERROR_ALREADY_EXISTS) {
+		// Another instance detected, get window handle
+		HANDLE hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, FT_SHARED_MEM_NAME);
+		if (hMapFile != NULL) {	
+			LPCTSTR pBuf = (LPTSTR) MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, SHARED_MEM_SIZE);
+			if (pBuf != NULL) {
+				// Get window handle
+				HWND hWnd = (HWND)_ttoi(pBuf);
+				if (hWnd != NULL) {
+					// Get file name
+					LPTSTR pFilePath = cmdInfo.m_strFileName.GetBuffer();
+					// We have the window handle & file, send a message to open the file
+					COPYDATASTRUCT data;
+					data.dwData = cmdInfo.m_bPlay ? IPC_LOAD_PLAY : IPC_LOAD;
+					data.cbData = (DWORD)((_tcslen(pFilePath) + 1) * sizeof(TCHAR));
+					data.lpData = pFilePath;
+					ULONG_PTR result;
+					SendMessageTimeout(hWnd, WM_COPYDATA, NULL, (LPARAM)&data, SMTO_NORMAL, 100, &result);
+					UnmapViewOfFile(pBuf);
+					CloseHandle(hMapFile);
+					TRACE("App: Found another instance, shutting down\n");
+					// Then close the program
+					return true;
+				}
 
-//				UnmapViewOfFile(pBuf);
-//			}
-//			CloseHandle(hMapFile);
-//		}
-//	}
+				UnmapViewOfFile(pBuf);
+			}
+			CloseHandle(hMapFile);
+		}
+	}
 	
 	return false;
 }
@@ -593,7 +691,14 @@ void CFamiTrackerApp::LoadSoundConfig()
 {
 	GetSoundGenerator()->LoadSettings();
 	GetSoundGenerator()->Interrupt();
-	((CFrameWnd*)GetMainWnd())->SetMessageText(IDS_NEW_SOUND_CONFIG);
+	static_cast<CFrameWnd*>(GetMainWnd())->SetMessageText(IDS_NEW_SOUND_CONFIG);
+}
+
+void CFamiTrackerApp::UpdateMenuShortcuts()		// // //
+{
+	CMainFrame *pMainFrm = dynamic_cast<CMainFrame*>(GetMainWnd());
+	if (pMainFrm != nullptr)
+		pMainFrm->UpdateMenus();
 }
 
 // Silences everything
@@ -605,21 +710,20 @@ void CFamiTrackerApp::SilentEverything()
 
 int CFamiTrackerApp::GetCPUUsage() const
 {
-   qDebug("GetCPUUsage");
-//	// Calculate CPU usage
-//	const int THREAD_COUNT = 2;
-//	static FILETIME KernelLastTime[THREAD_COUNT], UserLastTime[THREAD_COUNT];
-//	const HANDLE hThreads[THREAD_COUNT] = {m_hThread, m_pSoundGenerator->m_hThread};
+	// Calculate CPU usage
+	const int THREAD_COUNT = 2;
+	static FILETIME KernelLastTime[THREAD_COUNT], UserLastTime[THREAD_COUNT];
+	const HANDLE hThreads[THREAD_COUNT] = {m_hThread, m_pSoundGenerator->m_hThread};
 	unsigned int TotalTime = 0;
 
-//	for (int i = 0; i < THREAD_COUNT; ++i) {
-//		FILETIME CreationTime, ExitTime, KernelTime, UserTime;
-//		GetThreadTimes(hThreads[i], &CreationTime, &ExitTime, &KernelTime, &UserTime);
-//		TotalTime += (KernelTime.dwLowDateTime - KernelLastTime[i].dwLowDateTime) / 1000;
-//		TotalTime += (UserTime.dwLowDateTime - UserLastTime[i].dwLowDateTime) / 1000;
-//		KernelLastTime[i] = KernelTime;
-//		UserLastTime[i]	= UserTime;
-//	}
+	for (int i = 0; i < THREAD_COUNT; ++i) {
+		FILETIME CreationTime, ExitTime, KernelTime, UserTime;
+		GetThreadTimes(hThreads[i], &CreationTime, &ExitTime, &KernelTime, &UserTime);
+		TotalTime += (KernelTime.dwLowDateTime - KernelLastTime[i].dwLowDateTime) / 1000;
+		TotalTime += (UserTime.dwLowDateTime - UserLastTime[i].dwLowDateTime) / 1000;
+		KernelLastTime[i] = KernelTime;
+		UserLastTime[i]	= UserTime;
+	}
 
 	return TotalTime;
 }
@@ -648,6 +752,20 @@ void CFamiTrackerApp::ReloadColorScheme()
 	}
 }
 
+BOOL CFamiTrackerApp::OnIdle(LONG lCount)		// // //
+{
+	if (CWinApp::OnIdle(lCount))
+		return TRUE;
+
+	if (m_bVersionReady && !m_pVersionMessage.IsEmpty()) {
+		m_bVersionReady = false;
+		if (AfxMessageBox(m_pVersionMessage, m_iVersionStyle) == IDYES)
+			ShellExecute(NULL, _T("open"), m_pVersionURL, NULL, NULL, SW_SHOWNORMAL);
+	}
+
+	return FALSE;
+}
+
 // App command to run the about dialog
 void CFamiTrackerApp::OnAppAbout()
 {
@@ -669,7 +787,7 @@ void CFamiTrackerApp::StopPlayer()
 	if (m_pSoundGenerator)
 		m_pSoundGenerator->StopPlayer();
 
-   m_pMIDI->ResetOutput();
+	m_pMIDI->ResetOutput();
 }
 
 void CFamiTrackerApp::StopPlayerAndWait()
@@ -679,16 +797,16 @@ void CFamiTrackerApp::StopPlayerAndWait()
 		m_pSoundGenerator->StopPlayer();
 		m_pSoundGenerator->WaitForStop();
 	}
-   m_pMIDI->ResetOutput();
+	m_pMIDI->ResetOutput();
 }
 
 void CFamiTrackerApp::TogglePlayer()
 {
 	if (m_pSoundGenerator) {
 		if (m_pSoundGenerator->IsPlaying())
-         StopPlayer();
+			StopPlayer();
 		else
-         StartPlayer(MODE_PLAY);
+			StartPlayer(MODE_PLAY);
 	}
 }
 
@@ -714,20 +832,12 @@ void CFamiTrackerApp::ResetPlayer()
 
 void CFamiTrackerApp::OnFileOpen() 
 {
-	// Overloaded in order to save the file path
-	CString newName, path;
+	CString newName = _T("");		// // //
 
-	// Get path
-	path = m_pSettings->GetPath(PATH_FTM) + _T("\\");
-	newName = _T("");
-
-	if (!DoPromptFileName(newName, path, AFX_IDS_OPENFILE, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, TRUE, NULL))
+	if (!AfxGetApp()->DoPromptFileName(newName, AFX_IDS_OPENFILE, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, TRUE, NULL))
 		return; // open cancelled
 
 	CFrameWnd *pFrameWnd = (CFrameWnd*)GetMainWnd();
-
-	// Save path
-	m_pSettings->SetPath(newName, PATH_FTM);
 	
 	if (pFrameWnd)
 		pFrameWnd->SetMessageText(IDS_LOADING_FILE);
@@ -737,103 +847,6 @@ void CFamiTrackerApp::OnFileOpen()
 	if (pFrameWnd)
 		pFrameWnd->SetMessageText(IDS_LOADING_DONE);
 }
-
-BOOL CFamiTrackerApp::DoPromptFileName(CString& fileName, CString& filePath, UINT nIDSTitle, DWORD lFlags, BOOL bOpenFileDialog, CDocTemplate* pTemplate)
-{
-	// Copied from MFC
-	CFileDialog dlgFile(bOpenFileDialog, NULL, NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, NULL, NULL, 0);
-
-	CString title;
-	ENSURE(title.LoadString(nIDSTitle));
-
-	dlgFile.m_ofn.Flags |= lFlags;
-
-	CString strFilter;
-	CString strDefault;
-
-	if (pTemplate == NULL) {
-		POSITION pos = GetFirstDocTemplatePosition();
-		while (pos != NULL) {
-			CString strFilterExt;
-			CString strFilterName;
-			pTemplate = GetNextDocTemplate(pos);
-			pTemplate->GetDocString(strFilterExt, CDocTemplate::filterExt);
-			pTemplate->GetDocString(strFilterName, CDocTemplate::filterName);
-
-			// Add extension
-			strFilter += strFilterName;
-			strFilter += (TCHAR)'\0';
-			strFilter += _T("*");
-			strFilter += strFilterExt;
-			strFilter += (TCHAR)'\0';
-			dlgFile.m_ofn.nMaxCustFilter++;
-		}
-	}
-
-	// Select first filter
-	dlgFile.m_ofn.nFilterIndex = 1;
-
-	// append the "*.*" all files filter
-	CString allFilter;
-	VERIFY(allFilter.LoadString(AFX_IDS_ALLFILTER));
-	strFilter += allFilter;
-	strFilter += (TCHAR)'\0';   // next string please
-	strFilter += _T("*.*");
-	strFilter += (TCHAR)'\0';   // last string
-	dlgFile.m_ofn.nMaxCustFilter++;
-
-	dlgFile.m_ofn.lpstrFilter = strFilter;
-	dlgFile.m_ofn.lpstrTitle = title;
-	dlgFile.m_ofn.lpstrInitialDir = filePath.GetBuffer(_MAX_PATH);
-	dlgFile.m_ofn.lpstrFile = fileName.GetBuffer(_MAX_PATH);
-
-	INT_PTR nResult = dlgFile.DoModal();
-	fileName.ReleaseBuffer();
-	filePath.ReleaseBuffer();
-
-	return nResult == IDOK;
-}
-
-#ifdef EXPORT_TEST
-
-void CFamiTrackerApp::OnTestExport()
-{
-	VerifyExport();
-}
-
-void CFamiTrackerApp::VerifyExport() const
-{
-	CExportTest *pExportTest = new CExportTest();
-	if (pExportTest->Setup()) {
-		const CMainFrame *pMainFrame = static_cast<CMainFrame*>(m_pMainWnd);
-		pExportTest->RunInit(pMainFrame->GetSelectedTrack());
-		GetSoundGenerator()->PostThreadMessage(WM_USER_VERIFY_EXPORT, (WPARAM)pExportTest, pMainFrame->GetSelectedTrack());
-	}
-	else
-		delete pExportTest;
-}
-
-void CFamiTrackerApp::VerifyExport(LPCTSTR File) const
-{
-	CExportTest *pExportTest = new CExportTest();
-
-	printf("Verifying export for file %s\n", File);
-
-	if (pExportTest->Setup(File)) {
-		const CMainFrame *pMainFrame = static_cast<CMainFrame*>(m_pMainWnd);
-		pExportTest->RunInit(pMainFrame->GetSelectedTrack());
-		GetSoundGenerator()->PostThreadMessage(WM_USER_VERIFY_EXPORT, (WPARAM)pExportTest, pMainFrame->GetSelectedTrack());
-	}
-	else
-		delete pExportTest;
-}
-
-bool CFamiTrackerApp::IsExportTest() const
-{
-	return m_bExportTesting;
-}
-
-#endif /* EXPORT_TEST */
 
 // Used to display a messagebox on the main thread
 void CFamiTrackerApp::ThreadDisplayMessage(LPCTSTR lpszText, UINT nType, UINT nIDHelp)
@@ -914,9 +927,6 @@ CFTCommandLineInfo::CFTCommandLineInfo() : CCommandLineInfo(),
 	m_bLog(false), 
 	m_bExport(false), 
 	m_bPlay(false),
-#ifdef EXPORT_TEST
-	m_bVerifyExport(false),
-#endif
 	m_strExportFile(_T("")),
 	m_strExportLogFile(_T("")),
 	m_strExportDPCMFile(_T(""))
@@ -950,22 +960,15 @@ void CFTCommandLineInfo::ParseParam(const TCHAR* pszParam, BOOL bFlag, BOOL bLas
 			return;
 #endif
 		}
-		// Run export tester (/verify), optionally provide NSF file, otherwise NSF is created
-		else if (!_tcsicmp(pszParam, _T("verify"))) {
-#ifdef EXPORT_TEST
-			m_bVerifyExport = true;
-			return;
-#endif
-		}
 		// Enable console output (TODO)
 		// This is intended for a small helper program that avoids the problem with console on win32 programs,
 		// and should remain undocumented. I'm using it for testing.
 		else if (!_tcsicmp(pszParam, _T("console"))) {
-         qDebug("'console' parameter not supported yet...");
-//			FILE *f;
-//			AttachConsole(ATTACH_PARENT_PROCESS);
-//			errno_t err = freopen_s(&f, "CON", "w", stdout);
-//			printf("FamiTracker v%i.%i.%i\n", VERSION_MAJ, VERSION_MIN, VERSION_REV);
+			FILE *f;
+			AttachConsole(ATTACH_PARENT_PROCESS);
+			errno_t err = freopen_s(&f, "CON", "w", stdout);
+			errno_t err2 = freopen_s(&f, "CON", "w", stderr);
+			fprintf(stderr, "%s\n", APP_NAME_VERSION);		// // //
 			return;
 		}
 	}
@@ -989,17 +992,100 @@ void CFTCommandLineInfo::ParseParam(const TCHAR* pszParam, BOOL bFlag, BOOL bLas
 				return;
 			}
 		}
-#ifdef EXPORT_TEST
-		else if (m_bVerifyExport) {
-			if (m_strVerifyFile.GetLength() == 0)
-			{
-				m_strVerifyFile = CString(pszParam);
-				return;
-			}
-		}
-#endif
 	}
 
 	// Call default implementation
 	CCommandLineInfo::ParseParam(pszParam, bFlag, bLast);
+}
+
+//
+// CDocTemplate0CC class
+//
+
+// copied from http://support.microsoft.com/en-us/kb/141921
+
+CDocTemplate0CC::CDocTemplate0CC(UINT nIDResource, CRuntimeClass *pDocClass, CRuntimeClass *pFrameClass, CRuntimeClass *pViewClass) :
+	CSingleDocTemplate(nIDResource, pDocClass, pFrameClass, pViewClass)
+{
+}
+
+BOOL CDocTemplate0CC::GetDocString(CString &rString, DocStringIndex i) const
+{
+	CString strTemp, strLeft, strRight;
+	int nFindPos;
+	AfxExtractSubString(strTemp, m_strDocStrings, (int)i);
+	if (i == CDocTemplate::filterExt) {
+		nFindPos = strTemp.Find(';');
+		if (-1 != nFindPos) {
+			//string contains two extensions
+			strLeft = strTemp.Left(nFindPos + 1);
+			strRight = strTemp.Right(lstrlen((const char*)strTemp) - nFindPos - 1);
+			strTemp = strLeft + strRight;
+		}
+	}
+	rString = strTemp;
+	return TRUE;
+}
+
+CDocTemplate::Confidence CDocTemplate0CC::MatchDocType(const char *pszPathName, CDocument *&rpDocMatch)
+{
+	ASSERT(pszPathName != NULL);
+	rpDocMatch = NULL;
+
+	// go through all documents
+	POSITION pos = GetFirstDocPosition();
+	while (pos != NULL) {
+		CDocument* pDoc = GetNextDoc(pos);
+		if (pDoc->GetPathName() == pszPathName) {
+		   // already open
+			rpDocMatch = pDoc;
+			return yesAlreadyOpen;
+		}
+	}  // end while
+
+	// // // see if it matches one of the suffixes
+	CString strFilterExt;
+	if (GetDocString(strFilterExt, CDocTemplate::filterExt) && !strFilterExt.IsEmpty()) {
+		 // see if extension matches
+		int nDot = CString(pszPathName).ReverseFind('.');
+		int curPos = 0;
+		CString tok = strFilterExt.Tokenize(_T(";"), curPos);
+		while (!tok.IsEmpty()) {
+			ASSERT(tok[0] == '.');
+			if (nDot >= 0 && lstrcmpi(pszPathName + nDot, tok) == 0)
+				return yesAttemptNative; // extension matches
+			tok = strFilterExt.Tokenize(_T(";"), curPos);
+		}
+	}
+	return yesAttemptForeign; //unknown document type
+}
+
+//
+// CDocManager0CC class
+//
+
+BOOL CDocManager0CC::DoPromptFileName(CString &fileName, UINT nIDSTitle, DWORD lFlags, BOOL bOpenFileDialog, CDocTemplate *pTemplate)
+{
+	// Copied from MFC
+	// // // disregard doc template
+	CString path = theApp.GetSettings()->GetPath(PATH_FTM) + _T("\\");
+
+	CFileDialog OpenFileDlg(bOpenFileDialog, _T("0cc"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
+							_T(APP_NAME " modules (*.0cc;*.ftm)|*.0cc; *.ftm|All files (*.*)|*.*||"),		// // //
+							AfxGetMainWnd(), 0);
+	OpenFileDlg.m_ofn.Flags |= lFlags;
+	OpenFileDlg.m_ofn.lpstrFile = fileName.GetBuffer(_MAX_PATH);
+	OpenFileDlg.m_ofn.lpstrInitialDir = path.GetBuffer(_MAX_PATH);
+	CString title;
+	ENSURE(title.LoadString(nIDSTitle));
+	OpenFileDlg.m_ofn.lpstrTitle = title;
+	INT_PTR nResult = OpenFileDlg.DoModal();
+	fileName.ReleaseBuffer();
+	path.ReleaseBuffer();
+
+	if (nResult == IDOK) {
+		theApp.GetSettings()->SetPath(fileName, PATH_FTM);
+		return true;
+	}
+	return false;
 }
