@@ -252,7 +252,7 @@ void CSoundGen::AssignChannel(CTrackerChannel *pTrackerChannel)		// // //
 void CSoundGen::AssignDocument(CFamiTrackerDoc *pDoc)
 {
 	// Called from main thread
-	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
 
 	// Ignore all but the first document (as new documents are used to import files)
 	if (m_pDocument != NULL)
@@ -273,7 +273,7 @@ void CSoundGen::AssignDocument(CFamiTrackerDoc *pDoc)
 void CSoundGen::AssignView(CFamiTrackerView *pView)
 {
 	// Called from main thread
-	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
 
 	if (m_pTrackerView != NULL)
 		return;
@@ -287,7 +287,7 @@ void CSoundGen::RemoveDocument()
 	// Removes both the document and view from this object
 
 	// Called from main thread
-	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
 	ASSERT(m_pDocument != NULL);
 	ASSERT(m_hThread != NULL);
 
@@ -296,7 +296,9 @@ void CSoundGen::RemoveDocument()
 	WaitForStop();
 
 	PostThreadMessage(WM_USER_REMOVE_DOCUMENT, 0, 0);
+	qDebug("::RemoveDocument()");
 
+	// FIXME I'm pretty sure this is undefined behavior. https://stackoverflow.com/questions/22038298
 	// Wait 5s for thread to clear the pointer
 	for (int i = 0; i < 50 && m_pDocument != NULL; ++i)
 		Sleep(100);
@@ -310,7 +312,7 @@ void CSoundGen::RemoveDocument()
 void CSoundGen::SetVisualizerWindow(CVisualizerWnd *pWnd)
 {
 	// Called from main thread
-	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
 
 	m_csVisualizerWndLock.Lock();
 	m_pVisualizerWnd = pWnd;
@@ -323,7 +325,7 @@ void CSoundGen::RegisterChannels(int Chip, CFamiTrackerDoc *pDoc)
 	// Called from the document object (from the main thread)
 
 	// Called from main thread
-	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
 
 	// This affects the sound channel interface so it must be synchronized
 	pDoc->LockDocument();
@@ -633,7 +635,7 @@ bool CSoundGen::InitializeSound(HWND hWnd)
 	// Start with NTSC by default
 
 	// Called from main thread
-	ASSERT(GetCurrentThread() == theApp.m_hThread);
+//	ASSERT(GetCurrentThread() == theApp.m_hThread);
 	ASSERT(m_pDSound == NULL);
 
 	// Event used to interrupt the sound buffer synchronization
@@ -646,7 +648,7 @@ bool CSoundGen::InitializeSound(HWND hWnd)
 	if (!m_pDSound)
 		return false;
 
-	m_pDSound->EnumerateDevices();
+	qDebug("DSound::EnumerateDevices");
 
 	// Start thread when audio is done
 	ResumeThread();
@@ -690,7 +692,7 @@ bool CSoundGen::ResetAudioDevice()
 	//
 
 	// Called from player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 	ASSERT(m_pDSound != NULL);
 
 	CSettings *pSettings = theApp.GetSettings();
@@ -719,11 +721,9 @@ bool CSoundGen::ResetAudioDevice()
 		return false;
 	}
 
-	int iBlocks = 2;	// default = 2
-
-	// Create more blocks if a bigger buffer than 100ms is used to reduce lag
-	if (BufferLen > 100)
-		iBlocks += (BufferLen / 66);
+	// TODO nesicide forces only one block (to avoid bugs?).
+	// Block count (double-buffering?) should be configurable.
+	int iBlocks = 1;
 
 	// Create channel
 	m_pDSoundChannel = m_pDSound->OpenChannel(SampleRate, SampleSize, 1, BufferLen, iBlocks);
@@ -803,7 +803,7 @@ void CSoundGen::CloseAudioDevice()
 void CSoundGen::CloseAudio()
 {
 	// Called from player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 
 	CloseAudioDevice();
 
@@ -822,7 +822,7 @@ void CSoundGen::CloseAudio()
 void CSoundGen::ResetBuffer()
 {
 	// Called from player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 
 	m_iBufferPtr = 0;
 
@@ -837,7 +837,7 @@ void CSoundGen::FlushBuffer(int16_t *pBuffer, uint32_t Size)
 	// Callback method from emulation
 
 	// May only be called from sound player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 
 	if (!m_pDSoundChannel)
 		return;
@@ -930,19 +930,19 @@ bool CSoundGen::PlayBuffer()
 
 		// Wait for a buffer event
 		while ((dwEvent = m_pDSoundChannel->WaitForSyncEvent(AUDIO_TIMEOUT)) != BUFFER_IN_SYNC) {
-			switch (dwEvent) {
-				case BUFFER_TIMEOUT:
-					// Buffer timeout
-					m_bBufferTimeout = true;
-				case BUFFER_CUSTOM_EVENT:
-					// Custom event, quit
-					m_iBufferPtr = 0;
-					return false;
-				case BUFFER_OUT_OF_SYNC:
-					// Buffer underrun detected
-					m_iAudioUnderruns++;
-					m_bBufferUnderrun = true;
-					break;
+//			switch (dwEvent) {
+//				case BUFFER_TIMEOUT:
+//					// Buffer timeout
+//					m_bBufferTimeout = true;
+//				case BUFFER_CUSTOM_EVENT:
+//					// Custom event, quit
+//					m_iBufferPtr = 0;
+//					return false;
+//				case BUFFER_OUT_OF_SYNC:
+//					// Buffer underrun detected
+//					m_iAudioUnderruns++;
+//					m_bBufferUnderrun = true;
+//					break;
 			}
 		}
 
@@ -1041,7 +1041,7 @@ int CSoundGen::ReadPeriodTable(int Index, int Table) const		// // //
 void CSoundGen::BeginPlayer(play_mode_t Mode, int Track)
 {
 	// Called from player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 	ASSERT(m_pDocument != NULL);
 	ASSERT(m_pTrackerView != NULL);
 
@@ -1268,7 +1268,7 @@ CString CSoundGen::RecallChannelState(int Channel) const		// // //
 void CSoundGen::HaltPlayer()
 {
 	// Called from player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 
 	// Move player to non-playing state
 	m_bPlaying = false;
@@ -1367,7 +1367,7 @@ void CSoundGen::HaltPlayer()
 void CSoundGen::ResetAPU()
 {
 	// Called from player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 
 	// Reset the APU
 	m_pAPU->Reset();
@@ -1390,7 +1390,7 @@ void CSoundGen::ResetAPU()
 void CSoundGen::AddCycles(int Count)
 {
 	// Called from player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 
 	// Add APU cycles
 	Count = std::min(Count, m_iUpdateCycles - m_iConsumedCycles);
@@ -1416,7 +1416,7 @@ double CSoundGen::GetChannelFrequency(unsigned Chip, int Channel) const		// // /
 void CSoundGen::MakeSilent()
 {
 	// Called from player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 
 	m_pAPU->Reset();
 	m_pAPU->ClearSample();		// // //
@@ -1521,7 +1521,7 @@ float CSoundGen::GetCurrentBPM() const		// // //
 void CSoundGen::RunFrame()
 {
 	// Called from player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 	ASSERT(m_pDocument != NULL);
 	ASSERT(m_pTrackerView != NULL);
 
@@ -1774,7 +1774,7 @@ void CSoundGen::EvaluateGlobalEffects(stChanNote *NoteData, int EffColumns)
 bool CSoundGen::RenderToFile(LPTSTR pFile, render_end_t SongEndType, int SongEndParam, int Track)
 {
 	// Called from main thread
-	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == theApp.m_nThreadID);
 	ASSERT(m_pDocument != NULL);
 
 	if (IsPlaying()) {
@@ -1814,7 +1814,7 @@ bool CSoundGen::RenderToFile(LPTSTR pFile, render_end_t SongEndType, int SongEnd
 void CSoundGen::StopRendering()
 {
 	// Called from player thread
-	ASSERT(GetCurrentThreadId() == m_nThreadID);
+//	ASSERT(GetCurrentThreadId() == m_nThreadID);
 	ASSERT(m_bRendering);
 
 	if (!IsRendering())
@@ -1886,10 +1886,11 @@ bool CSoundGen::WaitForStop() const
 	// Wait for player to stop, timeout = 4s
 	// The player must have received the stop command or this will fail
 
-	ASSERT(GetCurrentThreadId() != m_nThreadID);
+//	ASSERT(GetCurrentThreadId() != m_nThreadID);
 
 	//return ::WaitForSingleObject(m_hIsPlaying, 4000) == WAIT_OBJECT_0;
 
+	qDebug("::WaitForStop()");
 	for (int i = 0; i < 40 && IsPlaying(); ++i)
 		Sleep(100);
 

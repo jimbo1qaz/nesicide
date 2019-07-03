@@ -154,15 +154,17 @@ CFileSoundDialog::CFileSoundDialog(BOOL bOpenFileDialog, LPCTSTR lpszDefExt, LPC
 CFileSoundDialog::~CFileSoundDialog()
 {
 	// Stop any possible playing sound
-	PlaySound(NULL, NULL, SND_NODEFAULT | SND_SYNC);
+	qDebug("PlaySound?");
+//	PlaySound(NULL, NULL, SND_NODEFAULT | SND_SYNC);
 }
 
 void CFileSoundDialog::OnFileNameChange()
 {
 	// Preview wave file
 
-	if (!GetFileExt().CompareNoCase(_T("wav")) && theApp.GetSettings()->General.bWavePreview)
-		PlaySound(GetPathName(), NULL, SND_FILENAME | SND_NODEFAULT | SND_ASYNC | SND_NOWAIT);
+	qDebug("PlaySound?");
+//	if (!GetFileExt().CompareNoCase(_T("wav")) && theApp.GetSettings()->General.bWavePreview)
+//		PlaySound(GetPathName(), NULL, SND_FILENAME | SND_NODEFAULT | SND_ASYNC | SND_NOWAIT);
 
 	CFileDialog::OnFileNameChange();
 }
@@ -195,7 +197,7 @@ BEGIN_MESSAGE_MAP(CPCMImport, CDialog)
 	ON_WM_HSCROLL()
 	ON_BN_CLICKED(IDCANCEL, OnBnClickedCancel)
 	ON_BN_CLICKED(IDOK, OnBnClickedOk)
-	ON_BN_CLICKED(IDC_PREVIEW, &CPCMImport::OnBnClickedPreview)
+	ON_BN_CLICKED(IDC_PREVIEW, OnBnClickedPreview)
 END_MESSAGE_MAP()
 
 CDSample *CPCMImport::ShowDialog()
@@ -211,7 +213,8 @@ CDSample *CPCMImport::ShowDialog()
 		return NULL;
 
 	// Stop any preview
-	PlaySound(NULL, NULL, SND_NODEFAULT | SND_SYNC);
+	qDebug("PlaySound?");
+//	PlaySound(NULL, NULL, SND_NODEFAULT | SND_SYNC);
 
 	theApp.GetSettings()->SetPath(OpenFileDialog.GetPathName(), PATH_WAV_IMPORT);
 

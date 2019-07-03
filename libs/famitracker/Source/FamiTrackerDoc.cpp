@@ -680,33 +680,17 @@ BOOL CFamiTrackerDoc::SaveDocument(LPCTSTR lpszPathName) const
 	DocumentFile.Close();
 	m_pCurrentDocument = nullptr;		// // //
 
-	// Save old creation date
-	HANDLE hOldFile;
-	FILETIME creationTime;
-
-	hOldFile = CreateFile(lpszPathName, FILE_READ_ATTRIBUTES, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	GetFileTime(hOldFile, &creationTime, NULL, NULL);
-	CloseHandle(hOldFile);
-
 	// Everything is done and the program cannot crash at this point
 	// Replace the original
 	if (!MoveFileEx(TempFile, lpszPathName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED)) {
 		// Display message if saving failed
-		TCHAR *lpMsgBuf;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&lpMsgBuf, 0, NULL);
 		CString	strFormatted;
-		AfxFormatString1(strFormatted, IDS_SAVE_FILE_ERROR, lpMsgBuf);
+		AfxFormatString1(strFormatted, IDS_SAVE_FILE_ERROR, "Couldn't move file.");
 		AfxMessageBox(strFormatted, MB_OK | MB_ICONERROR);
-		LocalFree(lpMsgBuf);
 		// Remove temp file
 		DeleteFile(TempFile);
 		return FALSE;
 	}
-
-	// Restore creation date
-	hOldFile = CreateFile(lpszPathName, FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	SetFileTime(hOldFile, &creationTime, NULL, NULL);
-	CloseHandle(hOldFile);
 
 	// Todo: avoid calling the main window from document class
 	if (CFrameWnd *pMainFrame = static_cast<CFrameWnd*>(AfxGetMainWnd())) {		// // //

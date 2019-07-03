@@ -35,13 +35,13 @@ IMPLEMENT_DYNAMIC(CInstrumentList, CListCtrl)
 
 BEGIN_MESSAGE_MAP(CInstrumentList, CListCtrl)
 	ON_WM_CONTEXTMENU()
-	ON_NOTIFY_REFLECT(LVN_BEGINLABELEDIT, &CInstrumentList::OnLvnBeginlabeledit)
-	ON_NOTIFY_REFLECT(NM_CLICK, &CInstrumentList::OnNMClick)
-	ON_NOTIFY_REFLECT(LVN_KEYDOWN, &CInstrumentList::OnLvnKeydown)
-	ON_NOTIFY_REFLECT(LVN_ENDLABELEDIT, &CInstrumentList::OnLvnEndlabeledit)
-	ON_NOTIFY_REFLECT(LVN_ITEMCHANGED, &CInstrumentList::OnLvnItemchanged)
-	ON_NOTIFY_REFLECT(NM_DBLCLK, &CInstrumentList::OnNMDblclk)
-	ON_NOTIFY_REFLECT(LVN_BEGINDRAG, &CInstrumentList::OnLvnBegindrag)
+	ON_NOTIFY_REFLECT(LVN_BEGINLABELEDIT, OnLvnBeginlabeledit)
+	ON_NOTIFY_REFLECT(NM_CLICK, OnNMClick)
+	ON_NOTIFY_REFLECT(LVN_KEYDOWN, OnLvnKeydown)
+	ON_NOTIFY_REFLECT(LVN_ENDLABELEDIT, OnLvnEndlabeledit)
+	ON_NOTIFY_REFLECT(LVN_ITEMCHANGED, OnLvnItemchanged)
+	ON_NOTIFY_REFLECT(NM_DBLCLK, OnNMDblclk)
+	ON_NOTIFY_REFLECT(LVN_BEGINDRAG, OnLvnBegindrag)
 	ON_WM_MOUSEMOVE()
 	ON_WM_LBUTTONUP()
 END_MESSAGE_MAP()
@@ -240,11 +240,7 @@ void CInstrumentList::OnLvnBegindrag(NMHDR *pNMHDR, LRESULT *pResult)
 	pt.x = nOffset;
 	pt.y = nOffset;
 
-	m_pDragImage = CreateDragImage(m_nDragIndex, &pt);	// Delete this later
-	ASSERT(m_pDragImage);
-
-	m_pDragImage->BeginDrag(0, CPoint(nOffset, nOffset));
-	m_pDragImage->DragEnter(this, pNMLV->ptAction);
+	qDebug("DragImage support!");
 	
 	// Capture all mouse messages
 	SetCapture();
@@ -256,27 +252,7 @@ void CInstrumentList::OnMouseMove(UINT nFlags, CPoint point)
 {
 	// Handle drag operation
 	if (m_bDragging) {
-		// Move the drag image
-		m_pDragImage->DragMove(point);
-		m_pDragImage->DragShowNolock(false);
-
-		// Turn off hilight for previous drop target
-		SetItemState(m_nDropIndex, 0, LVIS_DROPHILITED);
-		// Redraw previous item
-		RedrawItems(m_nDropIndex, m_nDropIndex);
-
-		// Get drop index
-		UINT nFlags;
-		m_nDropIndex = HitTest(point, &nFlags);
-
-		// Highlight drop index
-		if (m_nDropIndex != -1) {
-			SetItemState(m_nDropIndex, LVIS_DROPHILITED, LVIS_DROPHILITED);
-			RedrawItems(m_nDropIndex, m_nDropIndex);
-			UpdateWindow();
-		}
-
-		m_pDragImage->DragShowNolock(true);
+		qDebug("DragImage support!");
 	}
 
 	CListCtrl::OnMouseMove(nFlags, point);
@@ -289,13 +265,9 @@ void CInstrumentList::OnLButtonUp(UINT nFlags, CPoint point)
 		ReleaseCapture();
 		m_bDragging = false;
 
-		m_pDragImage->DragLeave(this);
-		m_pDragImage->EndDrag();
-		SAFE_RELEASE(m_pDragImage);
+		qDebug("DragImage support!");
+		qDebug("RedrawItems support!");
 
-		// Remove highlight
-		SetItemState(-1, 0, LVIS_DROPHILITED);
-		RedrawItems(-1, -1);
 		UpdateWindow();
 
 		if (m_nDropIndex != -1 && m_nDragIndex != m_nDropIndex) {

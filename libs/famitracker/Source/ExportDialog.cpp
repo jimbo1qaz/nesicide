@@ -30,7 +30,7 @@
 #include "stdafx.h"
 #include "FamiTracker.h"
 #include "ExportDialog.h"
-#include "FamitrackerDoc.h"
+#include "FamiTrackerDoc.h"
 #include "Compiler.h"
 #include "Settings.h"
 #include "CustomExporters.h"
@@ -116,7 +116,7 @@ void CExportDialog::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CExportDialog, CDialog)
 	ON_BN_CLICKED(IDC_CLOSE, OnBnClickedClose)
-	ON_BN_CLICKED(IDC_EXPORT, &CExportDialog::OnBnClickedExport)
+	ON_BN_CLICKED(IDC_EXPORT, OnBnClickedExport)
 	ON_BN_CLICKED(IDC_PLAY, OnBnClickedPlay)
 END_MESSAGE_MAP()
 

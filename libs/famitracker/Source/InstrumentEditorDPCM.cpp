@@ -37,26 +37,19 @@
 
 LPCTSTR NO_SAMPLE_STR = _T("(no sample)");
 
-// Derive a new class from CFileDialog with implemented preview of DMC files
-
-class CDMCFileSoundDialog : public CFileDialog
-{
-public:
-	CDMCFileSoundDialog(BOOL bOpenFileDialog, LPCTSTR lpszDefExt = NULL, LPCTSTR lpszFileName = NULL, DWORD dwFlags = OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, LPCTSTR lpszFilter = NULL, CWnd* pParentWnd = NULL, DWORD dwSize = 0);
-	virtual ~CDMCFileSoundDialog();
-
-	static const int DEFAULT_PREVIEW_PITCH = 15;
-
-protected:
-	virtual void OnFileNameChange();
-	CString m_strLastFile;
-};
-
 //	CFileSoundDialog
 
 CDMCFileSoundDialog::CDMCFileSoundDialog(BOOL bOpenFileDialog, LPCTSTR lpszDefExt, LPCTSTR lpszFileName, DWORD dwFlags, LPCTSTR lpszFilter, CWnd* pParentWnd, DWORD dwSize) 
 	: CFileDialog(bOpenFileDialog, lpszDefExt, lpszFileName, dwFlags, lpszFilter, pParentWnd, dwSize)
 {
+	QObject::connect(
+		_qtd, SIGNAL(fileSelected(QString)), this, SLOT(fileSelected(QString))
+	);
+}
+
+void CDMCFileSoundDialog::fileSelected(QString file)
+{
+	OnFileNameChange();
 }
 
 CDMCFileSoundDialog::~CDMCFileSoundDialog()
@@ -103,26 +96,26 @@ void CInstrumentEditorDPCM::DoDataExchange(CDataExchange* pDX)
 
 
 BEGIN_MESSAGE_MAP(CInstrumentEditorDPCM, CInstrumentEditPanel)
-	ON_BN_CLICKED(IDC_LOAD, &CInstrumentEditorDPCM::OnBnClickedLoad)
-	ON_BN_CLICKED(IDC_UNLOAD, &CInstrumentEditorDPCM::OnBnClickedUnload)
-	ON_BN_CLICKED(IDC_IMPORT, &CInstrumentEditorDPCM::OnBnClickedImport)
-	ON_BN_CLICKED(IDC_SAVE, &CInstrumentEditorDPCM::OnBnClickedSave)
-	ON_BN_CLICKED(IDC_LOOP, &CInstrumentEditorDPCM::OnBnClickedLoop)
-	ON_BN_CLICKED(IDC_ADD, &CInstrumentEditorDPCM::OnBnClickedAdd)
-	ON_BN_CLICKED(IDC_REMOVE, &CInstrumentEditorDPCM::OnBnClickedRemove)
-	ON_BN_CLICKED(IDC_EDIT, &CInstrumentEditorDPCM::OnBnClickedEdit)
-	ON_BN_CLICKED(IDC_PREVIEW, &CInstrumentEditorDPCM::OnBnClickedPreview)
-	ON_CBN_SELCHANGE(IDC_PITCH, &CInstrumentEditorDPCM::OnCbnSelchangePitch)
-	ON_CBN_SELCHANGE(IDC_SAMPLES, &CInstrumentEditorDPCM::OnCbnSelchangeSamples)
-	ON_NOTIFY(NM_CLICK, IDC_SAMPLE_LIST, &CInstrumentEditorDPCM::OnNMClickSampleList)
-	ON_NOTIFY(NM_CLICK, IDC_TABLE, &CInstrumentEditorDPCM::OnNMClickTable)
-	ON_NOTIFY(NM_DBLCLK, IDC_SAMPLE_LIST, &CInstrumentEditorDPCM::OnNMDblclkSampleList)
-	ON_NOTIFY(NM_RCLICK, IDC_SAMPLE_LIST, &CInstrumentEditorDPCM::OnNMRClickSampleList)
-	ON_NOTIFY(NM_RCLICK, IDC_TABLE, &CInstrumentEditorDPCM::OnNMRClickTable)
-	ON_NOTIFY(NM_DBLCLK, IDC_TABLE, &CInstrumentEditorDPCM::OnNMDblclkTable)
-	ON_NOTIFY(UDN_DELTAPOS, IDC_DELTA_SPIN, &CInstrumentEditorDPCM::OnDeltaposDeltaSpin)
-	ON_EN_CHANGE(IDC_LOOP_POINT, &CInstrumentEditorDPCM::OnEnChangeLoopPoint)
-	ON_EN_CHANGE(IDC_DELTA_COUNTER, &CInstrumentEditorDPCM::OnEnChangeDeltaCounter)
+	ON_BN_CLICKED(IDC_LOAD, OnBnClickedLoad)
+	ON_BN_CLICKED(IDC_UNLOAD, OnBnClickedUnload)
+	ON_BN_CLICKED(IDC_IMPORT, OnBnClickedImport)
+	ON_BN_CLICKED(IDC_SAVE, OnBnClickedSave)
+	ON_BN_CLICKED(IDC_LOOP, OnBnClickedLoop)
+	ON_BN_CLICKED(IDC_ADD, OnBnClickedAdd)
+	ON_BN_CLICKED(IDC_REMOVE, OnBnClickedRemove)
+	ON_BN_CLICKED(IDC_EDIT, OnBnClickedEdit)
+	ON_BN_CLICKED(IDC_PREVIEW, OnBnClickedPreview)
+	ON_CBN_SELCHANGE(IDC_PITCH, OnCbnSelchangePitch)
+	ON_CBN_SELCHANGE(IDC_SAMPLES, OnCbnSelchangeSamples)
+	ON_NOTIFY(NM_CLICK, IDC_SAMPLE_LIST, OnNMClickSampleList)
+	ON_NOTIFY(NM_CLICK, IDC_TABLE, OnNMClickTable)
+	ON_NOTIFY(NM_DBLCLK, IDC_SAMPLE_LIST, OnNMDblclkSampleList)
+	ON_NOTIFY(NM_RCLICK, IDC_SAMPLE_LIST, OnNMRClickSampleList)
+	ON_NOTIFY(NM_RCLICK, IDC_TABLE, OnNMRClickTable)
+	ON_NOTIFY(NM_DBLCLK, IDC_TABLE, OnNMDblclkTable)
+	ON_NOTIFY(UDN_DELTAPOS, IDC_DELTA_SPIN, OnDeltaposDeltaSpin)
+	ON_EN_CHANGE(IDC_LOOP_POINT, OnEnChangeLoopPoint)
+	ON_EN_CHANGE(IDC_DELTA_COUNTER, OnEnChangeDeltaCounter)
 END_MESSAGE_MAP()
 
 // CInstrumentDPCM message handlers
@@ -269,7 +262,7 @@ bool CInstrumentEditorDPCM::LoadSample(const CString &FilePath, const CString &F
 	int AddSize = 0;
 	
 	// Clip file if too large
-	Size = std::min(Size, CDSample::MAX_SIZE);
+	Size = std::min<uint64_t>(Size, CDSample::MAX_SIZE);
 	
 	// Make sure size is compatible with DPCM hardware
 	if ((Size & 0xF) != 1) {
@@ -435,7 +428,7 @@ void CInstrumentEditorDPCM::OnNMClickTable(NMHDR *pNMHDR, LRESULT *pResult)
 	int Pitch = m_pInstrument->GetSamplePitch(m_iOctave, m_iSelectedKey);
 	int Delta = m_pInstrument->GetSampleDeltaValue(m_iOctave, m_iSelectedKey);
 
-	Text.Format(_T("%02i - %s"), Sample, pTableListCtrl->GetItemText(pTableListCtrl->GetSelectionMark(), 2));
+	Text.Format(_T("%02i - %s"), Sample, (LPCTSTR)pTableListCtrl->GetItemText(pTableListCtrl->GetSelectionMark(), 2));
 
 	if (Sample != -1)
 		pSampleBox->SelectString(0, Text);

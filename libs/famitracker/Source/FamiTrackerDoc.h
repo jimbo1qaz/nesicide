@@ -23,9 +23,6 @@
 #pragma once
 
 
-// Synchronization objects
-#include <afxmt.h>
-
 #include <vector>
 #include <memory>		// // //
 

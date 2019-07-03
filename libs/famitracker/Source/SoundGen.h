@@ -26,10 +26,15 @@
 // This thread will take care of the NES sound generation
 //
 
-#include <afxmt.h>		// Synchronization objects
+#include <QThread>
+#include <QTimer>
 #include <queue>		// // //
-#include "Common.h"
 
+#include "cqtmfc.h"
+#include "Common.h"
+#include "FamiTrackerDoc.h"
+
+#include "TrackerChannel.h"
 #include <memory>
 
 const int VIBRATO_LENGTH = 256;

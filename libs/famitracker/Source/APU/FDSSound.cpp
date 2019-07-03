@@ -1,7 +1,11 @@
 #include <cmath>
 #include <memory>
 #include <cstdint>		// // //
-#include "apu.h"
+#include "APU.h"
+
+#if !defined(Q_OS_WIN32)
+#define __fastcall
+#endif
 
 // Code is from nezplug via nintendulator
 

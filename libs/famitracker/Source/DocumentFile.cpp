@@ -61,27 +61,27 @@ bool CDocumentFile::Finished() const
 
 bool CDocumentFile::BeginDocument()
 {
-	try {
+//	try {
 		Write(FILE_HEADER_ID, int(strlen(FILE_HEADER_ID)));
 		Write(&FILE_VER, sizeof(int));
-	}
-	catch (CFileException *e) {
-		e->Delete();
-		return false;
-	}
+//	}
+//	catch (CFileException *e) {
+//		e->Delete();
+//		return false;
+//	}
 
 	return true;
 }
 
 bool CDocumentFile::EndDocument()
 {
-	try {
+//	try {
 		Write(FILE_END_ID, int(strlen(FILE_END_ID)));
-	}
-	catch (CFileException *e) {
-		e->Delete();
-		return false;
-	}
+//	}
+//	catch (CFileException *e) {
+//		e->Delete();
+//		return false;
+//	}
 	
 	return true;
 }
@@ -175,16 +175,16 @@ bool CDocumentFile::FlushBlock()
 	if (!m_pBlockData)
 		return false;
 
-	try {
+//	try {
 		Write(m_cBlockID, 16);
 		Write(&m_iBlockVersion, sizeof(m_iBlockVersion));
 		Write(&m_iBlockPointer, sizeof(m_iBlockPointer));
 		Write(m_pBlockData, m_iBlockPointer);
-	}
-	catch (CFileException *e) {
-		e->Delete();
-		return false;
-	}
+//	}
+//	catch (CFileException *e) {
+//		e->Delete();
+//		return false;
+//	}
 
 	SAFE_RELEASE_ARRAY(m_pBlockData);
 

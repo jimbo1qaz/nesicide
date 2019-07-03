@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include "Chunk.h"
+
 // NSF file header
 struct stNSFHeader {
 	unsigned char	Ident[5];

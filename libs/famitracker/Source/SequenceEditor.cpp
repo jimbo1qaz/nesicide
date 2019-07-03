@@ -157,6 +157,7 @@ LRESULT CSequenceEditor::OnCursorChange(WPARAM wParam, LPARAM lParam)
 
 	CString Text;
 	if (m_pConversion != nullptr)		// // //
+		// c_str() returns char[], which is equal to LPCTSTR if Unicode is disabled.
 		Text.Format(_T("{%i, %s}        "), wParam, m_pConversion->ToString(static_cast<char>(lParam)).c_str());
 	else
 		Text.Format(_T("{%i, %i}        "), wParam, lParam);

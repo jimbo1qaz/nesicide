@@ -32,7 +32,7 @@
 
 static unsigned char default_inst[(16+3)*16] = 
 {
-#include "apu/vrc7tone.h" 
+#include "APU/vrc7tone.h"
 };
 
 // CInstrumentSettingsVRC7 dialog
@@ -56,21 +56,21 @@ void CInstrumentEditorVRC7::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CInstrumentEditorVRC7, CInstrumentEditPanel)
 	ON_CBN_SELCHANGE(IDC_PATCH, OnCbnSelchangePatch)
-	ON_BN_CLICKED(IDC_M_AM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-	ON_BN_CLICKED(IDC_M_VIB, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-	ON_BN_CLICKED(IDC_M_EG, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-	ON_BN_CLICKED(IDC_M_KSR2, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-	ON_BN_CLICKED(IDC_M_DM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-	ON_BN_CLICKED(IDC_C_AM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-	ON_BN_CLICKED(IDC_C_VIB, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-	ON_BN_CLICKED(IDC_C_EG, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-	ON_BN_CLICKED(IDC_C_KSR, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
-	ON_BN_CLICKED(IDC_C_DM, &CInstrumentEditorVRC7::OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_M_AM, OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_M_VIB, OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_M_EG, OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_M_KSR2, OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_M_DM, OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_C_AM, OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_C_VIB, OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_C_EG, OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_C_KSR, OnBnClickedCheckbox)
+	ON_BN_CLICKED(IDC_C_DM, OnBnClickedCheckbox)
 	ON_WM_VSCROLL()
 	ON_WM_HSCROLL()
 	ON_WM_CONTEXTMENU()
-	ON_COMMAND(IDC_COPY, &CInstrumentEditorVRC7::OnCopy)
-	ON_COMMAND(IDC_PASTE, &CInstrumentEditorVRC7::OnPaste)
+	ON_COMMAND(IDC_COPY, OnCopy)
+	ON_COMMAND(IDC_PASTE, OnPaste)
 END_MESSAGE_MAP()
 
 
@@ -83,7 +83,7 @@ BOOL CInstrumentEditorVRC7::OnInitDialog()
 	CComboBox *pPatchBox = static_cast<CComboBox*>(GetDlgItem(IDC_PATCH));
 	CString Text;
 
-	const _TCHAR* const PATCH_NAME[16] = {
+	const TCHAR* const PATCH_NAME[16] = {
 		_T("(custom patch)"),
 		_T("Bell"),
 		_T("Guitar"),

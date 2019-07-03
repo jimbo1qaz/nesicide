@@ -25,7 +25,6 @@
 
 // CFamiTrackerView, the document view class
 
-#include <afxmt.h>	// Include synchronization objects
 #include <unordered_map>		// // //
 
 #include "PatternEditorTypes.h"		// // //

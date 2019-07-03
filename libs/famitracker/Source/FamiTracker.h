@@ -25,14 +25,13 @@
 
 // FamiTracker.h : main header file for the FamiTracker application
 
+#include "SoundGen.h"
 #include <thread>		// // //
 
 // Support DLL translations
 #define SUPPORT_TRANSLATIONS
 
-#ifndef __AFXWIN_H__
-	#error include 'stdafx.h' before including this file for PCH
-#endif
+#define LIMIT(v, max, min) v = ((v > max) ? max : ((v < min) ? min : v));
 
 #include "res/resource.h"       // main symbols
 
@@ -66,8 +65,6 @@ class CChannelMap;
 class CCustomExporters;
 
 class CMutex;
-
-enum play_mode_t;	// Defined in soundgen.h
 
 /*!
 	\brief A MFC document template supporting both .0cc and .ftm file extensions.

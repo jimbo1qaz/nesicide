@@ -101,16 +101,6 @@ CHead::CHead()
 
 void CHead::DrawItem(LPDRAWITEMSTRUCT lpDraw)
 {
-	CDC *pDC = CDC::FromHandle(lpDraw->hDC);
-
-	CBitmap bmp;
-	bmp.LoadBitmap(IDB_ABOUT);
-
-	CDC dcImage;
-	dcImage.CreateCompatibleDC(pDC);
-	dcImage.SelectObject(bmp);
-
-	pDC->BitBlt(0, 0, 434, 80, &dcImage, 0, 0, SRCCOPY);
 }
 
 // CAboutDlg

@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include "SoundGen.h"
 
 // CWavProgressDlg dialog
 
@@ -31,7 +32,7 @@ public:
 	CWavProgressDlg(CWnd* pParent = NULL);   // standard constructor
 	virtual ~CWavProgressDlg();
 
-	void BeginRender(CString &File, render_end_t LengthType, int LengthParam, int Track);
+	void BeginRender(const CString &File, render_end_t LengthType, int LengthParam, int Track);
 
 // Dialog Data
 	enum { IDD = IDD_WAVE_PROGRESS };

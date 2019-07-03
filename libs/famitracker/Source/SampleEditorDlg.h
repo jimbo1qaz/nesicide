@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include "SampleEditorView.h"
+
 // CSampleEditorDlg dialog
 
 class CSoundGen;

@@ -96,7 +96,7 @@ BOOL CTransposeDlg::OnInitDialog()
 	const TCHAR *SMALL_FONT_FACE = _T("Verdana");
 	m_pFont = new CFont();
 
-	memset(&LogFont, 0, sizeof LOGFONT);
+	memset(&LogFont, 0, sizeof(LOGFONT));
 	_tcscpy_s(LogFont.lfFaceName, 32, SMALL_FONT_FACE);
 	LogFont.lfHeight = -DPI::SY(10);
 	LogFont.lfPitchAndFamily = VARIABLE_PITCH | FF_SWISS;

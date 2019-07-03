@@ -7,11 +7,11 @@
 ** the Free Software Foundation; either version 2 of the License, or
 ** (at your option) any later version.
 **
-** This program is distributed in the hope that it will be useful, 
+** This program is distributed in the hope that it will be useful,
 ** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU 
-** Library General Public License for more details.  To obtain a 
-** copy of the GNU Library General Public License, write to the Free 
+** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+** Library General Public License for more details.  To obtain a
+** copy of the GNU Library General Public License, write to the Free
 ** Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 **
 ** Any permitted reproduction of these routines, in whole or in part,
@@ -21,29 +21,36 @@
 #ifndef DSOUND_H
 #define DSOUND_H
 
-#include <mmsystem.h>
-#include <dsound.h>
+//#include <windows.h>
+//#include <mmsystem.h>
+//#include <dsound.h>
+#undef main
+#include <SDL.h>
+#include <QObject>
+
+#include "cqtmfc.h"
 
 // Return values from WaitForDirectSoundEvent()
 enum buffer_event_t {
 	BUFFER_NONE = 0,
-	BUFFER_CUSTOM_EVENT = 1, 
-	BUFFER_TIMEOUT, 
-	BUFFER_IN_SYNC, 
+	BUFFER_CUSTOM_EVENT = 1,
+	BUFFER_TIMEOUT,
+	BUFFER_IN_SYNC,
 	BUFFER_OUT_OF_SYNC
 };
 
 // DirectSound channel
-class CDSoundChannel 
+class CDSoundChannel : public QObject
 {
+   Q_OBJECT
 	friend class CDSound;
 
 public:
 	CDSoundChannel();
 	~CDSoundChannel();
 
-	bool Play() const;
-	bool Stop() const;
+   bool Play();
+   bool Stop();
 	bool IsPlaying() const;
 	bool ClearBuffer();
 	bool WriteBuffer(char *pBuffer, unsigned int Samples);
@@ -62,14 +69,13 @@ private:
 	int GetPlayBlock() const;
 	int GetWriteBlock() const;
 
-	void AdvanceWritePointer();
 
 private:
-	LPDIRECTSOUNDBUFFER	m_lpDirectSoundBuffer;
-	LPDIRECTSOUNDNOTIFY	m_lpDirectSoundNotify;
+//	LPDIRECTSOUNDBUFFER	m_lpDirectSoundBuffer;
+//	LPDIRECTSOUNDNOTIFY	m_lpDirectSoundNotify;
 
-	HANDLE			m_hEventList[2];
-	HWND			m_hWndTarget;
+//	HANDLE			m_hEventList[2];
+//	HWND			m_hWndTarget;
 
 	// Configuration
 	unsigned int	m_iSampleSize;
@@ -82,10 +88,22 @@ private:
 
 	// State
 	unsigned int	m_iCurrentWriteBlock;
+   bool m_bPaused;
 };
 
+typedef void (*SDL_Callback_Function)(void* userdata,uint8_t* stream,int32_t len);
+
+typedef struct _SDL_Callback
+{
+   SDL_Callback_Function _func;
+   void*                 _user;
+   bool                  _valid;
+} SDL_Callback;
+
+extern QList<SDL_Callback> sdlHooks;
+
 // DirectSound
-class CDSound 
+class CDSound
 {
 public:
 	CDSound(HWND hWnd, HANDLE hNotification);
@@ -113,19 +131,19 @@ public:
 	static const unsigned int MAX_SAMPLE_RATE = 96000;
 	static const unsigned int MAX_BUFFER_LENGTH = 10000;
 
-protected:
-	static BOOL CALLBACK DSEnumCallback(LPGUID lpGuid, LPCTSTR lpcstrDescription, LPCTSTR lpcstrModule, LPVOID lpContext);
+//protected:
+//	static BOOL CALLBACK DSEnumCallback(LPGUID lpGuid, LPCTSTR lpcstrDescription, LPCTSTR lpcstrModule, LPVOID lpContext);
 	static CDSound *pThisObject;
 
-private:
-	HWND			m_hWndTarget;
-	HANDLE			m_hNotificationHandle;
-	LPDIRECTSOUND	m_lpDirectSound;
+//private:
+//	HWND			m_hWndTarget;
+//	HANDLE			m_hNotificationHandle;
+//	LPDIRECTSOUND	m_lpDirectSound;
 
-	// For enumeration
+//	// For enumeration
 	unsigned int	m_iDevices;
 	LPCTSTR			m_pcDevice[MAX_DEVICES];
-	GUID			*m_pGUIDs[MAX_DEVICES];
+//	GUID			*m_pGUIDs[MAX_DEVICES];
 };
 
 #endif /* DSOUND_H */

@@ -70,22 +70,7 @@ HBRUSH CInstrumentEditPanel::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
 	HBRUSH hbr = CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 
-	// TODO: Find a proper way to get the background color
-	//m_iBGColor = GetPixel(pDC->m_hDC, 2, 2);
-
-	if (!theApp.IsThemeActive())
-		return hbr;
-	
-	switch (nCtlColor) {
-		case CTLCOLOR_STATIC:
-//		case CTLCOLOR_DLG:
-			pDC->SetBkMode(TRANSPARENT);
-			// TODO: this might fail on some themes?
-			//return NULL;
-			return GetSysColorBrush(COLOR_3DHILIGHT);
-			//return CreateSolidBrush(m_iBGColor);
-	}
-
+	// theApp.isThemeActive() is always false.
 	return hbr;
 }
 

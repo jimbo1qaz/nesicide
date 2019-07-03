@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include "res/resource.h"
+
 
 // COctaveDlgBar dialog
 

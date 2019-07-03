@@ -219,13 +219,6 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	// // //
 	ON_COMMAND(ID_TRACKER_DISPLAYREGISTERSTATE, OnTrackerDisplayRegisterState)
 	ON_COMMAND(ID_VIEW_CONTROLPANEL, OnViewControlpanel)
-	ON_COMMAND(ID_HELP, CFrameWnd::OnHelp)
-	ON_COMMAND(ID_HELP_FINDER, CFrameWnd::OnHelpFinder)
-	ON_COMMAND(ID_HELP_PERFORMANCE, OnHelpPerformance)
-	ON_COMMAND(ID_HELP_EFFECTTABLE, &CMainFrame::OnHelpEffecttable)
-	ON_COMMAND(ID_HELP_FAQ, &CMainFrame::OnHelpFAQ)
-	ON_COMMAND(ID_DEFAULT_HELP, CFrameWnd::OnHelpFinder)
-	ON_COMMAND(ID_CONTEXT_HELP, CFrameWnd::OnContextHelp)
 	ON_COMMAND(ID_FRAMEEDITOR_TOP, OnFrameeditorTop)
 	ON_COMMAND(ID_FRAMEEDITOR_LEFT, OnFrameeditorLeft)
 	ON_COMMAND(ID_NEXT_FRAME, OnNextFrame)
@@ -297,7 +290,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_CBN_SELCHANGE(IDC_OCTAVE, OnCbnSelchangeOctave)
 	ON_MESSAGE(WM_USER_DISPLAY_MESSAGE_STRING, OnDisplayMessageString)
 	ON_MESSAGE(WM_USER_DISPLAY_MESSAGE_ID, OnDisplayMessageID)
-	ON_COMMAND(ID_VIEW_TOOLBAR, &CMainFrame::OnViewToolbar)
+	ON_COMMAND(ID_VIEW_TOOLBAR, OnViewToolbar)
 
 	// // //
 	ON_BN_CLICKED(IDC_BUTTON_GROOVE, OnToggleGroove)
@@ -465,11 +458,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 #ifdef WIP
 	m_strTitle.Append(_T(" [BETA]"));
 #endif
-
-	if (AfxGetResourceHandle() != AfxGetInstanceHandle()) {		// // //
-		// Prevent confusing bugs while developing
-		m_strTitle.Append(_T(" [Localization enabled]"));
-	}
 
 	return 0;
 }
@@ -1577,14 +1565,7 @@ void CMainFrame::OnPrevFrame()
 
 void CMainFrame::OnHelpPerformance()
 {
-	if (m_pPerformanceDlg == NULL)		// // //
-		m_pPerformanceDlg = new CPerformanceDlg();
-	if (!m_pPerformanceDlg->m_hWnd)
-		m_pPerformanceDlg->Create(IDD_PERFORMANCE, this);
-	if (!m_pPerformanceDlg->IsWindowVisible())
-		m_pPerformanceDlg->CenterWindow();
-	m_pPerformanceDlg->ShowWindow(SW_SHOW);
-	m_pPerformanceDlg->SetFocus();
+	qDebug("Performance checking not implemented...");
 }
 
 void CMainFrame::OnUpdateSBInstrument(CCmdUI *pCmdUI)
@@ -1901,15 +1882,6 @@ void CMainFrame::OnFileGeneralsettings()
 	CConfigShortcuts	TabShortcuts;
 	CConfigMixer		TabMixer;
 
-	ConfigWindow.m_psh.dwFlags	&= ~PSH_HASHELP;
-	TabGeneral.m_psp.dwFlags	&= ~PSP_HASHELP;
-	TabVersion.m_psp.dwFlags	&= ~PSP_HASHELP;
-	TabAppearance.m_psp.dwFlags &= ~PSP_HASHELP;
-	TabMIDI.m_psp.dwFlags		&= ~PSP_HASHELP;
-	TabSound.m_psp.dwFlags		&= ~PSP_HASHELP;
-	TabShortcuts.m_psp.dwFlags	&= ~PSP_HASHELP;
-	TabMixer.m_psp.dwFlags		&= ~PSP_HASHELP;
-	
 	ConfigWindow.AddPage(&TabGeneral);
 	ConfigWindow.AddPage(&TabVersion);
 	ConfigWindow.AddPage(&TabAppearance);
@@ -2105,22 +2077,6 @@ BOOL CMainFrame::DestroyWindow()
 	int State = STATE_NORMAL;
 
 	GetWindowRect(WinRect);
-
-	if (IsZoomed()) {
-		State = STATE_MAXIMIZED;
-		// Ignore window position if maximized
-		WinRect.top = theApp.GetSettings()->WindowPos.iTop;
-		WinRect.bottom = theApp.GetSettings()->WindowPos.iBottom;
-		WinRect.left = theApp.GetSettings()->WindowPos.iLeft;
-		WinRect.right = theApp.GetSettings()->WindowPos.iRight;
-	}
-
-	if (IsIconic()) {
-		WinRect.top = WinRect.left = 100;
-		WinRect.bottom = 920;
-		WinRect.right = 950;
-		DPI::ScaleRect(WinRect);		// // // 050B
-	}
 
 	// Save window position
 	theApp.GetSettings()->SetWindowPos(WinRect.left, WinRect.top, WinRect.right, WinRect.bottom, State);
@@ -2499,19 +2455,21 @@ void CMainFrame::OnUpdateEditDelete(CCmdUI *pCmdUI)
 
 void CMainFrame::OnHelpEffecttable()
 {
-	// Display effect table in help
-	HtmlHelp((DWORD)_T("effect_list.htm"), HH_DISPLAY_TOPIC);
+	qDebug("HtmlHelp not done...");
 }
 
 void CMainFrame::OnHelpFAQ()
 {
-	// Display FAQ in help
-	HtmlHelp((DWORD)_T("faq.htm"), HH_DISPLAY_TOPIC);
+	qDebug("HtmlHelp not done...");
 }
 
 CFrameEditor *CMainFrame::GetFrameEditor() const
 {
 	return m_pFrameEditor;
+}
+
+CVisualizerWnd *CMainFrame::GetVisualizerWindow() const {
+	return m_pVisualizerWnd;
 }
 
 void CMainFrame::OnEditEnableMIDI()
@@ -2727,48 +2685,35 @@ void CMainFrame::OnLoadInstrumentMenu(NMHDR * pNotifyStruct, LRESULT * result)
 
 void CMainFrame::SelectInstrumentFolder()
 {
-	BROWSEINFOA Browse;	
-	LPITEMIDLIST lpID;
-	char Path[MAX_PATH];
-	CString Title;
+	qDebug("CMainFrame::SelectInstrumentFolder");
+//	BROWSEINFOA Browse;
+//	LPITEMIDLIST lpID;
+//	char Path[MAX_PATH];
+//	CString Title;
 
-	Title.LoadString(IDS_INSTRUMENT_FOLDER);
-	Browse.lpszTitle	= Title;
-	Browse.hwndOwner	= m_hWnd;
-	Browse.pidlRoot		= NULL;
-	Browse.lpfn			= NULL;
-	Browse.ulFlags		= BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
-	Browse.pszDisplayName = Path;
+//	Title.LoadString(IDS_INSTRUMENT_FOLDER);
+//	Browse.lpszTitle	= Title;
+//	Browse.hwndOwner	= m_hWnd;
+//	Browse.pidlRoot		= NULL;
+//	Browse.lpfn			= NULL;
+//	Browse.ulFlags		= BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+//	Browse.pszDisplayName = Path;
 
-	lpID = SHBrowseForFolder(&Browse);
+//	lpID = SHBrowseForFolder(&Browse);
 
-	if (lpID != NULL) {
-		SHGetPathFromIDList(lpID, Path);
-		theApp.GetSettings()->InstrumentMenuPath = Path;
-		m_pInstrumentFileTree->Changed();
-	}
+//	if (lpID != NULL) {
+//		SHGetPathFromIDList(lpID, Path);
+//		theApp.GetSettings()->InstrumentMenuPath = Path;
+//		m_pInstrumentFileTree->Changed();
+//	}
 }
 
 BOOL CMainFrame::OnCopyData(CWnd* pWnd, COPYDATASTRUCT* pCopyDataStruct)
 {
-	switch (pCopyDataStruct->dwData) {
-		case IPC_LOAD:
-			// Load file
-			if (_tcslen((LPCTSTR)pCopyDataStruct->lpData) > 0)
-				theApp.OpenDocumentFile((LPCTSTR)pCopyDataStruct->lpData);
-			return TRUE;
-		case IPC_LOAD_PLAY:
-			// Load file
-			if (_tcslen((LPCTSTR)pCopyDataStruct->lpData) > 0)
-				theApp.OpenDocumentFile((LPCTSTR)pCopyDataStruct->lpData);
-			// and play
-			if (CFamiTrackerDoc::GetDoc()->IsFileLoaded() &&
-				!CFamiTrackerDoc::GetDoc()->HasLastLoadFailed())
-				theApp.GetSoundGenerator()->StartPlayer(MODE_PLAY_START, 0);
-			return TRUE;
-	}
-
-	return CFrameWnd::OnCopyData(pWnd, pCopyDataStruct);
+	// Called by MFC to copy data *between apps*...
+	// i have no clue why this exists or what it does. It appears to be unused in the Qt port.
+	qDebug("CMainFrame::OnCopyData");
+	return TRUE;
 }
 
 /** \brief Performs pAction, saves "before" and "after" into pAction, and adds to history.

@@ -23,7 +23,6 @@
 #include "json/json.hpp"		// // //
 #include "version.h"		// // //
 #include "stdafx.h"
-#include "Exception.h"
 #include "FamiTracker.h"
 #include "FamiTrackerDoc.h"
 #include "FamiTrackerView.h"
@@ -39,7 +38,7 @@
 #include "CommandLineExport.h"
 #include "WinSDK/VersionHelpers.h"		// // //
 
-#include "WinInet.h"		// // //
+//#include "WinInet.h"		// // //
 #pragma comment(lib, "wininet.lib")
 
 // Single instance-stuff
@@ -56,7 +55,7 @@ const DWORD	SHARED_MEM_SIZE			= 256;
 BEGIN_MESSAGE_MAP(CFamiTrackerApp, CWinApp)
 	ON_COMMAND(ID_APP_ABOUT, OnAppAbout)
 	// Standard file based document commands
-	ON_COMMAND(ID_FILE_NEW, CWinApp::OnFileNew)
+	ON_COMMAND(ID_FILE_NEW, OnFileNew)
 	ON_COMMAND(ID_FILE_OPEN, OnFileOpen)
 	ON_COMMAND(ID_RECENTFILES_CLEAR, OnRecentFilesClear)		// // //
 	ON_UPDATE_COMMAND_UI(ID_FILE_MRU_FILE1, OnUpdateRecentFiles)		// // //
@@ -68,21 +67,21 @@ END_MESSAGE_MAP()
 // CFamiTrackerApp construction
 
 CFamiTrackerApp::CFamiTrackerApp() :
-	m_bThemeActive(false),
+//	m_bThemeActive(false),
 	m_pMIDI(NULL),
 	m_pAccel(NULL),
 	m_pSettings(NULL),
 	m_pSoundGenerator(NULL),
 	m_pChannelMap(NULL),
 	m_customExporters(NULL),
-	m_hWndMapFile(NULL),
+//	m_hWndMapFile(NULL),
 #ifdef SUPPORT_TRANSLATIONS
 	m_hInstResDLL(NULL),
 #endif
 	m_pInstanceMutex(NULL)
 {
 	// Place all significant initialization in InitInstance
-	EnableHtmlHelp();
+	qDebug("EnableHtmlHelp");
 
 #ifdef ENABLE_CRASH_HANDLER
 	// This will cover the whole process
@@ -101,17 +100,12 @@ BOOL CFamiTrackerApp::InitInstance()
 	// InitCommonControls() is required on Windows XP if an application
 	// manifest specifies use of ComCtl32.dll version 6 or later to enable
 	// visual styles.  Otherwise, any window creation will fail.
-	InitCommonControls();
 #ifdef SUPPORT_TRANSLATIONS
 	LoadLocalization();
 #endif
 	CWinApp::InitInstance();
 
 	TRACE("App: InitInstance\n");
-
-	if (!AfxOleInit()) {
-		TRACE("OLE initialization failed\n");
-	}
 
 	// Standard initialization
 	// If you are not using these features and wish to reduce the size
@@ -120,7 +114,6 @@ BOOL CFamiTrackerApp::InitInstance()
 	// Change the registry key under which our settings are stored
 	// TODO: You should modify this string to be something appropriate
 	// such as the name of your company or organization
-	SetRegistryKey(_T(""));
 	LoadStdProfileSettings(MAX_RECENT_FILES);  // Load standard INI file options (including MRU)
 
 	// Load program settings
@@ -185,34 +178,6 @@ BOOL CFamiTrackerApp::InitInstance()
 		m_pDocManager = new CDocManager0CC { };
 	m_pDocManager->AddDocTemplate(pDocTemplate);
 
-	// Work-around to enable file type registration in windows vista/7
-	if (IsWindowsVistaOrGreater()) {		// // //
-		HKEY HKCU;
-		long res_reg = ::RegOpenKey(HKEY_CURRENT_USER, _T("Software\\Classes"), &HKCU);
-		if(res_reg == ERROR_SUCCESS)
-			RegOverridePredefKey(HKEY_CLASSES_ROOT, HKCU);
-	}
-
-	// Enable DDE Execute open
-	EnableShellOpen();
-
-	// Skip this if in wip/beta mode
-#if !defined(WIP) && !defined(_DEBUG)
-	// Add shell options
-	RegisterShellFileTypes();		// // //
-	static const LPCTSTR FILE_ASSOC_NAME = _T(APP_NAME " Module");
-	AfxRegSetValue(HKEY_CLASSES_ROOT, "0CCFamiTracker.Document", REG_SZ, FILE_ASSOC_NAME, lstrlen(FILE_ASSOC_NAME) * sizeof(TCHAR));
-	// Add an option to play files
-	CString strPathName, strTemp, strFileTypeId;
-	AfxGetModuleShortFileName(AfxGetInstanceHandle(), strPathName);
-	CString strOpenCommandLine = strPathName;
-	strOpenCommandLine += _T(" /play \"%1\"");
-	if (pDocTemplate->GetDocString(strFileTypeId, CDocTemplate::regFileTypeId) && !strFileTypeId.IsEmpty()) {
-		strTemp.Format(_T("%s\\shell\\play\\%s"), (LPCTSTR)strFileTypeId, _T("command"));
-		AfxRegSetValue(HKEY_CLASSES_ROOT, strTemp, REG_SZ, strOpenCommandLine, lstrlen(strOpenCommandLine) * sizeof(TCHAR));
-	}
-#endif
-
 	// Handle command line export
 	if (cmdInfo.m_bExport) {
 		CCommandLineExport exporter;
@@ -230,14 +195,12 @@ BOOL CFamiTrackerApp::InitInstance()
 		return FALSE;
 	}
 
-	// Move root key back to default
-	if (IsWindowsVistaOrGreater()) {		// // //
-		::RegOverridePredefKey(HKEY_CLASSES_ROOT, NULL);
-	}
+	// CP: Showing the window here causes a blip of a not-yet-initialized window because Qt hasn't yet actually
+	// "taken over" for MFC, so I'm hacking this out and letting the Qt subsystem show the window when it's done
+	// "initializing" it.
+	//	m_pMainWnd->ShowWindow(SW_SHOW);
+	//	m_pMainWnd->UpdateWindow();
 
-	// The one and only window has been initialized, so show and update it
-	m_pMainWnd->ShowWindow(m_nCmdShow);
-	m_pMainWnd->UpdateWindow();
 	// call DragAcceptFiles only if there's a suffix
 	//  In an SDI app, this should occur after ProcessShellCommand
 	// Enable drag/drop open
@@ -315,13 +278,7 @@ int CFamiTrackerApp::ExitInstance()
 	}
 
 #ifdef SUPPORT_TRANSLATIONS
-	if (m_hInstResDLL) {
-		// Revert back to internal resources
-		AfxSetResourceHandle(m_hInstance);
-		// Unload DLL
-		::FreeLibrary(m_hInstResDLL);
-		m_hInstResDLL = NULL;
-	}
+	qDebug("SUPPORT_TRANSLATIONS");
 #endif
 
 	if (m_thVersionCheck.joinable())		// // //
@@ -348,18 +305,6 @@ BOOL CFamiTrackerApp::PreTranslateMessage(MSG* pMsg)
 
 void CFamiTrackerApp::CheckAppThemed()
 {
-	HMODULE hinstDll = ::LoadLibrary(_T("UxTheme.dll"));
-	
-	if (hinstDll) {
-		typedef BOOL (*ISAPPTHEMEDPROC)();
-		ISAPPTHEMEDPROC pIsAppThemed;
-		pIsAppThemed = (ISAPPTHEMEDPROC) ::GetProcAddress(hinstDll, "IsAppThemed");
-
-		if(pIsAppThemed)
-			m_bThemeActive = (pIsAppThemed() == TRUE);
-
-		::FreeLibrary(hinstDll);
-	}
 }
 
 bool CFamiTrackerApp::IsThemeActive() const
@@ -406,20 +351,7 @@ bool GetFileVersion(LPCTSTR Filename, WORD &Major, WORD &Minor, WORD &Revision, 
 #ifdef SUPPORT_TRANSLATIONS
 void CFamiTrackerApp::LoadLocalization()
 {
-	LPCTSTR DLL_NAME = _T("language.dll");
-	WORD Major, Minor, Build, Revision;
-
-	if (GetFileVersion(DLL_NAME, Major, Minor, Revision, Build)) {
-		if (Major != VERSION_API || Minor != VERSION_MAJ || Revision != VERSION_MIN || Build != VERSION_REV)		// // //
-			return;
-
-		m_hInstResDLL = ::LoadLibrary(DLL_NAME);
-
-		if (m_hInstResDLL != NULL) {
-			TRACE("App: Loaded localization DLL\n");
-			AfxSetResourceHandle(m_hInstResDLL);
-		}
-	}
+	qDebug("SUPPORT_TRANSLATIONS");
 }
 #endif
 
@@ -510,174 +442,21 @@ CCustomExporters* CFamiTrackerApp::GetCustomExporters(void) const
 
 void CFamiTrackerApp::RegisterSingleInstance()
 {
-	// Create a memory area with this app's window handle
-	if (!GetSettings()->General.bSingleInstance)
-		return;
-
-	m_hWndMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, SHARED_MEM_SIZE, FT_SHARED_MEM_NAME);
-
-	if (m_hWndMapFile != NULL) {
-		LPTSTR pBuf = (LPTSTR) MapViewOfFile(m_hWndMapFile, FILE_MAP_ALL_ACCESS, 0, 0, SHARED_MEM_SIZE);
-		if (pBuf != NULL) { 
-			// Create a string of main window handle
-			_itot_s((int)GetMainWnd()->m_hWnd, pBuf, SHARED_MEM_SIZE, 10);
-			UnmapViewOfFile(pBuf);
-		}
-	}
+	qDebug("RegisterSingleInstance");
 }
 
 void CFamiTrackerApp::UnregisterSingleInstance()
 {	
-	// Close shared memory area
-	if (m_hWndMapFile) {
-		CloseHandle(m_hWndMapFile);
-		m_hWndMapFile = NULL;
-	}
-
-	SAFE_RELEASE(m_pInstanceMutex);
+	qDebug("UnregisterSingleInstance");
 }
 
 void CFamiTrackerApp::CheckNewVersion(bool StartUp)		// // //
 {
-	return;
-
-	static PCTSTR rgpszAcceptTypes[] = {_T("application/json"), NULL};
-
-	m_bVersionReady = false;
-	m_pVersionMessage = _T("");
-	m_iVersionStyle = 0U;
-
-	const auto CheckFunc = [&] (bool Start) {
-		HINTERNET hOpen, hConnect, hRequest;
-		CString jsonStr;
-
-		// FIXME FIXME github repo differs from APP_NAME
-		// also burn this code with fire
-
-		try {
-			if ((hOpen = InternetOpen(_T("0CC_FamiTracker"), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0)) &&
-				(hConnect = InternetConnect(hOpen, _T("api.github.com"),
-				INTERNET_DEFAULT_HTTPS_PORT, _T(""), _T(""), INTERNET_SERVICE_HTTP, 0, 0)) &&
-				(hRequest = HttpOpenRequest(hConnect, _T("GET"), _T("/repos/jimbo1qaz/0CC-FamiTracker/releases"),
-				_T("HTTP/1.0"), NULL, rgpszAcceptTypes,
-				INTERNET_FLAG_RELOAD | INTERNET_FLAG_SECURE | INTERNET_FLAG_NO_CACHE_WRITE, NULL))) {
-				HttpAddRequestHeaders(hRequest, _T("Content-Type: application/json\r\n"), -1, HTTP_ADDREQ_FLAG_ADD);
-
-				if (!HttpSendRequest(hRequest, NULL, 0, NULL, 0)) throw GetLastError();
-				while (true) {
-					DWORD Size;
-					if (!InternetQueryDataAvailable(hRequest, &Size, 0, 0)) throw GetLastError();
-					if (!Size) break;
-					char *Buf = new char[Size + 1]();
-					DWORD Received = 0;
-					for (DWORD i = 0; i < Size; i += 1024) {
-						DWORD Length = (Size - i < 1024) ? Size % 1024 : 1024;
-						if (!InternetReadFile(hRequest, Buf + i, Length, &Received))
-							throw GetLastError();
-					}
-					jsonStr += Buf;
-					SAFE_RELEASE_ARRAY(Buf);
-				}
-				nlohmann::json j = nlohmann::json::parse(jsonStr.GetBuffer());
-				for (const auto &i : j) {
-					int Ver[4] = { };
-					sscanf_s(i["tag_name"].get<std::string>().c_str(),
-							 "v%u.%u.%u%*1[.r]%u", Ver, Ver + 1, Ver + 2, Ver + 3);
-
-					// TODO std::vector comparison
-
-					if (Ver[0] > VERSION_API || Ver[0] == VERSION_API &&
-						(Ver[1] > VERSION_MAJ || Ver[1] == VERSION_MAJ &&
-						(Ver[2] > VERSION_MIN || Ver[2] == VERSION_MIN &&
-						Ver[3] > VERSION_REV))) {
-						int Y = 1970, M = 1, D = 1;
-						sscanf_s(i["published_at"].get<std::string>().c_str(), "%d-%d-%d", &Y, &M, &D);
-						static const CString MONTHS[] = {
-							_T("Jan"), _T("Feb"), _T("Mar"), _T("Apr"), _T("May"), _T("Jun"),
-							_T("Jul"), _T("Aug"), _T("Sept"), _T("Oct"), _T("Nov"), _T("Dec"),
-						};
-
-						CString desc = i["body"].get<std::string>().c_str();
-						int Index = desc.Find(_T("\r\n\r\n"));
-						if (Index >= 0)
-							desc.Delete(0, Index + 4);
-						Index = desc.Find(_T("\r\n\r\n#"));
-						if (Index >= 0)
-							desc.Truncate(Index);
-
-						m_pVersionMessage.Format(_T("A new version of " APP_NAME " is now available:\n\n"
-												 "Version %d.%d.%d.%d (released %s %d, %d)\n\n%s\n\n"
-												 "Pressing \"Yes\" will launch the Github web page for this release."),
-												 Ver[0], Ver[1], Ver[2], Ver[3], MONTHS[--M], D, Y, desc);
-						if (Start)
-							m_pVersionMessage.Append(_T(" (Version checking on startup may be disabled in the configuration menu.)"));
-						m_pVersionURL.Format(_T("https://github.com/jimbo1qaz/0CC-FamiTracker/releases/tag/v%d.%d.%d.%d"),
-											 Ver[0], Ver[1], Ver[2], Ver[3]);
-						m_iVersionStyle = MB_YESNO | MB_ICONINFORMATION;
-						m_bVersionReady = true;
-						break;
-					}
-				}
-			}
-		}
-		catch (DWORD &) {
-			m_pVersionMessage = _T("Unable to get version information from the source repository.");
-			m_iVersionStyle = MB_ICONERROR;
-			m_bVersionReady = true;
-		}
-
-		if (hRequest) InternetCloseHandle(hRequest);
-		if (hConnect) InternetCloseHandle(hConnect);
-		if (hOpen) InternetCloseHandle(hOpen);
-	};
-
-	if (m_thVersionCheck.joinable())
-		m_thVersionCheck.join();
-	m_thVersionCheck = std::thread {CheckFunc, StartUp};
 }
 
 bool CFamiTrackerApp::CheckSingleInstance(CFTCommandLineInfo &cmdInfo)
 {	
-	// Returns true if program should close
-	
-	if (!GetSettings()->General.bSingleInstance)
-		return false;
-
-	if (cmdInfo.m_bExport)
-		return false;
-
-	m_pInstanceMutex = new CMutex(FALSE, FT_SHARED_MUTEX_NAME);
-
-	if (GetLastError() == ERROR_ALREADY_EXISTS) {
-		// Another instance detected, get window handle
-		HANDLE hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, FT_SHARED_MEM_NAME);
-		if (hMapFile != NULL) {	
-			LPCTSTR pBuf = (LPTSTR) MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, SHARED_MEM_SIZE);
-			if (pBuf != NULL) {
-				// Get window handle
-				HWND hWnd = (HWND)_ttoi(pBuf);
-				if (hWnd != NULL) {
-					// Get file name
-					LPTSTR pFilePath = cmdInfo.m_strFileName.GetBuffer();
-					// We have the window handle & file, send a message to open the file
-					COPYDATASTRUCT data;
-					data.dwData = cmdInfo.m_bPlay ? IPC_LOAD_PLAY : IPC_LOAD;
-					data.cbData = (DWORD)((_tcslen(pFilePath) + 1) * sizeof(TCHAR));
-					data.lpData = pFilePath;
-					ULONG_PTR result;
-					SendMessageTimeout(hWnd, WM_COPYDATA, NULL, (LPARAM)&data, SMTO_NORMAL, 100, &result);
-					UnmapViewOfFile(pBuf);
-					CloseHandle(hMapFile);
-					TRACE("App: Found another instance, shutting down\n");
-					// Then close the program
-					return true;
-				}
-
-				UnmapViewOfFile(pBuf);
-			}
-			CloseHandle(hMapFile);
-		}
-	}
+	qDebug("CheckSingleInstance");
 	
 	return false;
 }
@@ -710,20 +489,10 @@ void CFamiTrackerApp::SilentEverything()
 
 int CFamiTrackerApp::GetCPUUsage() const
 {
-	// Calculate CPU usage
-	const int THREAD_COUNT = 2;
-	static FILETIME KernelLastTime[THREAD_COUNT], UserLastTime[THREAD_COUNT];
-	const HANDLE hThreads[THREAD_COUNT] = {m_hThread, m_pSoundGenerator->m_hThread};
-	unsigned int TotalTime = 0;
+	qDebug("GetCPUUsage");
 
-	for (int i = 0; i < THREAD_COUNT; ++i) {
-		FILETIME CreationTime, ExitTime, KernelTime, UserTime;
-		GetThreadTimes(hThreads[i], &CreationTime, &ExitTime, &KernelTime, &UserTime);
-		TotalTime += (KernelTime.dwLowDateTime - KernelLastTime[i].dwLowDateTime) / 1000;
-		TotalTime += (UserTime.dwLowDateTime - UserLastTime[i].dwLowDateTime) / 1000;
-		KernelLastTime[i] = KernelTime;
-		UserLastTime[i]	= UserTime;
-	}
+	// Calculate CPU usage
+	unsigned int TotalTime = 0;
 
 	return TotalTime;
 }
@@ -964,11 +733,11 @@ void CFTCommandLineInfo::ParseParam(const TCHAR* pszParam, BOOL bFlag, BOOL bLas
 		// This is intended for a small helper program that avoids the problem with console on win32 programs,
 		// and should remain undocumented. I'm using it for testing.
 		else if (!_tcsicmp(pszParam, _T("console"))) {
-			FILE *f;
-			AttachConsole(ATTACH_PARENT_PROCESS);
-			errno_t err = freopen_s(&f, "CON", "w", stdout);
-			errno_t err2 = freopen_s(&f, "CON", "w", stderr);
-			fprintf(stderr, "%s\n", APP_NAME_VERSION);		// // //
+			qDebug("'console' parameter not supported yet...");
+			//			FILE *f;
+			//			AttachConsole(ATTACH_PARENT_PROCESS);
+			//			errno_t err = freopen_s(&f, "CON", "w", stdout);
+			//			printf("FamiTracker v%i.%i.%i\n", VERSION_MAJ, VERSION_MIN, VERSION_REV);
 			return;
 		}
 	}

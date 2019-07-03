@@ -25,6 +25,8 @@
 
 //#define LOGGING
 
+#include "cqtmfc.h"
+
 #include "../Common.h"
 #include "Mixer.h"
 
@@ -44,7 +46,8 @@ class CRegisterState;		// // //
 class CFile;
 #endif
 
-class CAPU {
+class CAPU : public QObject {
+	Q_OBJECT
 public:
 	CAPU(IAudioCallback *pCallback);		// // //
 	~CAPU();

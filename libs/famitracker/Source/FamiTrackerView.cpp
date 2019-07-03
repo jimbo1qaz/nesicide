@@ -20,8 +20,6 @@
 ** must bear this legend.
 */
 
-#include "stdafx.h"
-
 #include "FamiTracker.h"
 #include "FamiTrackerDoc.h"
 #include "FamiTrackerView.h"
@@ -52,12 +50,8 @@
 
 using std::get_if;
 
-#ifdef _DEBUG
-#define new DEBUG_NEW
-#endif
-
 // Clipboard ID
-const TCHAR CFamiTrackerView::CLIPBOARD_ID[] = _T("FamiTracker Pattern");
+const TCHAR CFamiTrackerView::CLIPBOARD_ID[] = _T("application/x-qt-windows-mime;value=\"FamiTracker Pattern\"");
 
 // Effect texts
 // 0CC: add verbose description as in modplug
@@ -194,7 +188,6 @@ BEGIN_MESSAGE_MAP(CFamiTrackerView, CView)
 	ON_MESSAGE(WM_USER_MIDI_EVENT, OnUserMidiEvent)
 	ON_MESSAGE(WM_USER_PLAYER, OnUserPlayerEvent)
 	ON_MESSAGE(WM_USER_NOTE_EVENT, OnUserNoteEvent)
-	ON_WM_CLOSE()
 	ON_WM_DESTROY()
 	// // //
 	ON_MESSAGE(WM_USER_DUMP_INST, OnUserDumpInst)
@@ -1264,8 +1257,6 @@ void CFamiTrackerView::OnInitialUpdate()
 
 	CFrameEditor *pFrameEditor = GetFrameEditor();
 
-	TRACE("View: OnInitialUpdate (%s)\n", pDoc->GetTitle());
-
 	// Setup order window
 	pFrameEditor->AssignDocument(pDoc, this);
 	m_pPatternEditor->SetDocument(pDoc, this);
@@ -2255,8 +2246,6 @@ void CFamiTrackerView::TriggerMIDINote(unsigned int Channel, unsigned int MidiNo
 		if (m_iAutoArpNotes[i] == 1)
 			++m_iAutoArpKeyCount;
 	}
-
-	TRACE("%i: Trigger note %i on channel %i\n", GetTickCount(), MidiNote, Channel);
 }
 
 // Cut the currently playing note
@@ -2292,8 +2281,6 @@ void CFamiTrackerView::CutMIDINote(unsigned int Channel, unsigned int MidiNote, 
 	// IT-mode, cut note on cuts
 	if (theApp.GetSettings()->General.iEditStyle == EDIT_STYLE_IT)
 		HaltNote(Channel, Note, Octave);		// // //
-
-	TRACE("%i: Cut note %i on channel %i\n", GetTickCount(), MidiNote, Channel);
 }
 
 // Release the currently playing note
@@ -2329,8 +2316,6 @@ void CFamiTrackerView::ReleaseMIDINote(unsigned int Channel, unsigned int MidiNo
 	// IT-mode, release note
 	if (theApp.GetSettings()->General.iEditStyle == EDIT_STYLE_IT)
 		ReleaseNote(Channel, Note, Octave);		// // //
-
-	TRACE("%i: Release note %i on channel %i\n", GetTickCount(), MidiNote, Channel);
 }
 
 void CFamiTrackerView::UpdateArpDisplay()

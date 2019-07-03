@@ -58,7 +58,7 @@ BEGIN_MESSAGE_MAP(CConfigShortcuts, CPropertyPage)
 	ON_NOTIFY(NM_CLICK, IDC_SHORTCUTS, OnNMClickShortcuts)
 	ON_NOTIFY(LVN_ITEMCHANGED, IDC_SHORTCUTS, OnNMClickShortcuts)
 	ON_BN_CLICKED(IDC_DEFAULT, OnBnClickedDefault)
-	ON_BN_CLICKED(IDC_CLEAR, &CConfigShortcuts::OnBnClickedClear)
+	ON_BN_CLICKED(IDC_CLEAR, OnBnClickedClear)
 END_MESSAGE_MAP()
 
 
@@ -258,17 +258,17 @@ CString CConfigShortcuts::AssembleKeyString(int Mod, int Key)
 
 	if (Mod & MOD_SHIFT) {
 		KeyStr.Append(pAccel->GetVKeyName(VK_SHIFT));
-		KeyStr.Append(_T(" + "));
+//		KeyStr.Append(_T(" + ")); CP: Name of Qt::ShiftModifier includes '+'
 	}
 
 	if (Mod & MOD_CONTROL) {
 		KeyStr.Append(pAccel->GetVKeyName(VK_CONTROL));
-		KeyStr.Append(_T(" + "));
+//		KeyStr.Append(_T(" + ")); CP: Name of Qt::ControlModifier includes '+'
 	}
 
 	if (Mod & MOD_ALT) {
 		KeyStr.Append(pAccel->GetVKeyName(VK_MENU));
-		KeyStr.Append(_T(" + "));
+//		KeyStr.Append(_T(" + ")); CP: Name of Qt::AltModifier includes '+'
 	}
 
 	KeyStr.Append(pAccel->GetVKeyName(Key));
