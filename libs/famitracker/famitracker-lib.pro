@@ -10,13 +10,20 @@ TEMPLATE = lib
 QT += core \
       gui
 
-greaterThan(QT_MAJOR_VERSION,4) {
-   QT += widgets
-   CONFIG += c++11
-   macx {
-      QMAKE_CFLAGS += -mmacosx-version-min=10.7
-      QMAKE_LFLAGS += -mmacosx-version-min=10.7
-   }
+QT += widgets
+
+# `CONFIG += c++17` was added in Qt 5.12. I'm on 5.9.
+win32-msvc* {
+    # Compiling on MSVC is untested.
+    QMAKE_CXXFLAGS += /std:c++latest
+}
+else {
+    QMAKE_CXXFLAGS += -std=c++17
+}
+
+macx {
+  QMAKE_CFLAGS += -mmacosx-version-min=10.7
+  QMAKE_LFLAGS += -mmacosx-version-min=10.7
 }
 
 QMAKE_CFLAGS += -w
