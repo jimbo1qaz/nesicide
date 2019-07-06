@@ -1,6 +1,6 @@
 #include "cqtmfc.h"
 #include "cqtmfc_famitracker.h"
-#include "resource.h"
+#include "res/resource.h"
 
 #include "stdafx.h"
 
