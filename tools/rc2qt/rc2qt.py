@@ -13,13 +13,20 @@ def perr(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr)
 
 
+def strip_quotes(file: str) -> str:
+    assert file[:1] == '"'
+    assert file[-1:] == '"'
+    return file[1:-1]
+
+
 class rcBitmap(object):
     id = None
     file = None
 
     def __init__(self, id, file):
         self.id = id
-        self.file = '":/resources/' + (file.split("\\")[-1])
+        trailing_name = strip_quotes(file).split("\\")[-1]
+        self.file = f'":/resources/{trailing_name}"'
 
 
 class rcBitmapList(object):
@@ -46,12 +53,14 @@ void qtMfcInitBitmapResources()
 
 
 class rcIcon(object):
+    # TODO the logic is identical to rcBitmap
     id = None
     file = None
 
     def __init__(self, id, file):
         self.id = id
-        self.file = '":/resources/' + (file.split("\\")[-1])
+        trailing_name = strip_quotes(file).split("\\")[-1]
+        self.file = f'":/resources/{trailing_name}"'
 
 
 class rcIconList(object):

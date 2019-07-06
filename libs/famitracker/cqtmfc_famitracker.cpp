@@ -2055,32 +2055,32 @@ void qtMfcInitBitmapResources()
 {
 	qtMfcBitmapResources.clear();
 
-   // IDR_MAINFRAME BITMAP ":/resources/"MainToolbar-16.bmp"
-	qtMfcBitmapResources.insert(IDR_MAINFRAME,new CBitmap(":/resources/"MainToolbar-16.bmp"));
+   // IDR_MAINFRAME BITMAP ":/resources/MainToolbar-16.bmp"
+	qtMfcBitmapResources.insert(IDR_MAINFRAME,new CBitmap(":/resources/MainToolbar-16.bmp"));
 
-   // IDR_INSTRUMENT_TOOLBAR BITMAP ":/resources/"InstrumentToolbar-16.bmp"
-	qtMfcBitmapResources.insert(IDR_INSTRUMENT_TOOLBAR,new CBitmap(":/resources/"InstrumentToolbar-16.bmp"));
+   // IDR_INSTRUMENT_TOOLBAR BITMAP ":/resources/InstrumentToolbar-16.bmp"
+	qtMfcBitmapResources.insert(IDR_INSTRUMENT_TOOLBAR,new CBitmap(":/resources/InstrumentToolbar-16.bmp"));
 
-   // IDB_KEY_BLACK BITMAP ":/resources/"key_black_unpressed.bmp"
-	qtMfcBitmapResources.insert(IDB_KEY_BLACK,new CBitmap(":/resources/"key_black_unpressed.bmp"));
+   // IDB_KEY_BLACK BITMAP ":/resources/key_black_unpressed.bmp"
+	qtMfcBitmapResources.insert(IDB_KEY_BLACK,new CBitmap(":/resources/key_black_unpressed.bmp"));
 
-   // IDB_KEY_BLACK_MARK BITMAP ":/resources/"key_black_pressed.bmp"
-	qtMfcBitmapResources.insert(IDB_KEY_BLACK_MARK,new CBitmap(":/resources/"key_black_pressed.bmp"));
+   // IDB_KEY_BLACK_MARK BITMAP ":/resources/key_black_pressed.bmp"
+	qtMfcBitmapResources.insert(IDB_KEY_BLACK_MARK,new CBitmap(":/resources/key_black_pressed.bmp"));
 
-   // IDB_KEY_WHITE BITMAP ":/resources/"key_white_unpressed.bmp"
-	qtMfcBitmapResources.insert(IDB_KEY_WHITE,new CBitmap(":/resources/"key_white_unpressed.bmp"));
+   // IDB_KEY_WHITE BITMAP ":/resources/key_white_unpressed.bmp"
+	qtMfcBitmapResources.insert(IDB_KEY_WHITE,new CBitmap(":/resources/key_white_unpressed.bmp"));
 
-   // IDB_KEY_WHITE_MARK BITMAP ":/resources/"key_white_pressed.bmp"
-	qtMfcBitmapResources.insert(IDB_KEY_WHITE_MARK,new CBitmap(":/resources/"key_white_pressed.bmp"));
+   // IDB_KEY_WHITE_MARK BITMAP ":/resources/key_white_pressed.bmp"
+	qtMfcBitmapResources.insert(IDB_KEY_WHITE_MARK,new CBitmap(":/resources/key_white_pressed.bmp"));
 
-   // IDB_TOOLBAR_256 BITMAP ":/resources/"MainToolbar-256.bmp"
-	qtMfcBitmapResources.insert(IDB_TOOLBAR_256,new CBitmap(":/resources/"MainToolbar-256.bmp"));
+   // IDB_TOOLBAR_256 BITMAP ":/resources/MainToolbar-256.bmp"
+	qtMfcBitmapResources.insert(IDB_TOOLBAR_256,new CBitmap(":/resources/MainToolbar-256.bmp"));
 
-   // IDB_TOOLBAR_INST_256 BITMAP ":/resources/"InstrumentToolbar-256.bmp"
-	qtMfcBitmapResources.insert(IDB_TOOLBAR_INST_256,new CBitmap(":/resources/"InstrumentToolbar-256.bmp"));
+   // IDB_TOOLBAR_INST_256 BITMAP ":/resources/InstrumentToolbar-256.bmp"
+	qtMfcBitmapResources.insert(IDB_TOOLBAR_INST_256,new CBitmap(":/resources/InstrumentToolbar-256.bmp"));
 
-   // IDB_ABOUT BITMAP ":/resources/"About.bmp"
-	qtMfcBitmapResources.insert(IDB_ABOUT,new CBitmap(":/resources/"About.bmp"));
+   // IDB_ABOUT BITMAP ":/resources/About.bmp"
+	qtMfcBitmapResources.insert(IDB_ABOUT,new CBitmap(":/resources/About.bmp"));
 
 }
 
@@ -2093,38 +2093,38 @@ void qtInitIconResources()
 	// Icon with lowest ID value placed first to ensure application icon
 	// remains consistent on all systems.
 
-   // IDR_MAINFRAME ICON ":/resources/"Application.ico"
-	qtIconNames.insert(IDR_MAINFRAME,":/resources/"Application.ico");
+   // IDR_MAINFRAME ICON ":/resources/Application.ico"
+	qtIconNames.insert(IDR_MAINFRAME,":/resources/Application.ico");
 
-   // IDI_INST_2A03 ICON ":/resources/"Inst_2A03.ico"
-	qtIconNames.insert(IDI_INST_2A03,":/resources/"Inst_2A03.ico");
+   // IDI_INST_2A03 ICON ":/resources/Inst_2A03.ico"
+	qtIconNames.insert(IDI_INST_2A03,":/resources/Inst_2A03.ico");
 
-   // IDI_INST_VRC6 ICON ":/resources/"Inst_VRC6.ico"
-	qtIconNames.insert(IDI_INST_VRC6,":/resources/"Inst_VRC6.ico");
+   // IDI_INST_VRC6 ICON ":/resources/Inst_VRC6.ico"
+	qtIconNames.insert(IDI_INST_VRC6,":/resources/Inst_VRC6.ico");
 
-   // IDI_INST_VRC7 ICON ":/resources/"Inst_VRC7.ico"
-	qtIconNames.insert(IDI_INST_VRC7,":/resources/"Inst_VRC7.ico");
+   // IDI_INST_VRC7 ICON ":/resources/Inst_VRC7.ico"
+	qtIconNames.insert(IDI_INST_VRC7,":/resources/Inst_VRC7.ico");
 
-   // IDR_FamiTrackerTYPE ICON ":/resources/"Document.ico"
-	qtIconNames.insert(IDR_FamiTrackerTYPE,":/resources/"Document.ico");
+   // IDR_FamiTrackerTYPE ICON ":/resources/Document.ico"
+	qtIconNames.insert(IDR_FamiTrackerTYPE,":/resources/Document.ico");
 
-   // IDI_INST_N163 ICON ":/resources/"Inst_N163.ico"
-	qtIconNames.insert(IDI_INST_N163,":/resources/"Inst_N163.ico");
+   // IDI_INST_N163 ICON ":/resources/Inst_N163.ico"
+	qtIconNames.insert(IDI_INST_N163,":/resources/Inst_N163.ico");
 
-   // IDI_INST_FDS ICON ":/resources/"Inst_FDS.ico"
-	qtIconNames.insert(IDI_INST_FDS,":/resources/"Inst_FDS.ico");
+   // IDI_INST_FDS ICON ":/resources/Inst_FDS.ico"
+	qtIconNames.insert(IDI_INST_FDS,":/resources/Inst_FDS.ico");
 
-   // IDI_INST_S5B ICON ":/resources/"Inst_S5B.ico"
-	qtIconNames.insert(IDI_INST_S5B,":/resources/"Inst_S5B.ico");
+   // IDI_INST_S5B ICON ":/resources/Inst_S5B.ico"
+	qtIconNames.insert(IDI_INST_S5B,":/resources/Inst_S5B.ico");
 
-   // IDI_INST_2A07 ICON ":/resources/"Inst_2A07.ico"
-	qtIconNames.insert(IDI_INST_2A07,":/resources/"Inst_2A07.ico");
+   // IDI_INST_2A07 ICON ":/resources/Inst_2A07.ico"
+	qtIconNames.insert(IDI_INST_2A07,":/resources/Inst_2A07.ico");
 
-   // IDI_LEFT ICON ":/resources/"LeftArrow.ico"
-	qtIconNames.insert(IDI_LEFT,":/resources/"LeftArrow.ico");
+   // IDI_LEFT ICON ":/resources/LeftArrow.ico"
+	qtIconNames.insert(IDI_LEFT,":/resources/LeftArrow.ico");
 
-   // IDI_RIGHT ICON ":/resources/"RightArrow.ico"
-	qtIconNames.insert(IDI_RIGHT,":/resources/"RightArrow.ico");
+   // IDI_RIGHT ICON ":/resources/RightArrow.ico"
+	qtIconNames.insert(IDI_RIGHT,":/resources/RightArrow.ico");
 
 }
 
