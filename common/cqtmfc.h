@@ -2392,14 +2392,25 @@ typedef int* POSITION;
 #define afx_msg
 
 #if UNICODE
-#define _tcscpy_s(d,l,s) wcsncpy((char*)(d),(const char*)(s),(l))
+	#define _tcscpy_s(d,l,s) wcsncpy((char*)(d),(const char*)(s),(l))
+	// Technically, the return value of swprintf differs from that of snprintf.
+	// But j0CC does not check the return value.
+	#define _sntprintf_s(out, outN, _TRUNCATE, format, ...) swprintf((out), (outN), (format), __VA_ARGS__)
 #else
-#define _tcscpy_s(d,l,s) strncpy((char*)(d),(const char*)(s),(l))
+	#define _tcscpy_s(d,l,s) strncpy((char*)(d),(const char*)(s),(l))
+	#define _sntprintf_s(out, outN, _TRUNCATE, format, ...) snprintf((out), (outN), (format), __VA_ARGS__)
 #endif
+
 #define strcpy_s(d,l,s) strncpy((char*)(d),(const char*)(s),(l))
 #define vsprintf_s(b,n,f,v) vsprintf((b),(f),(v))
+
+// sprintf_s will write at most n-1 characters + '\0', otherwise return an empty "\0" string on overflow.
+// snprintf will write at most n-1 characters + '\0'.
+#define sprintf_s snprintf
+
 #define _vsntprintf_s(b,n,p,f,v) vsprintf_s((b),(n),(f),(v))
 #define _itot_s(n,s,l,b) snprintf(s,l,"%d",n) 
+
 #if UNICODE
 #define _ttoi _wtoi
 #define _tstoi _wtoi
@@ -2418,6 +2429,7 @@ typedef int* POSITION;
 #define _stscanf_s sscanf
 #define sscanf_s sscanf
 #endif
+
 #ifdef QT_NO_DEBUG
 #define ASSERT(y)
 #define ASSERT_VALID(y)
@@ -5801,6 +5813,19 @@ public:
    CFrameWnd* CreateNewFrame(CDocument* pDoc, CFrameWnd* pOther);
    virtual void AddDocument(CDocument* pDoc);
    virtual void RemoveDocument(CDocument* pDoc);
+
+   enum Confidence
+	   {
+	   noAttempt,
+	   maybeAttemptForeign,
+	   maybeAttemptNative,
+	   yesAttemptForeign,
+	   yesAttemptNative,
+	   yesAlreadyOpen
+	   };
+   virtual Confidence MatchDocType(
+	   LPCTSTR lpszPathName,
+	   CDocument*& rpDocMatch) = 0;
 protected:
    UINT m_nIDResource;
    CRuntimeClass* m_pDocClass;
