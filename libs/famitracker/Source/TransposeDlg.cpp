@@ -124,7 +124,7 @@ BOOL CTransposeDlg::OnInitDialog()
 	pSpin->SetRange(0, 96);
 	pSpin->SetPos(0);
 
-	CheckRadioButton(IDC_RADIO_SEMITONE_INC, IDC_RADIO_SEMITONE_DEC, IDC_RADIO_SEMITONE_INC);
+//	CheckRadioButton(IDC_RADIO_SEMITONE_INC, IDC_RADIO_SEMITONE_DEC, IDC_RADIO_SEMITONE_INC);
 
 	return CDialog::OnInitDialog();
 }

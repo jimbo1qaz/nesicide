@@ -131,7 +131,7 @@ BOOL CDetuneDlg::OnInitDialog()
 	Acc[0].nInc = 1;
 	SpinNote->SetAccel(1, Acc);
 
-	CheckRadioButton(IDC_RADIO_NTSC, IDC_RADIO_N163, IDC_RADIO_NTSC);
+//	CheckRadioButton(IDC_RADIO_NTSC, IDC_RADIO_N163, IDC_RADIO_NTSC);
 
 	auto pSlider = static_cast<CSliderCtrl*>(GetDlgItem(IDC_SLIDER_DETUNE_SEMITONE));
 	pSlider->SetRange(-NOTE_RANGE, NOTE_RANGE);
