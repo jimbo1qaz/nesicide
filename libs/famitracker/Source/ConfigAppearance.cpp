@@ -591,27 +591,29 @@ void CConfigAppearance::ExportSettings(const char *Path) const		// // // 050B
 const std::regex SETTING_REGEX("([^:]+)"s + CConfigAppearance::SETTING_SEPARATOR + "(.*)");
 	// [0, 1, 2]
 
-std::string_view ltrim(std::string_view & str) {
-	// Find index of first non-whitespace
+std::string_view const ltrim(std::string_view const &str) {
+	// Points before first character
 	auto left = std::find_if(str.begin(), str.end(), [](char ch) { return !std::isspace<char>(ch, std::locale::classic()); })
 		- str.begin();
 	
+	// Discard 0.."before first character"
 	return str.substr(left);
 }
 
-std::string_view rtrim(std::string_view & str) {
-	// Find iterator of last non-whitespace
-	// note: subtracting 1 from rightIt causes it to point out of bounds.
-	// See https://stackoverflow.com/q/16609041
+std::string_view const rtrim(std::string_view const &str) {
+	// Explanation at http://www.drdobbs.com/cpp/how-to-use-reverse-iterators-without-get/240168652
+
+	// Points after final character
 	auto rightIt = std::find_if(str.rbegin(), str.rend(), [](char ch) { return !std::isspace<char>(ch, std::locale::classic()); });
 	
-	// Find index of first whitespace (= last char + 1) (= rightIt.base())
+	// Distance from "after final character" to "end of string"
 	auto right = str.length() - (rightIt - str.rbegin());
 	
+	// Discard "after final character"..length
 	return str.substr(0, right);
 }
 
-std::string_view trim(std::string_view & str) {
+std::string_view const trim(std::string_view const &str) {
 	return ltrim(rtrim(str));
 }
 
