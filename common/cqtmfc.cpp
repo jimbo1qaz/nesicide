@@ -15,7 +15,7 @@
 #include <QWaitCondition>
 
 #include "cqtmfc.h"
-#include "resource.h"
+#include "res/resource.h"
 
 #include <stdarg.h>
 
