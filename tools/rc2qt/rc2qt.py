@@ -1,10 +1,16 @@
-from antlr4 import *
-from rcLexer import rcLexer
-from rcVisitor import rcVisitor
-from rcParser import rcParser
 import sys
-import io
 from binascii import unhexlify
+from contextlib import redirect_stdout
+
+from antlr4 import *
+
+from rcLexer import rcLexer
+from rcParser import rcParser
+from rcVisitor import rcVisitor
+
+
+def perr(*args, **kwargs):
+    print(*args, **kwargs, file=sys.stderr)
 
 
 class rcBitmap(object):
@@ -985,25 +991,26 @@ void qtMfcInit(QMainWindow* parent)
 
 
 def main(argv):
-    output = io.StringIO()
+    out_path = argv[2]
+    with open(out_path, "w") as out:
+        with redirect_stdout(out):
+            input = FileStream(argv[1])
+            lexer = rcLexer(input)
+            stream = CommonTokenStream(lexer)
+            parser = rcParser(stream)
+            tree = parser.rc()
+            visitor = myRcVisitor()
+            traverseResult = visitor.visit(tree)
 
-    input = FileStream(argv[1])
-    lexer = rcLexer(input)
-    stream = CommonTokenStream(lexer)
-    parser = rcParser(stream)
-    tree = parser.rc()
-    visitor = myRcVisitor()
-    traverseResult = visitor.visit(tree)
-
-    print(FileHeader)
-    menuList.output()
-    stringTableList.output()
-    acceleratorTableList.output()
-    bitmapList.output()
-    iconList.output()
-    dialogExList.output()
-    toolbarList.output()
-    print(FileFooter)
+            print(FileHeader)
+            menuList.output()
+            stringTableList.output()
+            acceleratorTableList.output()
+            bitmapList.output()
+            iconList.output()
+            dialogExList.output()
+            toolbarList.output()
+            print(FileFooter)
 
 
 if __name__ == "__main__":
