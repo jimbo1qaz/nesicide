@@ -126,11 +126,6 @@ BOOL CDetuneDlg::OnInitDialog()
 
 	m_cEditNote->SetWindowText(_T(m_pNote[m_iNote % NOTE_RANGE]));
 
-	UDACCEL Acc[1];
-	Acc[0].nSec = 0;
-	Acc[0].nInc = 1;
-	SpinNote->SetAccel(1, Acc);
-
 //	CheckRadioButton(IDC_RADIO_NTSC, IDC_RADIO_N163, IDC_RADIO_NTSC);
 
 	auto pSlider = static_cast<CSliderCtrl*>(GetDlgItem(IDC_SLIDER_DETUNE_SEMITONE));

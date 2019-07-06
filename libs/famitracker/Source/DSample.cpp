@@ -21,6 +21,8 @@
 */
 
 #include "DSample.h"
+#include <cstring>
+#include "cqtmfc.h"
 
 /*
  * CDSample
