@@ -4908,6 +4908,9 @@ public:
    DECLARE_MESSAGE_MAP()
 };
 
+typedef UINT BST_UINT;
+typedef int BST_int;
+
 class CButton : public CWnd
 {
    Q_OBJECT
@@ -4966,12 +4969,15 @@ public:
    ) const;
    void CheckDlgButton(
       int nIDButton,
-      UINT nCheck
+	  BST_UINT nCheck
    );
-   UINT IsDlgButtonChecked(
+   BST_UINT IsDlgButtonChecked(
       int nIDButton
    ) const;
-   
+
+   void SetCheck(BST_int nCheck);
+   BST_int GetCheck() const;
+
    DECLARE_MESSAGE_MAP()
 
    virtual void DrawItem(
@@ -5184,6 +5190,7 @@ public:
    int AddString(
       LPCTSTR lpszString
    );
+   int GetCount( ) const { return _qtd->count(); }
    void SetCurSel(int sel);
    int GetCurSel( ) const;
    int GetLBText(

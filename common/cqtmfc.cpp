@@ -13651,53 +13651,85 @@ int CButton::GetDlgItemText(
    return 0;
 }
 
+inline BST_UINT bstFromQt(Qt::CheckState state) {
+	switch (state) {
+	case Qt::Unchecked:
+		return BST_UNCHECKED;
+	case Qt::Checked:
+		return BST_CHECKED;
+	case Qt::PartiallyChecked:
+		return BST_INDETERMINATE;
+	}
+}
+
+inline Qt::CheckState qtFromBst(BST_UINT state) {
+	switch (state) {
+	case BST_UNCHECKED:
+		return Qt::Unchecked;
+	case BST_CHECKED:
+		return Qt::Checked;
+	case BST_INDETERMINATE:
+		return Qt::PartiallyChecked;
+	default:
+		qWarning() << "Error: qtFromBst() passed invalid BST_state" << state;
+		return Qt::Unchecked;
+	}
+}
+
 void CButton::CheckDlgButton(
    int nIDButton,
-   UINT nCheck
+   BST_UINT nCheck
 )
 {
    DWORD buttonType = _dwStyle&0x000F;
    DWORD buttonStyle = _dwStyle&0xFFF0;
 
-   if ( buttonType == BS_AUTOCHECKBOX )
-   {
-      _qtd_check->setChecked(nCheck);
+   if (
+		   buttonType == BS_CHECKBOX
+		   || buttonType == BS_AUTOCHECKBOX
+		   || buttonType == BS_3STATE
+		   || buttonType == BS_AUTO3STATE
+		   ) {
+	  _qtd_check->setCheckState(qtFromBst(nCheck));
    }
-   else if ( buttonType == BS_AUTO3STATE )
-   {
-      _qtd_check->setChecked(nCheck);
-   }
-   else if ( buttonType == BS_AUTORADIOBUTTON )
-   {
+   else if (
+			buttonType == BS_AUTORADIOBUTTON
+			|| buttonType == BS_RADIOBUTTON
+			) {
       _qtd_radio->setChecked(nCheck);
    }
    else if ( (buttonType == BS_PUSHBUTTON) ||
              (buttonType == BS_DEFPUSHBUTTON) )
    {
-      _qtd_push->setChecked(nCheck);
+	   // This member function has no effect on a pushbutton.
+	   return;
    }
    else if ( buttonType == BS_GROUPBOX )
    {
-      _qtd_groupbox->setChecked(nCheck);
+	   // In Qt, checkable groupboxes exist and disable children when unchecked.
+	   // MFC lacks checkable groupboxes and the concept of parent-child relationships.
+	   return;
    }
 }
 
-UINT CButton::IsDlgButtonChecked(
+BST_UINT CButton::IsDlgButtonChecked(
    int nIDButton
 ) const
 {
    DWORD buttonType = _dwStyle&0x000F;
    DWORD buttonStyle = _dwStyle&0xFFF0;
 
-   if ( buttonType == BS_AUTOCHECKBOX )
+   if (
+		   buttonType == BS_CHECKBOX
+		   || buttonType == BS_AUTOCHECKBOX
+		   || buttonType == BS_3STATE
+		   || buttonType == BS_AUTO3STATE
+		   )
    {
-      return _qtd_check->isChecked();
+	  return bstFromQt(_qtd_check->checkState());
    }
-   else if ( buttonType == BS_AUTO3STATE )
-   {
-      return _qtd_check->isChecked();
-   }
-   else if ( buttonType == BS_AUTORADIOBUTTON )
+   else if ( buttonType == BS_AUTORADIOBUTTON
+			 || buttonType == BS_RADIOBUTTON)
    {
       return _qtd_radio->isChecked();
    }
@@ -13711,6 +13743,20 @@ UINT CButton::IsDlgButtonChecked(
       return _qtd_groupbox->isChecked();
    }
    return 0;
+}
+
+void CButton::SetCheck(BST_int nCheck)
+{
+	// the integer parameter is used in win32, but ignored by cqtmfc
+	// (which always modifies this).
+	CheckDlgButton(0, nCheck);
+}
+
+BST_int CButton::GetCheck() const
+{
+	// the integer parameter is used in win32, but ignored by cqtmfc
+	// (which always inspects this).
+	return IsDlgButtonChecked(0);
 }
 
 IMPLEMENT_DYNAMIC(CSpinButtonCtrl,CWnd)
