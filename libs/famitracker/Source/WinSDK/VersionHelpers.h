@@ -23,7 +23,7 @@
 #pragma region Application Family
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 
-#include <specstrings.h>    // for _In_, etc.
+//#include <specstrings.h>    // for _In_, etc.
 
 #if !defined(__midl) && !defined(SORTPP_PASS)
 
