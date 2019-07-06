@@ -62,7 +62,7 @@ bool _trace(TCHAR *format, T... args)
 }
 #define TRACE _trace
 #else
-#define TRACE __noop
+#define TRACE(...) // no-op
 #endif
 
 
