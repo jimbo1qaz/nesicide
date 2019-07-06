@@ -27,6 +27,7 @@
 
 #include "SoundGen.h"
 #include <thread>		// // //
+#include "cqtmfc.h"
 
 // Support DLL translations
 #define SUPPORT_TRANSLATIONS
@@ -82,7 +83,7 @@ public:
 	opening or saving documents.
 	\details This class also saves the FTM path of the last load/save operation to the registry.
 */
-class CDocManager0CC : public CDocManager
+class CDocManager0CC //: public CDocManager
 {
 public:
 	virtual BOOL DoPromptFileName(CString& fileName, UINT nIDSTitle,
