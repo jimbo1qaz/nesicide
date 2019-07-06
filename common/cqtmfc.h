@@ -3952,6 +3952,7 @@ public:
    virtual BOOL EnableWindow(
       BOOL bEnable = TRUE
    );
+   BOOL IsWindowEnabled() const { return _qt->isEnabled(); }
    virtual BOOL PreCreateWindow(
       CREATESTRUCT& /*cs*/
    ) { return TRUE; }
