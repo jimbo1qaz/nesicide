@@ -298,6 +298,7 @@ HEADERS += \
     cqtmfc_famitracker.h \
     $$TOP/common/afxmsg_.h \
     $$TOP/common/cqtmfc.h \
+    $$TOP/common/WinUser.h \
     name.h \
     res/resource.h \
     Source/AboutDlg.h \
