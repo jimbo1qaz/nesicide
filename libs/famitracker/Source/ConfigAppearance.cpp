@@ -94,7 +94,6 @@ constexpr auto FONT_PERCENTAGES = GetPercentages();
 
 const long MIN_PERCENT = 50;
 const long MAX_PERCENT = 200;
-const int LEN_PERCENT = 3;	// len(200)
 
 int CALLBACK CConfigAppearance::EnumFontFamExProc(ENUMLOGFONTEX *lpelfe, NEWTEXTMETRICEX *lpntme, DWORD FontType, LPARAM lParam)
 {
@@ -362,9 +361,6 @@ BOOL CConfigAppearance::OnInitDialog()
 	percentStr.Format(_T("%d"), this->fontPercent);
 	fontPercentList.SelectString(0, percentStr);
 	fontPercentList.SetWindowText(percentStr);
-
-	fontPercentList.LimitText(LEN_PERCENT);
-
 
 	return TRUE;  // FALSE if you set the focus to a control
 }
