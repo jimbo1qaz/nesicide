@@ -22,6 +22,7 @@
 
 #include <memory>
 #include "ChannelState.h"
+#include <cstring>
 
 stChannelState::stChannelState() :
 	ChannelIndex(-1),

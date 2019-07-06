@@ -24,6 +24,7 @@
 #pragma once
 
 #include "FamiTrackerTypes.h"
+#include "cqtmfc.h"
 
 // Channel note struct, holds the data for each row in patterns
 class stChanNote {

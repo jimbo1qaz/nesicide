@@ -29,15 +29,15 @@ const static int FONT_SIZE	  = 12;
 const static int FONT_RATIO = 100;
 
 // Static colors
-const struct {
+struct STATIC_COLOR_SCHEME {
 	static const COLORREF CHANNEL_NORMAL	= 0x00202020;	// Normal channel name
 	static const COLORREF CHANNEL_MUTED		= 0x002020E0;	// Muted channel name
 	static const COLORREF FRAME_LIGHT		= 0x00FFFFFF;	// 3D frame
 	static const COLORREF FRAME_DARK		= 0x00808080;	// 3D frame
-} STATIC_COLOR_SCHEME;
+};
 
 // Blending levels
-const struct {
+struct SHADE_LEVEL {
 	static const int SEPARATOR		= 75;	// Channel separators
 	static const int EMPTY_BG		= 70;	// Empty background
 	static const int UNFOCUSED		= 50;	// Unfocused cursor
@@ -49,7 +49,7 @@ const struct {
 	static const int TEXT_SHADOW	= 20;
 	static const int HOVER			= 80;
 	static const int EDIT_MODE		= 80;
-} SHADE_LEVEL;
+};
 
 // Custom colors
 struct COLOR_SCHEME {

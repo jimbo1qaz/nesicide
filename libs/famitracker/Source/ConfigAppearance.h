@@ -68,6 +68,7 @@ protected:
 	static const int FONT_SIZES[];
 	static const int FONT_SIZE_COUNT;
 
+public:
 	static const char SETTING_SEPARATOR[];		// // // 050B
 	static const char HEX_PREFIX[];		// // // 050B
 

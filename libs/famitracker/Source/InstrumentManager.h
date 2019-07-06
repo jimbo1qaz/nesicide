@@ -25,7 +25,6 @@
 #include "InstrumentManagerInterface.h"
 #include <vector>
 #include <memory>
-#include <afxmt.h>
 
 class CInstrument;
 class CDSample;
