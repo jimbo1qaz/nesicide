@@ -33,6 +33,7 @@
 // // //
 #include "FTMComponentInterface.h"
 #include "Settings.h"		// // //
+#include "ModuleException.h"
 
 #define TRANSPOSE_FDS
 

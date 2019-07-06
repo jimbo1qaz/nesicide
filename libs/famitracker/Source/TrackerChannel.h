@@ -27,6 +27,8 @@
 
 #include "APU/Types.h"		// // //
 #include "FamiTrackerTypes.h"
+#include "PatternNote.h"
+#include "Instrument.h"
 
 enum note_prio_t {
 	NOTE_PRIO_0, 

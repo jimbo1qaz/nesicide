@@ -32,7 +32,6 @@
 
 #include "cqtmfc.h"
 #include "Common.h"
-#include "FamiTrackerDoc.h"
 
 #include "TrackerChannel.h"
 #include <memory>
