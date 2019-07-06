@@ -5589,7 +5589,9 @@ public:
    int AddString( 
       LPCTSTR lpszItem  
    );
-   
+   int GetCurSel() const;
+   int SetCurSel(int nSelect);
+
    DECLARE_MESSAGE_MAP()
 };
 

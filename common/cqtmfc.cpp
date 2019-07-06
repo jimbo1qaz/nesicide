@@ -4113,6 +4113,27 @@ int CListBox::AddString(
    return _qtd->count()-1;
 }
 
+int CListBox::GetCurSel() const
+{
+	 return _qtd->currentRow();
+}
+
+int CListBox::SetCurSel(int nSelect)
+{
+	const QSignalBlocker blocker(this);
+
+	if (nSelect == -1) {
+		_qtd->clearSelection();
+		return 0;
+	}
+	if (0 <= nSelect && nSelect < _qtd->count()) {
+		_qtd->setCurrentRow(nSelect);
+		return 0;
+	}
+	return LB_ERR;
+}
+
+
 IMPLEMENT_DYNAMIC(CCheckListBox,CListBox)
 
 BEGIN_MESSAGE_MAP(CCheckListBox,CListBox)
