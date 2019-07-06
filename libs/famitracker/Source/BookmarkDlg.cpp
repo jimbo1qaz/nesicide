@@ -331,23 +331,19 @@ void CBookmarkDlg::OnLbnSelchangeListBookmarks()
 
 void CBookmarkDlg::OnLbnDblclkListBookmarks()
 {
-	CPoint cursor;
-	cursor.x = GetCurrentMessage()->pt.x;
-	cursor.y = GetCurrentMessage()->pt.y;
-
-	m_cListBookmark->ScreenToClient(&cursor);
-
-	BOOL is_outside = FALSE;
-	UINT item_index = m_cListBookmark->ItemFromPoint(cursor, is_outside);
-	if (!is_outside) {
-		CFamiTrackerView *pView = static_cast<CFamiTrackerView*>(static_cast<CMainFrame*>(AfxGetMainWnd())->GetActiveView());
-		CBookmark *pMark = m_pCollection->GetBookmark(item_index);
-		
-		pView->SelectFrame(pMark->m_iFrame);
-		pView->SelectRow(pMark->m_iRow);
-		//static_cast<CMainFrame*>(AfxGetMainWnd())->SelectTrack(pMark->m_iTrack);
-		pView->SetFocus();
+	int item_index = m_cListBookmark->GetCurSel();
+	if (item_index < 0) {
+		qDebug() << "CBookmarkDlg double-clicked but item_index < 0," << item_index;
+		return;
 	}
+
+	CFamiTrackerView *pView = static_cast<CFamiTrackerView*>(static_cast<CMainFrame*>(AfxGetMainWnd())->GetActiveView());
+	CBookmark *pMark = m_pCollection->GetBookmark((unsigned)item_index);
+
+	pView->SelectFrame(pMark->m_iFrame);
+	pView->SelectRow(pMark->m_iRow);
+	//static_cast<CMainFrame*>(AfxGetMainWnd())->SelectTrack(pMark->m_iTrack);
+	pView->SetFocus();
 }
 
 void CBookmarkDlg::OnBnClickedCheckBookmarkHigh1()
