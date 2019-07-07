@@ -330,7 +330,7 @@ void CExportDialog::CreateBIN()
 		int Pos = SampleDir.ReverseFind(_T('\\'));
 		ASSERT(Pos != -1);
 		SampleDir = SampleDir.Left(Pos + 1) + DEFAULT_SAMPLE_NAME;
-		if (PathFileExists(SampleDir)) {
+		if (QFileInfo((QString)SampleDir).exists()) {
 			CString msg;
 			AfxFormatString1(msg, IDS_EXPORT_SAMPLES_FILE, DEFAULT_SAMPLE_NAME);
 			if (AfxMessageBox(msg, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDNO)
