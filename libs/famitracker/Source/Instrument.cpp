@@ -46,13 +46,13 @@ void CInstrument::CloneFrom(const CInstrument *pSeq)
 
 void CInstrument::SetName(const char *Name)
 {
-	strncpy_s(m_cName, Name, INST_NAME_MAX);
+	snprintf(m_cName, INST_NAME_MAX, "%s", Name);
 	InstrumentChanged();		// // //
 }
 
 void CInstrument::GetName(char *Name) const
 {
-	strncpy_s(Name, INST_NAME_MAX, m_cName, INST_NAME_MAX);
+	snprintf(Name, INST_NAME_MAX, "%s", m_cName);
 }
 
 const char *CInstrument::GetName() const

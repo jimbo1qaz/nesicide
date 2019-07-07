@@ -2391,6 +2391,13 @@ typedef int* POSITION;
 
 #define afx_msg
 
+// The strncpy() function was designed with a very particular problem in mind:
+// manipulating strings stored in the manner of original UNIX directory entries.
+// These used a fixed sized array,
+// and a nul-terminator was only used if the filename was shorter than the array.
+
+// <jimbo1qaz> don't use strncpy, period.
+
 #if UNICODE
 	#define _tcscpy_s(d,l,s) wcsncpy((char*)(d),(const char*)(s),(l))
 	// Technically, the return value of swprintf differs from that of snprintf.
