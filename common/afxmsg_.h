@@ -259,6 +259,12 @@ enum AfxSig
 		// ON_COMMAND(id, OnBar) is the same as
 		//   ON_CONTROL(0, id, OnBar) or ON_BN_CLICKED(0, id, OnBar)
 
+#define ON_COMMAND_PTR(id, funcPointer) \
+	{ WM_COMMAND, CN_COMMAND, (WORD)id, (WORD)id, AfxSigCmd_v, \
+   (AFX_PMSG) (funcPointer) },
+		// ON_COMMAND(id, OnBar) is the same as
+		//   ON_CONTROL(0, id, OnBar) or ON_BN_CLICKED(0, id, OnBar)
+
 #define ON_COMMAND_RANGE(id, idLast, memberFxn) \
 	{ WM_COMMAND, CN_COMMAND, (WORD)id, (WORD)idLast, AfxSigCmd_RANGE, \
 		(AFX_PMSG) \

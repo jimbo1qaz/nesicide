@@ -217,8 +217,8 @@ BEGIN_MESSAGE_MAP(CFamiTrackerView, CView)
 	ON_UPDATE_COMMAND_UI(ID_TRACKER_RECORDTOINST, OnUpdateDisableWhilePlaying)
 	ON_UPDATE_COMMAND_UI(ID_TRACKER_RECORDERSETTINGS, OnUpdateDisableWhilePlaying)
 	ON_COMMAND(ID_RECALL_CHANNEL_STATE, OnRecallChannelState)
-	ON_COMMAND(ID_DECAY_FAST, CMainFrame::OnDecayFast)		// // //
-	ON_COMMAND(ID_DECAY_SLOW, CMainFrame::OnDecaySlow)		// // //
+	ON_COMMAND_PTR(ID_DECAY_FAST, &CMainFrame::OnDecayFast)		// // //
+	ON_COMMAND_PTR(ID_DECAY_SLOW, &CMainFrame::OnDecaySlow)		// // //
 END_MESSAGE_MAP()
 
 // Convert keys 0-F to numbers, -1 = invalid key
