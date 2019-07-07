@@ -174,9 +174,9 @@ BOOL CFamiTrackerApp::InitInstance()
 	if (!pDocTemplate)
 		return FALSE;
 	
-	if (m_pDocManager == NULL)		// // //
-		m_pDocManager = new CDocManager0CC { };
-	m_pDocManager->AddDocTemplate(pDocTemplate);
+	// CDocManager0CC overrides an undocumented internal class in order to allow opening either .ftm or .0cc.
+	// cqtmfc does not support CDocManager, so maybe we can't open both file extensions anymore.
+	AddDocTemplate(pDocTemplate);
 
 	// Handle command line export
 	if (cmdInfo.m_bExport) {
