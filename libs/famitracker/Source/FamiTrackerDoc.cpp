@@ -2539,7 +2539,7 @@ const json DEFAULT = {
 void CFamiTrackerDoc::ReadBlock_JSON(CDocumentFile *pDocFile, const int Version) {
 	json out(DEFAULT);
 
-	CT2A fileData(pDocFile->ReadString());
+	CStringA fileData(pDocFile->ReadString());
 	json in = json::parse(static_cast<char*>(fileData));
 
 	json unknowns;
@@ -3234,10 +3234,11 @@ void CFamiTrackerDoc::SetSongSpeed(unsigned int Track, unsigned int Speed)
 {
 	ASSERT(Track < MAX_TRACKS);
 	CPatternData *pTrack = GetTrack(Track);
-	if (pTrack->GetSongGroove())		// // //
+	if (pTrack->GetSongGroove()) {
 		ASSERT(Speed < MAX_GROOVE);
-	else
+	} else {
 		ASSERT(Speed <= MAX_TEMPO);
+	}
 
 	if (pTrack->GetSongSpeed() != Speed) {
 		pTrack->SetSongSpeed(Speed);
