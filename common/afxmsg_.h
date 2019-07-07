@@ -12,6 +12,8 @@
 
 #pragma once
 
+#define __pragma(...)
+
 /////////////////////////////////////////////////////////////////////////////
 
 // Entries in a message map (a 'AFX_MSGMAP_ENTRY') table can be of 9 formats
