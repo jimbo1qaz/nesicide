@@ -2279,6 +2279,13 @@ void CString::SetAt( int nIndex, TCHAR ch )
    _qstr[nIndex] = ch;
 }
 
+bool CString::isNumeric()
+{
+	// If the string consists of 0 or more ASCII digits.
+
+	return QRegExp("[0-9]*").exactMatch(_qstr);
+}
+
 CStringA::CStringA(CString str)
 {
    _qstr = str.GetString();

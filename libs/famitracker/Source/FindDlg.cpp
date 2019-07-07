@@ -452,19 +452,18 @@ void CFindResultsBox::OnLvnColumnClickFindResults(NMHDR *pNMHDR, LRESULT *pResul
 	else
 		m_bLastSortDescending = !m_bLastSortDescending;
 
-	switch (m_iLastsortColumn) {
-	case ID:
-		m_cListResults->SortItemsEx(IntCompareFunc, (LPARAM)m_cListResults); break;
-	case CHANNEL:
-		m_cListResults->SortItemsEx(ChannelCompareFunc, (LPARAM)m_cListResults); break;
-	case NOTE:
-		m_cListResults->SortItemsEx(NoteCompareFunc, (LPARAM)m_cListResults); break;
-//	case PATTERN: case FRAME: case ROW: case INST: case VOL:
-//		m_cListResults->SortItemsEx(HexCompareFunc, (LPARAM)m_cListResults); break;
-	default:
-		if (m_iLastsortColumn >= ID && m_iLastsortColumn < EFFECT + MAX_EFFECT_COLUMNS)
-			m_cListResults->SortItemsEx(StringCompareFunc, (LPARAM)m_cListResults);
-	}
+//	FIXME reimplement sorting in custom QTableModel... TODO add model-view separation
+//	switch (m_iLastsortColumn) {
+//	case ID:
+//		m_cListResults->SortItemsEx(IntCompareFunc, (LPARAM)m_cListResults); break;
+//	case CHANNEL:
+//		m_cListResults->SortItemsEx(ChannelCompareFunc, (LPARAM)m_cListResults); break;
+//	case NOTE:
+//		m_cListResults->SortItemsEx(NoteCompareFunc, (LPARAM)m_cListResults); break;
+//	default:
+//		if (m_iLastsortColumn >= ID && m_iLastsortColumn < EFFECT + MAX_EFFECT_COLUMNS)
+//			m_cListResults->SortItemsEx(StringCompareFunc, (LPARAM)m_cListResults);
+//	}
 }
 
 int CFindResultsBox::IntCompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort)
@@ -622,10 +621,10 @@ void CFindDlg::DoDataExchange(CDataExchange* pDX)
 
 
 BEGIN_MESSAGE_MAP(CFindDlg, CDialog)
-	ON_CONTROL_RANGE(BN_CLICKED, IDC_CHECK_FIND_NOTE, IDC_CHECK_FIND_EFF, OnUpdateFields)
-	ON_CONTROL_RANGE(BN_CLICKED, IDC_CHECK_REPLACE_NOTE, IDC_CHECK_REPLACE_EFF, OnUpdateFields)
-	ON_CONTROL_RANGE(EN_CHANGE, IDC_EDIT_FIND_NOTE, IDC_EDIT_FIND_EFF, OnUpdateFields)
-	ON_CONTROL_RANGE(EN_CHANGE, IDC_EDIT_REPLACE_NOTE, IDC_EDIT_REPLACE_EFF, OnUpdateFields)
+	ON_CONTROL_RANGE(BN_CLICKED, IDC_CHECK_FIND_NOTE, IDC_CHECK_FIND_EFF, &CFindDlg::OnUpdateFields)
+	ON_CONTROL_RANGE(BN_CLICKED, IDC_CHECK_REPLACE_NOTE, IDC_CHECK_REPLACE_EFF, &CFindDlg::OnUpdateFields)
+	ON_CONTROL_RANGE(EN_CHANGE, IDC_EDIT_FIND_NOTE, IDC_EDIT_FIND_EFF, &CFindDlg::OnUpdateFields)
+	ON_CONTROL_RANGE(EN_CHANGE, IDC_EDIT_REPLACE_NOTE, IDC_EDIT_REPLACE_EFF, &CFindDlg::OnUpdateFields)
 	ON_CBN_SELCHANGE(IDC_COMBO_FIND_IN, UpdateFields)
 	ON_CBN_SELCHANGE(IDC_COMBO_EFFCOLUMN, UpdateFields)
 	ON_BN_CLICKED(IDC_BUTTON_FIND_NEXT, OnBnClickedButtonFindNext)
@@ -805,7 +804,7 @@ void CFindDlg::ParseNote(searchTerm &Term, CString str, bool Half)
 			}
 			if (str.Delete(0)) {
 				Term.Definite[WC_OCT] = true;
-				RaiseIf(str.SpanIncluding("0123456789") != str, _T("Unknown note octave."));
+				RaiseIf(!str.isNumeric(), _T("Unknown note octave."));
 				Oct = atoi(str);
 				RaiseIf(Oct >= OCTAVE_RANGE || Oct < 0,
 					_T("Note octave \"%s\" is out of range, maximum is %d."), str, OCTAVE_RANGE - 1);
@@ -837,7 +836,7 @@ void CFindDlg::ParseNote(searchTerm &Term, CString str, bool Half)
 		return;
 	}
 
-	if (str.SpanIncluding("0123456789") == str) {
+	if (str.isNumeric()) {
 		int NoteValue = atoi(str);
 		RaiseIf(NoteValue == 0 && str.GetAt(0) != _T('0'), _T("Invalid note \"%s\"."), str);
 		RaiseIf(NoteValue >= NOTE_COUNT || NoteValue < 0,

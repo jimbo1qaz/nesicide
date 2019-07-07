@@ -3031,6 +3031,8 @@ public:
    TCHAR GetAt( int nIndex ) const;
    void SetAt( int nIndex, TCHAR ch );
 
+   bool isNumeric();
+
 protected:
    QString _qstr;
    QByteArray _qstrn;
