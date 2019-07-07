@@ -2154,6 +2154,11 @@ void CString::Empty()
    UpdateScratch();
 }
 
+int CString::Delete(int iIndex, int nCount) {
+	_qstr.remove(iIndex, nCount);
+	return _qstr.length();
+}
+
 LPCTSTR CString::GetString() const
 {
 #if UNICODE

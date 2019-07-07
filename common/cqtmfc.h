@@ -3011,6 +3011,8 @@ public:
    operator const TCHAR*() const;
 
    void Empty();
+   int Delete(int iIndex, int nCount = 1);
+
    LPCTSTR GetString() const;
    LPTSTR GetBuffer( int nMinBufLength = 0 );
    void ReleaseBuffer( int nNewLength = -1 );
