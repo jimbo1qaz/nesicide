@@ -5550,6 +5550,8 @@ public:
       int nSubItem,
       char* lpszText
    );
+
+   QSet<int> selectedRows() const;
    BOOL SetItemState(
       int nItem,
       UINT nState,

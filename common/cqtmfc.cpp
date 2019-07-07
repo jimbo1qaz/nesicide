@@ -5135,6 +5135,23 @@ BOOL CListCtrl::SetItemText(
    return TRUE;
 }
 
+QSet<int> CListCtrl::selectedRows() const {
+	QModelIndexList inds;
+	if ( (_dwStyle&LVS_TYPEMASK) == LVS_REPORT ) {
+		inds = _qtd_table->selectionModel()->selectedIndexes();
+	} else if ( (_dwStyle&LVS_TYPEMASK) == LVS_LIST ) {
+		inds = _qtd_list->selectionModel()->selectedIndexes();
+	} else {
+		return {};
+	}
+
+	QSet<int> selectedRows;
+	foreach (const QModelIndex ind, inds) {
+		selectedRows.insert(ind.row());
+	}
+	return selectedRows;
+}
+
 BOOL CListCtrl::SetItemText(
    int nItem,
    int nSubItem,

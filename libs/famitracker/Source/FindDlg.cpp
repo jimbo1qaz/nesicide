@@ -401,22 +401,29 @@ BOOL CFindResultsBox::PreTranslateMessage(MSG *pMsg)
 //					m_cListResults->RedrawWindow();
 				}
 				break;
-			case VK_DELETE:
+			case VK_DELETE: {
+				// Delete all selected rows, in reverse order.
 				m_cListResults->SetRedraw(FALSE);
-				for (int i = m_cListResults->GetItemCount() - 1; i >= 0; --i)
-					if (m_cListResults->GetItemState(i, LVIS_SELECTED) == LVIS_SELECTED)
-						m_cListResults->DeleteItem(i);
+
+				QList<int> selectedRows = m_cListResults->selectedRows().toList();
+				qSort(selectedRows);
+				for (auto item = selectedRows.crbegin(); item != selectedRows.crend(); ++item) {
+					m_cListResults->DeleteItem(*item);
+				}
+
 				m_cListResults->SetRedraw();
-//				m_cListResults->RedrawWindow();
+				//				m_cListResults->RedrawWindow();
 				UpdateCount();
 				break;
-			case VK_RETURN:
-				if (m_cListResults->GetSelectedCount() == 1) {
-					POSITION p = m_cListResults->GetFirstSelectedItemPosition();
-					ASSERT(p != nullptr);
-					SelectItem(m_cListResults->GetNextSelectedItem(p));
+			}
+			case VK_RETURN: {
+				// If one item is selected, "click" it.
+				QList<int> selectedRows = m_cListResults->selectedRows().toList();
+				if (selectedRows.size() == 1) {
+					SelectItem(*selectedRows.cbegin());
 				}
 				return TRUE;
+			}
 			}
 		}
 	}
