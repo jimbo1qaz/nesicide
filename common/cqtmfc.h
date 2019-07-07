@@ -3513,6 +3513,9 @@ private:
    QRegion _qregion;
 };
 
+typedef int MfcBackgroundMode;
+Qt::BGMode bgQtFromMFC(MfcBackgroundMode mfcMode);
+
 class CWnd;
 class CDC : public QObject, CObject
 {
@@ -3702,6 +3705,7 @@ public:
    {
       int old = _bkMode;
       _bkMode = nBkMode;
+	  _qpainter.setBackgroundMode(bgQtFromMFC(nBkMode));
       return old;
    }
    COLORREF SetPixel( int x, int y, COLORREF crColor );

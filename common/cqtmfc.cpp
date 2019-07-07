@@ -3143,6 +3143,18 @@ BOOL CBitmap::LoadBitmap(
    return result;
 }
 
+Qt::BGMode bgQtFromMFC(MfcBackgroundMode mfcMode) {
+	switch (mfcMode) {
+	case OPAQUE:
+		return Qt::OpaqueMode;
+	case TRANSPARENT:
+		return Qt::TransparentMode;
+	default:
+		qWarning() << "Error: bgQtFromMFC() passed invalid mfcMode" << mfcMode;
+		return Qt::TransparentMode;	// qt's default value
+	}
+}
+
 /*
  *  Class CDC
  */
