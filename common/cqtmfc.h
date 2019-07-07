@@ -3996,6 +3996,7 @@ public:
       CCmdTarget* pTarget,
       BOOL bDisableIfNoHndler
    );
+   void SetRedraw(BOOL bRedraw = TRUE);
    void RepositionBars(
       UINT nIDFirst,
       UINT nIDLast,

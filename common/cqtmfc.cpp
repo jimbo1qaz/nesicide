@@ -8060,6 +8060,10 @@ void CWnd::UpdateDialogControls(
    }
 }
 
+void CWnd::SetRedraw(BOOL bRedraw) {
+	_qt->setUpdatesEnabled(bRedraw);
+}
+
 void CWnd::RepositionBars(
    UINT nIDFirst,
    UINT nIDLast,

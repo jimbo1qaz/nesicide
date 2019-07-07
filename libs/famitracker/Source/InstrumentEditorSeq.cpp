@@ -70,7 +70,7 @@ void CInstrumentEditorSeq::SelectInstrument(std::shared_ptr<CInstrument> pInst)
 			pList->SetItemText(i, 1, str);
 		}
 		pList->SetRedraw();
-		pList->RedrawWindow();
+//		pList->RedrawWindow();
 	}
 
 	// Setting text box

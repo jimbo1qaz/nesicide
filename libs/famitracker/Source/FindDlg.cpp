@@ -398,7 +398,7 @@ BOOL CFindResultsBox::PreTranslateMessage(MSG *pMsg)
 					for (int i = m_cListResults->GetItemCount() - 1; i >= 0; --i)
 						m_cListResults->SetItemState(i, LVIS_SELECTED, LVIS_SELECTED);
 					m_cListResults->SetRedraw();
-					m_cListResults->RedrawWindow();
+//					m_cListResults->RedrawWindow();
 				}
 				break;
 			case VK_DELETE:
@@ -407,7 +407,7 @@ BOOL CFindResultsBox::PreTranslateMessage(MSG *pMsg)
 					if (m_cListResults->GetItemState(i, LVIS_SELECTED) == LVIS_SELECTED)
 						m_cListResults->DeleteItem(i);
 				m_cListResults->SetRedraw();
-				m_cListResults->RedrawWindow();
+//				m_cListResults->RedrawWindow();
 				UpdateCount();
 				break;
 			case VK_RETURN:
