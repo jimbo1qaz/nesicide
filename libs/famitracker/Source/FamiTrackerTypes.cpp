@@ -25,7 +25,7 @@
 #include <array>
 
 constexpr auto Effects(){
-	std::array<Effect, EF_COUNT> effects;
+	std::array<Effect, EF_COUNT> effects {};
 	for (size_t i = 0; i < EF_COUNT; i++) {
 		int initial = 0;
 		int uiDefault = 0;
@@ -40,7 +40,7 @@ constexpr auto Effects(){
 	}
 	return effects;
 }
-const std::array<Effect, EF_COUNT> effects = Effects();
+constexpr std::array<Effect, EF_COUNT> effects = Effects();
 
 // TODO: Define std::unordered_map<char, effect_t> for all effects, plus each expansion.
 // Faster, but produces duplicate global consts.

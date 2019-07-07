@@ -178,7 +178,7 @@ const effect_t S5B_EFFECTS[] = {EF_SUNSOFT_ENV_TYPE, EF_SUNSOFT_ENV_HI, EF_SUNSO
 // Effect checking = bool CTrackerChannel::IsEffectCompatible
 
 // Channel effect letters
-const char EFF_CHAR[] = {
+constexpr char EFF_CHAR[] = {
 	'\xff',	// EF_NONE,
 	'F',   	// EF_SPEED,
 	'B',   	// EF_JUMP,
