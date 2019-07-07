@@ -2410,6 +2410,7 @@ typedef int* POSITION;
 
 #define strcpy_s(d,l,s) strncpy((char*)(d),(const char*)(s),(l))
 #define vsprintf_s(b,n,f,v) vsprintf((b),(f),(v))
+#define memcpy_s(dest, destSize, src, count) memcpy((dest), (src), (count))
 
 // sprintf_s will write at most n-1 characters + '\0', otherwise return an empty "\0" string on overflow.
 // snprintf will write at most n-1 characters + '\0'.
@@ -3037,6 +3038,12 @@ protected:
    QString _qstr;
    QByteArray _qstrn;
 };
+
+BOOL AFXAPI AfxExtractSubString (
+	CString& rString,
+	LPCTSTR lpszFullString,
+	int iSubString,
+	TCHAR chSep  = '\n');
 
 class CStringA : public CString
 {

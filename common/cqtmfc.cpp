@@ -2286,6 +2286,30 @@ bool CString::isNumeric()
 	return QRegExp("[0-9]*").exactMatch(_qstr);
 }
 
+BOOL AfxExtractSubString(CString &rString, LPCTSTR lpszFullString, int iSubString, TCHAR chSep)
+{
+	// This function will return FALSE if either lpszFullString is set to NULL...
+	// The rString parameter will not be modified from its original value if lpszFullString was set to NULL...
+	if (lpszFullString == NULL) return FALSE;
+
+	// ...or the function reaches the end of lpszFullString without finding iSubString+1 occurrences of the specified separator character.
+	// ...otherwise, the rString parameter is set to the empty string if the substring could not be extracted for the specified index.
+
+	if (!(0 <= iSubString)) {
+		rString = _T("");
+		return FALSE;
+	}
+
+	QStringList parts = static_cast<QString>(rString).split(chSep);
+	if (!(iSubString < parts.size())) {
+		rString = _T("");
+		return FALSE;
+	}
+
+	rString = parts[iSubString];
+	return TRUE;
+}
+
 CStringA::CStringA(CString str)
 {
    _qstr = str.GetString();
