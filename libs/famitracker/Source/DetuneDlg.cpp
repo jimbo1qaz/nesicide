@@ -403,44 +403,43 @@ void CDetuneDlg::OnBnClickedButtonReset()
 
 void CDetuneDlg::OnBnClickedButtonImport()
 {
-	return;	// FIXME rewrite this using QString
-//	CString    Path;
-//	CStdioFile csv;
-//	CFrameWnd *pFrameWnd = static_cast<CFrameWnd*>(GetParent());
+	CString    Path;
+	CStdioFile csv;
+	CFrameWnd *pFrameWnd = static_cast<CFrameWnd*>(GetParent());
 
-//	CFileDialog FileDialog(TRUE, _T("csv"), 0,
-//		OFN_HIDEREADONLY, _T("Comma-separated values (*.csv)|*.csv|All files|*.*||"));
+	CFileDialog FileDialog(TRUE, _T("csv"), 0,
+		OFN_HIDEREADONLY, _T("Comma-separated values (*.csv)|*.csv|All files|*.*||"));
 
-//	if (FileDialog.DoModal() == IDCANCEL)
-//		return;
+	if (FileDialog.DoModal() == IDCANCEL)
+		return;
 
-//	Path = FileDialog.GetPathName();
+	Path = FileDialog.GetPathName();
 
-//	if (!csv.Open(Path, CFile::modeRead)) {
-//		AfxMessageBox(IDS_FILE_OPEN_ERROR);
-//		return;
-//	}
+	if (!csv.Open(Path, CFile::modeRead)) {
+		AfxMessageBox(IDS_FILE_OPEN_ERROR);
+		return;
+	}
 
-//	CString Line;
-//	int Count, Chip = 0, Note = 0;
-//	while (csv.ReadString(Line)) {
-//		Count = Line.Find(_T(','), 0);
-//		Chip = atoi(Line.Left(Count));
-//		Note = 0;
-//		while (Line.Delete(0, Count)) {
-//			if (!Line.Delete(0, 1)) break;
-//			Count = Line.Find(_T(','), 0);
-//			if (Count == -1)
-//				m_iDetuneTable[Chip][Note] = atoi(Line);
-//			else {
-//				m_iDetuneTable[Chip][Note] = atoi(Line.Left(Count));
-//				++Note;
-//			}
-//		}
-//	}
+	CString Line;
+	int Count, Chip = 0, Note = 0;
+	while (csv.ReadString(Line)) {
+		Count = Line.Find(_T(','), 0);
+		Chip = atoi(Line.Left(Count));
+		Note = 0;
+		while (Line.Delete(0, Count)) {
+			if (!Line.Delete(0, 1)) break;
+			Count = Line.Find(_T(','), 0);
+			if (Count == -1)
+				m_iDetuneTable[Chip][Note] = atoi(Line);
+			else {
+				m_iDetuneTable[Chip][Note] = atoi(Line.Left(Count));
+				++Note;
+			}
+		}
+	}
 
-//	csv.Close();
-//	UpdateOffset();
+	csv.Close();
+	UpdateOffset();
 }
 
 
