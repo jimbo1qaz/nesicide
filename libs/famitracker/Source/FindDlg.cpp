@@ -435,13 +435,10 @@ BOOL CFindResultsBox::PreTranslateMessage(MSG *pMsg)
 
 void CFindResultsBox::OnNMDblclkListFindresults(NMHDR *pNMHDR, LRESULT *pResult)
 {
-	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
-	LVHITTESTINFO lvhti;
-	lvhti.pt = pNMItemActivate->ptAction;
-	m_cListResults->SubItemHitTest(&lvhti);
-	if (lvhti.iItem == -1) return;
-	m_cListResults->SetItemState(lvhti.iItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
-	SelectItem(lvhti.iItem);
+	NMITEMACTIVATE NMItemActivate = *reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
+	if (NMItemActivate.iItem == -1) return;
+	m_cListResults->SetItemState(NMItemActivate.iItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+	SelectItem(NMItemActivate.iItem);
 }
 
 void CFindResultsBox::OnLvnColumnClickFindResults(NMHDR *pNMHDR, LRESULT *pResult)
