@@ -8,10 +8,9 @@ HistoryFileDlg::HistoryFileDlg(PATHS historyType,
 		DWORD dwFlags,
 		LPCTSTR lpszFilter,
 		CWnd* pParentWnd,
-		DWORD dwSize,
-		BOOL bVistaStyle) :
+		DWORD dwSize) :
 		CFileDialog(openNotSave, defaultExt, defaultName, dwFlags, lpszFilter,
-			pParentWnd, dwSize, bVistaStyle)
+			pParentWnd, dwSize)
 	{
 		this->historyType = historyType;
 		this->m_pOFN->lpstrInitialDir = theApp.GetSettings()->GetPath(historyType);

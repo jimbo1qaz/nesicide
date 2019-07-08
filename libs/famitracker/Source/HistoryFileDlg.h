@@ -18,8 +18,7 @@ public:
 		DWORD dwFlags = OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
 		LPCTSTR lpszFilter = NULL,
 		CWnd* pParentWnd = NULL,
-		DWORD dwSize = 0,
-		BOOL bVistaStyle = TRUE);
+		DWORD dwSize = 0);
 	virtual INT_PTR DoModal() override;
 };
 
