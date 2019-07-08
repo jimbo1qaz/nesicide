@@ -34,6 +34,8 @@
 #include "WaveEditor.h"		// // //
 #include "ModSequenceEditor.h"
 
+#include <cmath>
+
 // CInstrumentEditorFDS dialog
 
 IMPLEMENT_DYNAMIC(CInstrumentEditorFDS, CInstrumentEditPanel)

@@ -22,7 +22,6 @@
 
 #include <vector>
 #include "stdafx.h"
-#include <afxmt.h>
 #include "res/resource.h"        // // //
 #include "Instrument.h"
 #include "SeqInstrument.h"		// // //
