@@ -3516,7 +3516,38 @@ private:
 typedef int MfcBackgroundMode;
 Qt::BGMode bgQtFromMFC(MfcBackgroundMode mfcMode);
 
+typedef UINT MfcTextAlign;
+Qt::Alignment alignQtFromMFC(MfcTextAlign mfcAlign);
+
 class CWnd;
+
+class BaselinePainter: public QPainter {
+private:
+	int calcDescent() const {
+		QFontMetrics fontMetrics(this->font());
+		return fontMetrics.descent();
+	}
+
+	int descent = calcDescent();
+
+public:
+	using QPainter::QPainter;
+
+	void setFont(const QFont &f);
+
+	void drawTextAligned(qreal x, qreal y, Qt::Alignment align,
+				  const QString & text, QRectF * boundingRect = 0);
+
+	// unused
+	void drawTextAligned(const QPointF & point, Qt::Alignment align,
+				  const QString & text, QRectF * boundingRect = {})
+	{
+	   drawTextAligned(point.x(), point.y(), align, text, boundingRect);
+	}
+
+};
+
+
 class CDC : public QObject, CObject
 {
    Q_OBJECT
@@ -3536,7 +3567,7 @@ public:
    void attach();
    void attach(QWidget* qtParent, CWnd* mfcParent, bool transparent = false);
    void detach(bool silent = false);
-   QPainter* painter() { return &_qpainter; }
+   BaselinePainter* painter() { return &_qpainter; }
    QPixmap* pixmap() { return &_qpixmap; }
    QSize pixmapSize() { return _bitmapSize; }
    QWidget* widget() { return _qwidget; }
@@ -3730,6 +3761,10 @@ public:
    {
       return _textColor.red()|(_textColor.green()<<8)|_textColor.blue()<<16;
    }
+
+   UINT SetTextAlign(UINT nFlags);
+   UINT GetTextAlign() { return _align; }
+
    virtual CPoint SetViewportOrg(
       int x,
       int y
@@ -3778,12 +3813,17 @@ public:
 public:
    HDC  m_hDC;
 
-private:
+   // Only to be used in cqtmfc.cpp.
+public:
    CDC(CDC& orig);
    bool attached;
    QWidget*    _qwidget;
    QPixmap    _qpixmap;
-   QPainter   _qpainter;
+   BaselinePainter   _qpainter;
+
+   MfcTextAlign _align = TA_LEFT | TA_TOP | TA_NOUPDATECP;
+   Qt::Alignment _qalign = alignQtFromMFC(_align);
+
    CPen*       _pen;
    CBrush*     _brush;
    CFont*      _font;

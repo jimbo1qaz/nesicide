@@ -3155,6 +3155,81 @@ Qt::BGMode bgQtFromMFC(MfcBackgroundMode mfcMode) {
 	}
 }
 
+Qt::Alignment alignQtFromMFC(MfcTextAlign mfcAlign)
+{
+	Qt::Alignment qAlign = 0;
+
+	// horizontal
+	if (mfcAlign | TA_BASELINE) {}	// Qt uses baseline by default.
+	if (mfcAlign | TA_BOTTOM) qAlign |= Qt::AlignBottom;	// unused in j0cc
+	if (mfcAlign | TA_TOP) qAlign |= Qt::AlignTop;
+
+	// vertical
+	if (mfcAlign | TA_CENTER) qAlign |= Qt::AlignHCenter;
+	if (mfcAlign | TA_LEFT) qAlign |= Qt::AlignLeft;
+	if (mfcAlign | TA_RIGHT) qAlign |= Qt::AlignRight;	// unused in j0cc
+
+	// FIXME: TA_NOUPDATECP and TA_UPDATECP are actually used. Add them here.
+
+	return qAlign;
+}
+
+// class BaselinePainter {
+
+void BaselinePainter::setFont(const QFont &f) {
+	QPainter::setFont(f);
+	this->descent = calcDescent();
+}
+
+void BaselinePainter::drawTextAligned(qreal x, qreal y, Qt::Alignment align, const QString &text, QRectF *boundingRect)
+{
+	const qreal dDown = 32767.0;
+	const qreal dRight = dDown;
+
+	qreal left = x;
+	qreal top = y;
+
+	if (align & Qt::AlignHCenter) {
+		left -= dRight/2.0;
+	}
+	else if (align & Qt::AlignRight) {
+		left -= dRight;
+	}
+
+	if (align & Qt::AlignTop) {
+		// do nothing
+	}
+	else if (align & Qt::AlignVCenter) {
+		top -= dDown/2.0;
+	}
+	else if (align & Qt::AlignBottom) {
+		top -= dDown;
+	}
+	else {
+		// Emulate baseline alignment (AKA calling drawText() with a point).
+
+		// https://code.woboq.org/qt5/qtbase/src/gui/painting/qpainter.cpp.html
+		// Qt drawText(rect) has a simple "no-shaping" mode (undocumented Qt::TextBypassShaping, will be removed in Qt 6)
+		// and a complex "glyph-script-shaping" mode.
+		// My code will only be using drawText() for ASCII characters.
+
+		// Each codepath computes font descent differently.
+		// The simple mode probably constructs one QFontEngine per call, to compute descent.
+		// The complex mode does weird things.
+
+		int dDescentDown = this->descent;
+
+		align |= Qt::AlignBottom;
+		top -= dDown;
+		top += dDescentDown;
+	}
+
+	QRectF rect{left, top, dRight, dDown};
+	this->drawText(rect, align, text, boundingRect);
+}
+
+// } BaselinePainter
+
 /*
  *  Class CDC
  */
@@ -3752,6 +3827,34 @@ COLORREF CDC::SetPixel( int x, int y, COLORREF crColor )
    return TRUE;
 }
 
+UINT CDC::SetTextAlign(UINT nFlags)
+{
+	// FIXME implement TA_UPDATECP (https://docs.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-textoutw)
+	MfcTextAlign oldAlign = _align;
+	_align = nFlags;
+	this->_qalign = alignQtFromMFC(_align);
+	return oldAlign;
+}
+
+BOOL TextOutInternal(CDC &cdc, int x, int y, const QString &str) {
+	BaselinePainter &_qpainter = cdc._qpainter;
+	QPen origPen = cdc._qpainter.pen();
+
+	_qpainter.setPen(QPen(cdc._textColor));
+//	_qpainter.setFont((QFont)*_font);
+
+	// MFC (x,y) is right, down (in the case of j0cc, but not always).
+	// MFC is shifted such that _windowOrg is drawn at (0,0).
+
+	// Qt (x,y) is right, down.
+	int qtX = x - cdc._windowOrg.x;
+	int qtY = y - cdc._windowOrg.y;
+
+	_qpainter.drawTextAligned(qtX, qtY, cdc._qalign, (const QString&)str);
+	_qpainter.setPen(origPen);
+	return TRUE;
+}
+
 BOOL CDC::TextOut(
    int x,
    int y,
@@ -3764,16 +3867,7 @@ BOOL CDC::TextOut(
 #else
    QString qstr = QString::fromLatin1(lpszString);
 #endif
-   QFontMetrics fontMetrics((QFont)*_font);
-   QPen origPen = _qpainter.pen();
-   _qpainter.setPen(QPen(_textColor));
-//   _qpainter.setFont((QFont)*_font);
-   x += -_windowOrg.x;
-   y += -_windowOrg.y;
-   y += fontMetrics.ascent();
-   _qpainter.drawText(x,y,qstr.left(nCount));
-   _qpainter.setPen(origPen);
-   return TRUE;
+   return TextOutInternal(*this, x, y, qstr.left(nCount));
 }
 
 BOOL CDC::TextOut(
@@ -3782,16 +3876,7 @@ BOOL CDC::TextOut(
       const CString& str
 )
 {
-   QFontMetrics fontMetrics((QFont)*_font);
-   QPen origPen = _qpainter.pen();
-   _qpainter.setPen(QPen(_textColor));
-//   _qpainter.setFont((QFont)*_font);
-   x += -_windowOrg.x;
-   y += -_windowOrg.y;
-   y += fontMetrics.ascent();
-   _qpainter.drawText(x,y,(const QString&)str);
-   _qpainter.setPen(origPen);
-   return TRUE;
+	return TextOutInternal(*this, x, y, (const QString&)str);
 }
 
 IMPLEMENT_DYNAMIC(CComboBox,CWnd)
