@@ -159,8 +159,8 @@ BOOL CInstrumentEditorDPCM::OnInitDialog()
 		text.Format(_T("%s%d"), stChanNote::NOTE_NAME[GET_NOTE(i) - 1], GET_OCTAVE(i));
 		pTableListCtrl->InsertItem(i, text);
 	}
-	pTableListCtrl->GetItemRect(0, &r, 2);		// // //
-	pTableListCtrl->Scroll({0, m_iOctave * NOTE_RANGE * r.Height()});
+//	pTableListCtrl->GetItemRect(0, &r, 2);		// // //
+//	pTableListCtrl->Scroll({0, m_iOctave * NOTE_RANGE * r.Height()});
 
 	BuildSampleList();
 	m_iSelectedSample = 0;

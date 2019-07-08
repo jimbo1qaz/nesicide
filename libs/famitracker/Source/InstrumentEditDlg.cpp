@@ -108,18 +108,19 @@ BOOL CInstrumentEditDlg::OnInitDialog()
 	for (int i = 0; i < PANEL_COUNT; ++i)
 		m_pPanels[i] = NULL;
 
-	CRect r;		// // //
-	GetClientRect(&r);
-	int cx = r.Width(), bot = r.bottom;
-	GetDlgItem(IDC_INST_TAB)->GetWindowRect(&r);
-	GetDesktopWindow()->MapWindowPoints(this, &r);
-	auto pKeyboard = GetDlgItem(IDC_KEYBOARD);
-	m_KeyboardRect.left   = -1 + (cx - KEYBOARD_WIDTH) / 2;
-	m_KeyboardRect.top    = -1 + r.bottom + (bot - r.bottom - KEYBOARD_HEIGHT) / 2;
-	m_KeyboardRect.right  =  1 + m_KeyboardRect.left + KEYBOARD_WIDTH;
-	m_KeyboardRect.bottom =  1 + m_KeyboardRect.top + KEYBOARD_HEIGHT;
-	pKeyboard->MoveWindow(m_KeyboardRect);
-	m_KeyboardRect.DeflateRect(1, 1, 1, 1);
+	// hidpi support for keyboard
+//	CRect r;		// // //
+//	GetClientRect(&r);
+//	int cx = r.Width(), bot = r.bottom;
+//	GetDlgItem(IDC_INST_TAB)->GetWindowRect(&r);
+//	GetDesktopWindow()->MapWindowPoints(this, &r);
+//	auto pKeyboard = GetDlgItem(IDC_KEYBOARD);
+//	m_KeyboardRect.left   = -1 + (cx - KEYBOARD_WIDTH) / 2;
+//	m_KeyboardRect.top    = -1 + r.bottom + (bot - r.bottom - KEYBOARD_HEIGHT) / 2;
+//	m_KeyboardRect.right  =  1 + m_KeyboardRect.left + KEYBOARD_WIDTH;
+//	m_KeyboardRect.bottom =  1 + m_KeyboardRect.top + KEYBOARD_HEIGHT;
+//	pKeyboard->MoveWindow(m_KeyboardRect);
+//	m_KeyboardRect.DeflateRect(1, 1, 1, 1);
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// EXCEPTION: OCX Property Pages should return FALSE
