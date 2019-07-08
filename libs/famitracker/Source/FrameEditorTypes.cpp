@@ -128,7 +128,7 @@ int CFrameSelection::GetChanEnd() const
 void CFrameSelection::Normalize(CFrameCursorPos &Begin, CFrameCursorPos &End) const
 {
 	CFrameCursorPos Temp {GetFrameStart(), GetChanStart()};
-	std::swap(End, CFrameCursorPos {GetFrameEnd(), GetChanEnd()});
+	End = CFrameCursorPos {GetFrameEnd(), GetChanEnd()};
 	std::swap(Begin, Temp);
 }
 
