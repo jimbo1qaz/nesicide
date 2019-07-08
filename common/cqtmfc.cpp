@@ -11098,6 +11098,7 @@ CDocTemplate::CDocTemplate(UINT nIDResource,CRuntimeClass* pDocClass,CRuntimeCla
    m_pDocClass = pDocClass;
    m_pFrameClass = pFrameClass;
    m_pViewClass = pViewClass;
+   m_strDocStrings = qtMfcStringResource(nIDResource);
 }
 
 void CDocTemplate::InitialUpdateFrame(CFrameWnd* pFrame, CDocument* pDoc,

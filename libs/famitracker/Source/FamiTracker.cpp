@@ -773,6 +773,7 @@ BOOL CDocTemplate0CC::GetDocString(CString &rString, DocStringIndex i) const
 	CString strTemp, strLeft, strRight;
 	int nFindPos;
 	AfxExtractSubString(strTemp, m_strDocStrings, (int)i);
+//	AfxExtractSubString(strTemp, "j0CC-FamiTracker\n\nj0CC-FamiTracker\nj0CC-FamiTracker modules (*.0cc;*.ftm)\n.0cc\n0CCFamiTracker.Document\n0CCFamiTracker.Document", (int)i);
 	if (i == CDocTemplate::filterExt) {
 		nFindPos = strTemp.Find(';');
 		if (-1 != nFindPos) {

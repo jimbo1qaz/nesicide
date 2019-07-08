@@ -5903,6 +5903,7 @@ public:
 	   CDocument*& rpDocMatch) = 0;
 protected:
    UINT m_nIDResource;
+   CString m_strDocStrings;	// qtMfcStringResource()
    CRuntimeClass* m_pDocClass;
    CRuntimeClass* m_pViewClass;
    CRuntimeClass* m_pFrameClass;
