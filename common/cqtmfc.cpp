@@ -4246,6 +4246,36 @@ int CListBox::AddString(
    return _qtd->count()-1;
 }
 
+int CListBox::InsertString(int nIndex, LPCTSTR lpszItem)
+{
+	int count = _qtd->count();
+	if (nIndex == -1) {
+		nIndex = count;
+	}
+	// inserting before first item or after last item is OK.
+	if (!(0 <= nIndex && nIndex <= count)) {
+		return LB_ERR;
+	}
+#if UNICODE
+   _qtd->insertItem(nIndex, QString::fromWCharArray(lpszItem));
+#else
+   _qtd->insertItem(nIndex, QString::fromLatin1(lpszItem));
+#endif
+   return nIndex;
+}
+
+int CListBox::DeleteString(UINT nIndex)
+{
+	UINT count = _qtd->count();
+
+	// Delete the item following the index. [0, count).
+	if (!(nIndex < count)) {
+		return LB_ERR;
+	}
+	delete _qtd->takeItem(nIndex);
+	return count - 1;
+}
+
 int CListBox::GetCurSel() const
 {
 	 return _qtd->currentRow();

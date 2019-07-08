@@ -5662,6 +5662,10 @@ public:
    int AddString( 
       LPCTSTR lpszItem  
    );
+   int InsertString(
+	   int nIndex,
+	   LPCTSTR lpszItem);
+   int DeleteString(UINT nIndex);
    int GetCurSel() const;
    int SetCurSel(int nSelect);
 
